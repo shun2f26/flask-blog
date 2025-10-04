@@ -6,17 +6,32 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 import uuid # ファイル名の衝突回避用
+from dotenv import load_dotenv
+
+# 環境変数（.env）を読み込む (ローカル開発用。Renderでは自動で読み込まれる)
+load_dotenv()
 
 app = Flask(__name__)
 
-db = SQLAlchemy()
-SQLALCHEMY_DATABASE_URI = 'postgresql+psycopg2://{user}:{password}@{host}/{name}'.format(**{
-            'user': 'postgres',
-            'password': 'shun2f26',
-            'host': 'localhost',
-            'name': 'postgres'
-    })
-app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app = Flask(__name__) 
+
+# --- データベースURIの設定 ---
+# Heroku / Render 互換性のためのURL修正ロジック（そのまま残す）
+# ローカル実行時は 'DATABASE_URL' は None になるため、'sqlite:///' が使われる
+uri = os.environ.get('DATABASE_URL')
+if uri and uri.startswith("postgres://"):
+    uri = uri.replace("postgres://", "postgresql://", 1)
+
+# SQLiteがデフォルトのURIとして機能するように設定
+app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy() 
+migrate = Migrate()
+
+# 2. すべての設定が完了した後で初期化する
+db.init_app(app)
+migrate.init_app(app, db)
 
 # アップロード設定
 UPLOAD_FOLDER = os.path.join(app.static_folder, 'img')
@@ -26,10 +41,6 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 # パスワードリセットのためのセキュアなトークン処理用 (ここでは簡易的にSECRET_KEYを利用)
 # 本来はitsdangerousなどのライブラリを使用します
 app.config['RESET_SECRET'] = app.config["SECRET_KEY"]
-
-# --- 拡張機能の初期化 ---
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
 # ログイン管理システム
 login_manager = LoginManager()
