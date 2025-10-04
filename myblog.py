@@ -9,14 +9,20 @@ import uuid # ファイル名の衝突回避用
 
 app = Flask(__name__)
 
-db = SQLAlchemy()
-SQLALCHEMY_DATABASE_URI = 'postgresql+psycopg2://{user}:{password}@{host}/{name}'.format(**{
-            'user': 'postgres',
-            'password': 'shun2f26',
-            'host': 'localhost',
-            'name': 'postgres'
-    })
-app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+# Flaskアプリのインスタンス作成
+app = Flask(__name__) 
+
+# --- ここから修正/追加 ---
+# 1. 環境変数からDATABASE_URLを取得
+uri = os.environ.get('DATABASE_URL') 
+
+# 2. RenderのPostgreSQL形式をpsycopg2形式に強制的に修正する
+#    (postgresql://... 形式に変換)
+if uri and uri.startswith("postgres://"):
+    uri = uri.replace("postgres://", "postgresql://", 1)
+
+# 3. 修正後のURIをSQLALCHEMY_DATABASE_URIに設定
+app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///local.db'
 
 # アップロード設定
 UPLOAD_FOLDER = os.path.join(app.static_folder, 'img')
