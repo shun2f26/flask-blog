@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}記事の更新 (ID: {{ post.id }}){% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1 class="mb-4">ブログ記事の更新</h1>
+            
+            {# フラッシュメッセージ表示エリア #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category != 'message' else 'success' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="title" class="form-label">タイトル</label>
+                    <input type="text" name="title" id="title" class="form-control" placeholder="タイトルを入力" value="{{ post.title }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="body" class="form-label">内容</label>
+                    <textarea name="body" id="body" rows="8" class="form-control" placeholder="記事を入力" required>{{ post.body }}</textarea>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="current-image" class="form-label d-block">現在の画像</label>
+                    {% if post.img_name %}
+                        <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="img-fluid rounded mb-2" style="max-height: 200px; object-fit: cover;">
+                        <p class="text-muted small">ファイル名: {{ post.img_name }}</p>
+                    {% else %}
+                        <p class="text-muted">画像は登録されていません。</p>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="fileupload" class="form-label">新しい画像を選択 (既存の画像が上書きされます)</label>
+                    <input type="file" name="img" id="fileupload" class="form-control" accept="image/*">
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('admin') }}" class="btn btn-secondary">キャンセルして戻る</a>
+                    <button type="submit" class="btn btn-success btn-lg">記事を更新</button> 
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

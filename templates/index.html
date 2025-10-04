@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}しゅんブログ - 最新記事{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4">しゅんブログ</h1>
+        <p class="lead text-muted">最近の出来事をお伝えします。</p>
+        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-sm">管理者ログイン</a>
+    </div>
+
+    {# フラッシュメッセージ表示エリア #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'message' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+        {% for post in posts %}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-light">
+                <a href="{{ url_for('view', post_id=post.id) }}" class="text-decoration-none text-dark">
+                    {% if post.img_name %}
+                    <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="card-img-top" style="height: 250px; object-fit: cover;" alt="{{ post.title }}">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">{{ post.title }}</h5>
+                        <p class="card-text text-muted">{{ post.body | truncate(150) }}</p>
+                    </div>
+                </a>
+                <div class="card-footer bg-white border-0">
+                    <small class="text-muted">
+                        投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12 text-center py-5">
+            <p class="lead text-muted">まだ記事がありません。</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
