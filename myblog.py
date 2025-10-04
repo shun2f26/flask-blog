@@ -1,370 +1,265 @@
-from flask import Flask, render_template, request, redirect, flash, url_for, send_from_directory
+# myblog.py (Renderデプロイ用)
+
+import os
+import sys # sysモジュールを追加 (printをstderrにリダイレクトするため)
+from flask import Flask, render_template, request, redirect, flash, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-import os
-import uuid # ファイル名の衝突回避用
-from dotenv import load_dotenv
 
-# 環境変数（.env）を読み込む (ローカル開発用。Renderでは自動で読み込まれる)
-load_dotenv()
+# --- アプリケーション設定 ---
 
 app = Flask(__name__)
 
-app = Flask(__name__) 
+# Render環境変数から SECRET_KEY を取得
+app.config["SECRET_KEY"] = os.environ.get('SECRET_KEY', os.urandom(24))
 
-# --- データベースURIの設定 ---
-# Heroku / Render 互換性のためのURL修正ロジック（そのまま残す）
-# ローカル実行時は 'DATABASE_URL' は None になるため、'sqlite:///' が使われる
+# --- PostgreSQL接続設定 (Render対応の最終修正) ---
 uri = os.environ.get('DATABASE_URL')
+
+# 1. 接続スキームの修正: 'postgres://' を 'postgresql://' に置き換える
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
 
-# SQLiteがデフォルトのURIとして機能するように設定
-app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
+# 2. SSLモードの追加: RenderではSSL接続が必須。クエリパラメータとして 'sslmode=require' を追加
+# タイムアウトの原因を解消するため、この設定を確実に追加
+if uri:
+    if '?' not in uri:
+        uri += '?sslmode=require'
+    elif 'sslmode' not in uri:
+        uri += '&sslmode=require'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy() 
-migrate = Migrate()
+# --- データベースとマイグレーションの遅延初期化 (Lazy Init) ---
+# アプリケーション起動時のDB接続を遅延させるため、dbオブジェクトを先に作成し、
+# 後で app.init_app(db) でバインドするパターンを使用
+db = SQLAlchemy()
+db.init_app(app) # アプリケーションの構成が完了した後にDBをバインド
 
-# 2. すべての設定が完了した後で初期化する
-db.init_app(app)
-migrate.init_app(app, db)
-
-
-# Flaskアプリのインスタンス作成
-app = Flask(__name__) 
-
-# --- ここから修正/追加 ---
-# 1. 環境変数からDATABASE_URLを取得
-uri = os.environ.get('DATABASE_URL') 
-
-# 2. RenderのPostgreSQL形式をpsycopg2形式に強制的に修正する
-#    (postgresql://... 形式に変換)
-if uri and uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", "postgresql://", 1)
-
-# 3. 修正後のURIをSQLALCHEMY_DATABASE_URIに設定
-app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///local.db'
-
-
-# アップロード設定
-UPLOAD_FOLDER = os.path.join(app.static_folder, 'img')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
-
-# パスワードリセットのためのセキュアなトークン処理用 (ここでは簡易的にSECRET_KEYを利用)
-# 本来はitsdangerousなどのライブラリを使用します
-app.config['RESET_SECRET'] = app.config["SECRET_KEY"]
+migrate = Migrate(app, db)
 
 # ログイン管理システム
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login' # 未ログイン時のリダイレクト先
+login_manager.login_view = 'login' 
 login_manager.login_message = 'ログインが必要です。'
 
+# アップロードが許可される拡張子
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 
-# --- モデル定義 ---
+# --- データベースモデル ---
+
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     body = db.Column(db.String(1000), nullable=False)
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    # img_nameにはユニークな名前を保存する
     img_name = db.Column(db.String(300), nullable=True, default="") 
-    # NOTE: Postモデルから不要なreset_tokenを削除しました
-    # reset_token = db.Column(db.String(100), nullable=True) # 削除
     
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    reset_token = db.Column(db.String(100), nullable=True) # パスワードリセット用トークン
     
-@login_manager.user_loader
+@login_manager.user_loader 
 def load_user(user_id):
+    # アプリケーションコンテキスト内で実行されるため、dbは既にバインドされている
     return User.query.get(int(user_id))
 
-# --- ヘルパー関数 ---
-def allowed_file(filename):
-    """アップロードが許可される拡張子か判別"""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+# --- ファイルユーティリティ ---
 
-def generate_unique_filename(filename):
-    """ファイル名の衝突を避けるためにユニークなIDを付与"""
-    ext = filename.rsplit('.', 1)[1].lower()
-    unique_name = str(uuid.uuid4())
-    return f"{unique_name}.{ext}"
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 # --- ルーティング ---
 
-# A. 公開ページ
-
 @app.route("/")
 def index():
-    """ブログの公開トップページ"""
+    # 記事がなくても、テーブルが存在しない場合はここでエラーになる（db upgradeが必要）
     posts = Post.query.order_by(Post.create_at.desc()).all()
+    # templates/index.html に view ルーティングのURLがないため追加
     return render_template("index.html", posts=posts)
 
+# 記事詳細表示用のルーティング (templates/index.htmlとtemplates/view.htmlで使用)
 @app.route("/post/<int:post_id>")
 def view(post_id):
-    """ブログ記事の詳細ページ"""
     post = Post.query.get_or_404(post_id)
     return render_template("view.html", post=post)
-
-# B. 管理機能（CRUD）
 
 @app.route("/admin")
 @login_required
 def admin():
-    """管理画面（記事一覧）"""
-    # 投稿日時が新しい順に表示
-    posts = Post.query.order_by(Post.create_at.desc()).all() 
+    posts = Post.query.order_by(Post.create_at.desc()).all()
     return render_template("admin.html", posts=posts)
 
 @app.route("/create", methods=['GET', 'POST'])
 @login_required
 def create():
-    """記事の新規作成"""
-    if request.method == 'POST':
+    if request.method == 'GET':
+        return render_template('create.html')
+    
+    elif request.method == 'POST':
+        file = request.files.get('img')
+        db_img_name = None 
+        
+        if file and file.filename != '':
+            uploaded_filename = file.filename
+            upload_folder = os.path.join(app.root_path, 'static', 'img')
+            
+            # Renderでは一時ファイルシステムにしか書き込めないが、処理を続行
+            if not os.path.exists(upload_folder):
+                os.makedirs(upload_folder)
+            
+            save_path = os.path.join(upload_folder, uploaded_filename)
+            file.save(save_path)
+            db_img_name = uploaded_filename
+            
         title = request.form.get('title')
         body = request.form.get('body')
-        
-        file = request.files.get('img')
-        db_img_name = "" 
-        
-        if file and allowed_file(file.filename):
-            try:
-                # フォルダが存在しない場合に作成
-                if not os.path.exists(app.config['UPLOAD_FOLDER']):
-                    os.makedirs(app.config['UPLOAD_FOLDER'])
-                
-                # ユニークなファイル名を生成
-                uploaded_filename = generate_unique_filename(file.filename)
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_filename)
-                file.save(save_path)
-                db_img_name = uploaded_filename
-            except Exception as e:
-                flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                print(f"File upload error: {e}")
-                
-        # Post モデルを作成
+
         post = Post(title=title, body=body, img_name=db_img_name) 
         
-        db.session.add(post)
-        db.session.commit()
-        flash('新しい記事を作成しました。', 'success')
-        return redirect(url_for('admin'))
+        try:
+            db.session.add(post)
+            db.session.commit()
+            flash('記事が作成されました。', 'success')
+            return redirect('/admin')
+        except Exception as e:
+            flash(f'記事の作成中にデータベースエラーが発生しました: {e}', 'danger')
+            db.session.rollback()
+            return redirect(url_for('create'))
+
         
-    return render_template('create.html')
-    
-@app.route("/<int:post_id>/update", methods=['GET', 'POST'])
+@app.route("/<int:post_id>/update",methods =['GET','POST'])
 @login_required
 def update(post_id):
-    """記事の更新"""
-    post = Post.query.get_or_404(post_id)
+    post = Post.query.get_or_404(post_id) 
+    
     if request.method == 'POST':
+        # 画像更新ロジックは今回も省略
         post.title = request.form.get('title')
         post.body = request.form.get('body')
-
-        # 画像更新ロジック
-        file = request.files.get('img')
-        if file and allowed_file(file.filename):
-            try:
-                # 古いファイルがあれば削除 (オプション)
-                # if post.img_name:
-                #     os.remove(os.path.join(app.config['UPLOAD_FOLDER'], post.img_name))
-
-                # 新しいファイルを保存
-                uploaded_filename = generate_unique_filename(file.filename)
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], uploaded_filename)
-                file.save(save_path)
-                post.img_name = uploaded_filename
-            except Exception as e:
-                flash(f'画像の更新中にエラーが発生しました: {e}', 'danger')
-                print(f"File update error: {e}")
-                
+        
         db.session.commit()
         flash('記事が更新されました。', 'success')
-        return redirect(url_for('admin'))
+        return redirect('/admin')
         
-    return render_template('update.html', post=post)
+    elif request.method == 'GET':
+        return render_template('update.html', post=post)
     
 @app.route("/<int:post_id>/delete")
 @login_required
 def delete(post_id):
-    """記事の削除"""
-    post = Post.query.get_or_404(post_id)
-    
-    # 関連する画像ファイルも削除する場合
-    if post.img_name:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], post.img_name)
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Failed to delete file {file_path}: {e}")
-
+    post = Post.query.get_or_404(post_id) 
     db.session.delete(post)
     db.session.commit()
-    flash('記事が削除されました。', 'warning')
-    return redirect(url_for('admin')) 
-
-# C. 認証機能
+    flash('記事が削除されました。', 'danger')
+    return redirect('/admin')  
 
 @app.route("/signup", methods=['GET', 'POST'])
 def signup():
-    """新規ユーザー登録"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # ユーザー名の重複チェック
         if User.query.filter_by(username=username).first():
-            flash('そのユーザー名はすでに使用されています。', 'warning')
+            flash('そのユーザー名はすでに使われています。', 'warning')
             return redirect(url_for('signup'))
-            
-        hashed_pass = generate_password_hash(password)
+
+        hashed_pass = generate_password_hash(password, method='sha256')
         new_user = User(username=username, password=hashed_pass)
+        
         db.session.add(new_user)
         db.session.commit()
-        flash('アカウントが作成されました。ログインしてください。', 'success')
-        return redirect(url_for('login'))
+        flash('登録が完了しました。ログインしてください。', 'success')
+        return redirect('/login')
         
-    return render_template('signup.html')
-
+    elif request.method == 'GET':
+        return render_template('signup.html')
+        
 @app.route("/login", methods=['GET', 'POST'])
 def login():
-    """ログイン"""
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
         user = User.query.filter_by(username=username).first() 
         
-        if user and check_password_hash(user.password, password):
+        if user and check_password_hash(user.password, password=password):
             login_user(user)
-            flash('ログインに成功しました。', 'success')
-            # ログイン成功後、管理画面にリダイレクト
-            return redirect(url_for('admin'))
+            flash('ログイン成功！', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('admin'))
         else:
             flash('ユーザー名またはパスワードが違います', 'danger')
-            return redirect(url_for('login'))
-            
+            return redirect('/login')
+    
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
-    """ログアウト"""
     logout_user()
     flash('ログアウトしました。', 'info')
-    return redirect(url_for('login'))
-
-@app.route('/account', methods=['GET', 'POST'])
+    return redirect('/login')
+    
+# アカウント管理ルーティングを追加
+@app.route("/account", methods=['GET', 'POST'])
 @login_required
 def account():
-    """アカウント設定"""
     if request.method == 'POST':
+        # ユーザー名変更ロジック
         new_username = request.form.get('username')
+        
+        # パスワード変更ロジック
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
 
-        user = current_user
-        changes_made = False
-
-        # ユーザー名変更
-        if new_username and new_username != user.username:
-            # 重複チェック
-            if User.query.filter(User.username == new_username, User.id != user.id).first():
-                flash('そのユーザー名はすでに使用されています。', 'warning')
+        # ユーザー名変更処理
+        if new_username and new_username != current_user.username:
+            # 既存チェック
+            if User.query.filter_by(username=new_username).first():
+                flash('そのユーザー名はすでに使われています。', 'warning')
                 return redirect(url_for('account'))
-            user.username = new_username
-            changes_made = True
-
-        # パスワード変更
+            
+            current_user.username = new_username
+            flash('ユーザー名が更新されました。', 'success')
+            
+        # パスワード変更処理
         if new_password:
             if new_password != confirm_password:
                 flash('新しいパスワードと確認用パスワードが一致しません。', 'danger')
                 return redirect(url_for('account'))
             
-            # パスワードのハッシュ化と更新
-            user.password = generate_password_hash(new_password)
-            changes_made = True
-        
-        if changes_made:
-            db.session.commit()
-            flash('アカウント設定を更新しました。', 'success')
-        else:
-            flash('変更点はありませんでした。', 'info')
-            
-        return redirect(url_for('account'))
-        
-    return render_template('account.html', current_user=current_user)
+            current_user.password = generate_password_hash(new_password, method='sha256')
+            flash('パスワードが更新されました。', 'success')
 
-@app.route('/forgot_password', methods=['GET', 'POST'])
-def forgot_password():
-    """パスワードリセット要求 (メール機能は省略)"""
-    if request.method == 'POST':
-        username = request.form.get('username')
-        user = User.query.filter_by(username=username).first()
-        
-        if user:
-            # 実際のアプリケーションでは、ここでitsdangerousを使ってトークンを生成し、
-            # ユーザーのメールアドレスにリセットURLを送信します。
-            # 今回は簡易的に、ユーザーオブジェクトに直接トークンを保存すると仮定します。
-            reset_token = str(uuid.uuid4())
-            user.reset_token = reset_token
-            db.session.commit()
-            
-            # メール送信の代わりに、デバッグメッセージでリセットURLを表示
-            flash(f'パスワードリセットリンクを送信しました。 (デバッグ: {url_for("reset_password", token=reset_token, _external=True)})', 'info')
-        else:
-            flash('ユーザーが見つかりませんでした。', 'danger')
-            
-        return redirect(url_for('forgot_password'))
-        
-    return render_template('forgot_password.html')
-
-@app.route('/reset_password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    """パスワードリセット実行"""
-    user = User.query.filter_by(reset_token=token).first()
-    
-    if not user:
-        flash('無効なリセットリンクです。', 'danger')
-        return redirect(url_for('forgot_password'))
-        
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        if password != confirm_password:
-            flash('パスワードが一致しません。', 'danger')
-            return redirect(url_for('reset_password', token=token))
-            
-        # パスワードを更新し、トークンをクリア
-        user.password = generate_password_hash(password)
-        user.reset_token = None
         db.session.commit()
-        
-        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
-        return redirect(url_for('login'))
-        
-    return render_template('reset_password.html', token=token)
+        return redirect(url_for('account'))
+    
+    return render_template('account.html')
 
-# 静的ファイルの提供（Renderで静的ファイルが正しくロードされない場合の代替策）
-@app.route('/static/img/<filename>')
-def serve_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+# パスワードリセット関連のルーティングは今回省略
+# (認証とメール送信が必要で複雑なため)
 
-# アプリケーションの実行 (ローカル用)
-if __name__ == "__main__":
-    # Renderでは自動で'FLASK_APP'が設定されますが、ローカル実行のために設定
+if __name__ == '__main__':
+    # ローカル開発時に実行
+    # 本番環境では gunicorn が実行するため不要
+    print("Running Flask in local development mode.", file=sys.stderr)
+    # ローカル環境ではデータベースのスキーマが存在しない場合があるため、
+    # 開発環境でのみ create_all() を実行する（Render環境では実行しない）
     # with app.app_context():
-    #     db.create_all() # マイグレーション使用時は不要
-    #     print("Database initialized.")
+    #     db.create_all() 
     app.run(debug=True)
+
+# Gunicornは 'myblog:app' を使用してアプリを起動します
