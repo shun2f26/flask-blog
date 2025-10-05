@@ -1,47 +1,43 @@
-{% extends 'base.html' %}
-
-{% block title %}アカウント登録{% endblock %}
+{% extends "base.html" %}
+{% block title %}サインアップ{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-lg-5 mx-auto">
-            <div class="card shadow-lg">
-                <div class="card-body p-5">
-                    <h3 class="card-title text-center mb-4">アカウント登録</h3>
-                    
-                    {# フラッシュメッセージ表示エリア #}
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category if category != 'message' else 'danger' }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label for="username" class="form-label">ユーザー名</label>
-                            <input type="text" name="username" id="username" class="form-control" placeholder="ユーザー名を入力" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label">パスワード</label>
-                            <input type="password" name="password" id="password" class="form-control" placeholder="パスワードを入力" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">ユーザー登録</button>
-                    </form>
-                    
-                    <div class="text-center">
-                        <a href="{{ url_for('login') }}" class="text-decoration-none">すでにアカウントをお持ちの方はこちら</a>
-                    </div>
-                </div>
-            </div>
-            
-            {# 余分な {{ method }} は削除 #}
-        </div>
-    </div>
+<div class="flex justify-center items-center py-12">
+    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl">
+        <h2 class="text-3xl font-bold text-gray-900 text-center mb-6">新規ユーザー登録</h2>
+        <p class="text-center text-gray-500 mb-8">アカウントを作成してブログ管理を始めましょう。</p>
+        
+        <form method="POST" action="{{ url_for('signup') }}" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名</label>
+                <input id="username" name="username" type="text" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                       placeholder="ユーザー名を入力">
+            </div>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">パスワード</label>
+                <input id="password" name="password" type="password" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                       placeholder="パスワードを入力">
+            </div>
+            
+            <div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    <i class="fas fa-user-plus mr-2"></i>登録する
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+                アカウントをお持ちですか？
+                <a href="{{ url_for('login') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                    ログインはこちら
+                </a>
+            </p>
+        </div>
+    </div>
 </div>
 {% endblock %}
