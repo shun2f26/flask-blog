@@ -135,22 +135,6 @@ def get_user_by_username(username):
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
 
-# --- ルーティング ---
-
-# 🚨 データベース初期化用の特別なルート (テーブルが存在しないエラー対策)
-@app.route("/db_init")
-def db_init():
-    # 既にテーブルが存在する場合は何もしないようにしたいが、強制的に作成する
-    try:
-        db.create_all()
-        # テーブル作成が成功した後、マイグレーション履歴テーブルも作成されるようにしておく
-        # これはFlask-Migrateが初期化されていないとエラーになる可能性があるため、より安全なのはdb.create_all()のみ
-        return "Database tables (Post and User) created successfully! Please remove this route after running once.", 200
-    except Exception as e:
-        # DB接続自体ができていない場合は、エラーメッセージを表示
-        return f"Error creating tables. Please check your DATABASE_URL and the psycopg2-binary installation in requirements.txt. Error: {e}", 500
-
-
 @app.route("/")
 def index():
     posts = db.session.execute(
