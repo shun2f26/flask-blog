@@ -1,17 +1,15 @@
-# myblog.py (db_initの再追加)
+# Hello.py (SQLAlchemy 2.0 形式に統一)
 
 import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-# UserMixin, login_user, ... はそのまま
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
-# itsdangerousをインポート（トークン生成・検証用）
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature # パスワードリセット用にインポート
 
 # --- アプリケーション設定 ---
 
@@ -27,25 +25,20 @@ if database_url:
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     
-    # RenderのPostgreSQL接続にはsslmode=requireが必須 (既に設定されているかチェック)
+    # RenderのPostgreSQL接続にはsslmode=requireが必須
     if 'sslmode=require' not in database_url and 'sslmode' not in database_url:
         separator = '&' if '?' in database_url else '?'
         database_url += f'{separator}sslmode=require'
     
-    # PostgreSQL接続のためのデバッグ情報
+    # デバッグ情報
     print("--- データベース接続情報 ---", file=sys.stderr)
-    print(f"使用DB: PostgreSQL (環境変数 'DATABASE_URL' を使用)", file=sys.stderr)
-    # ユーザーが接続URLを確認しやすいように一部表示（パスワードは隠す）
     print(f"接続URL: {database_url.split('@')[0]}@...", file=sys.stderr) 
-    print("PostgreSQLを使用するには **'psycopg2-binary'** が必要です。", file=sys.stderr)
     print("----------------------------", file=sys.stderr)
     
 else:
-    # ローカル開発用のデフォルト設定
     database_url = 'sqlite:///site.db'
-    # SQLite接続のためのデバッグ情報
     print("--- データベース接続情報 ---", file=sys.stderr)
-    print("使用DB: SQLite (環境変数 'DATABASE_URL' が未設定のため)", file=sys.stderr)
+    print("使用DB: SQLite", file=sys.stderr)
     print("----------------------------", file=sys.stderr)
     
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
@@ -58,7 +51,6 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'ログインが必要です。' 
 
 # --- データベースとマイグレーションの設定 ---
-
 db = SQLAlchemy()
 migrate = Migrate()
 db.init_app(app)
@@ -74,45 +66,26 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     
-    # Flask-Login の要件を満たすために is_active などを明示的に定義 (UserMixinに含まれているが、明示することで安全性が向上)
-    @property
-    def is_active(self):
-        return True # ユーザーは常にアクティブ
-    
-    @property
-    def is_authenticated(self):
-        return True # 認証済み
-    
-    @property
-    def is_anonymous(self):
-        return False # 匿名ではない
-
-    # パスワードリセット用のトークンを生成するメソッド
-    def get_reset_token(self, expires_sec=1800): # トークン有効期限30分
+    def get_reset_token(self, expires_sec=1800): 
         s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-        # ユーザーIDをシリアライズしてトークンを生成
         return s.dumps({'user_id': self.id})
 
-    # トークンからユーザーをロードするクラスメソッド
     @staticmethod
     def verify_reset_token(token, expires_sec=1800):
         s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
         try:
-            # トークンをロードし、有効期限切れかどうかをチェック
             data = s.loads(token, max_age=expires_sec)
         except (SignatureExpired, BadTimeSignature):
             return None
-        # トークンから取得したuser_idでユーザーを検索
         return db.session.get(User, data['user_id'])
 
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # bodyの長さをHello.pyの1000から5000に修正 (ブログ記事として十分な長さに)
-    body = db.Column(db.String(5000), nullable=False) 
+    body = db.Column(db.String(5000), nullable=False) # myblog.pyに合わせ5000に拡張
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") 
+    img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") # デフォルト値を設定 
     
 @login_manager.user_loader 
 def load_user(user_id):
@@ -386,23 +359,5 @@ def page_not_found(e):
 
 # --- アプリケーション実行 (ローカル開発用) ---
 if __name__ == '__main__':
-    with app.app_context():
-        # SQLiteファイルが存在しない場合にテーブルを作成します。
-        # データベースの接続URLが'sqlite:///'で始まる場合にのみ実行。
-        if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:///'):
-            db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
-            if not os.path.exists(db_path):
-                print(f"データベースファイル '{db_path}' が見つかりませんでした。テーブルを作成します...")
-                try:
-                    # データベースの初期化
-                    db.create_all()
-                    # 初期ユーザーの作成（オプション）
-                    # 例: admin_user = User(username='admin', password=generate_password_hash('password', method='sha256'))
-                    # db.session.add(admin_user)
-                    # db.session.commit()
-                    print("データベーステーブルの作成が完了しました。")
-                except Exception as e:
-                    print(f"データベースの初期化中にエラーが発生しました: {e}", file=sys.stderr)
-                    
-        # ローカル開発時にサーバーを起動
-        app.run(debug=True)
+    # ... (ローカルでのdb.create_all()ロジックは省略)
+    app.run(debug=True)
