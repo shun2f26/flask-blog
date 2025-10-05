@@ -30,8 +30,7 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-fallback-key-for-dev') 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 # ロガー設定
 app.logger.setLevel(logging.INFO)
 
@@ -47,7 +46,8 @@ if cloudinary_cloud_name and cloudinary_api_key and cloudinary_api_secret:
         api_secret=cloudinary_api_secret
     )
 else:
-    app.logger.error("Cloudinary API keys are not set!")
+    # Cloudinaryキーがない場合でもアプリケーションはクラッシュしない
+    app.logger.warning("Cloudinary API keys are not set. Image upload will be disabled.")
 
 # Gemini API設定
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
@@ -95,6 +95,7 @@ class Post(db.Model):
     public_id = db.Column(db.String(255), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
+
 # --- Flask-Login ユーザーローダー ---
 
 @login_manager.user_loader
@@ -104,7 +105,6 @@ def load_user(user_id):
 
 # --- カスタムコンテキストプロセッサ ---
 
-# Jinjaテンプレートでcloudinaryオブジェクトとdatetimeを利用可能にする
 @app.context_processor
 def utility_processor():
     """テンプレート内でcloudinaryオブジェクトとdatetimeを利用可能にする"""
@@ -148,7 +148,6 @@ def generate_content_with_llm(prompt):
 
 # --- ルーティング関数 ---
 
-# データベース初期化ルート
 @app.route('/db_init')
 def db_init():
     """データベースのテーブルを作成する"""
@@ -167,18 +166,26 @@ def db_init():
 def index():
     """トップページ: 全記事を新しい順に表示"""
     try:
-        posts = Post.query.order_by(Post.create_at.desc()).all()
-    except Exception as e:
+        posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
+        if not posts and not User.query.first():
+            # 記事もユーザーもいない場合、DB初期化を促す
+            flash('データベースが空のようです。最初に /db_init にアクセスしてテーブルを初期化してください。', 'info')
+    except exc.SQLAlchemyError as e:
         app.logger.error(f"Database Query Error on Index: {e}")
-        flash('データベースから記事を読み込む際にエラーが発生しました。DBが初期化されているか確認してください。', 'danger')
+        # エラー発生時は空のリストを返し、クラッシュを避ける
+        flash('データベースから記事を読み込む際にエラーが発生しました。/db_init にアクセスしてDBを初期化してください。', 'danger')
+        posts = []
+    except Exception as e:
+        app.logger.error(f"Unexpected Error on Index: {e}")
+        flash('予期せぬエラーが発生しました。', 'danger')
         posts = []
         
     return render_template('index.html', posts=posts)
 
 # --- 認証ルート ---
 
-@app.route('/signup', methods=['GET', 'POST']) # <-- ここを 'signup' に変更
-def signup(): # <-- ここを 'signup' に変更
+@app.route('/signup', methods=['GET', 'POST']) 
+def signup(): 
     """ユーザー登録"""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -209,7 +216,8 @@ def signup(): # <-- ここを 'signup' に変更
             flash('データベースエラーにより登録に失敗しました。', 'danger')
             app.logger.error(f"Registration DB Error: {e}")
 
-    return render_template('signup.html') # signup.html をレンダリング
+    # ★ GETリクエストでアクセスされた場合、signup.htmlをレンダリングする
+    return render_template('signup.html') 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -242,7 +250,7 @@ def logout():
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
 
-# パスワードリセット系のダミーエンドポイント（テンプレートからの参照エラーを回避するため）
+# パスワードリセット系のダミーエンドポイント
 @app.route('/forgot_password')
 def forgot_password():
     flash('この機能はまだ実装されていません。', 'info')
@@ -414,9 +422,4 @@ def admin():
     return render_template('admin.html', posts=posts)
 
 # --- 実行ブロック ---
-
-if __name__ == '__main__':
-    with app.app_context():
-        # 開発環境でSQLiteを使う場合はここで db.create_all() を実行
-        pass
-    app.run(debug=True)
+# デプロイ環境では実行されない
