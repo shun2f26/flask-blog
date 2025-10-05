@@ -63,7 +63,7 @@ login_manager.login_message = 'ログインが必要です。'
 
 # --- データベースとマイグレーションの設定 ---
 db = SQLAlchemy()
-# 🚨 シェルを使わないため、Flask-Migrateはバインドしないか、バインドしても使わない
+# 🚨 Flask-Migrateは使用しない
 # migrate = Migrate() 
 db.init_app(app)
 # migrate.init_app(app, db) # 🚨 マイグレーションの使用は停止
@@ -77,7 +77,9 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    posts = db.relationship('Post', backref='author', lazy=True)
+    # 🚨 Postモデルに 'create_at' があるため、リレーションのバックリファレンスを修正
+    # posts = db.relationship('Post', backref='author', lazy=True)
+    posts = db.relationship('Post', backref=db.backref('author', lazy=True), cascade="all, delete-orphan")
     
     def get_reset_token(self, expires_sec=1800): 
         s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
@@ -102,6 +104,8 @@ class Post(db.Model):
     image_file = db.Column(db.String(300), nullable=True) 
     # 外部キーを追加
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # 記事作成日時を追加（クエリに使用されていたため）
+    create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) 
 
 def upload_image_to_cloudinary(file_data):
     """
@@ -146,20 +150,31 @@ def get_user_by_username(username):
     ).scalar_one_or_none()
 
 # -------------------------------------------------------------------
-# !!! 🚨 シェルを使わない場合の自動DB初期化ロジック (重要) 🚨 !!!
+# !!! 🚨 自動DB初期化ロジックを削除し、専用ルートへ移動する 🚨 !!!
 # -------------------------------------------------------------------
-# Webサービスが起動する際に、このブロックが実行されるようにする。
-# db.create_all() はテーブルが存在しない場合のみ作成し、存在する場合は何もしない。
-try:
-    with app.app_context():
-        # データベースに接続し、テーブルが存在しなければ作成する
-        db.create_all()
-        print("Database tables ensured to be created by db.create_all() at startup.", file=sys.stderr)
-except Exception as e:
-    # 接続自体が失敗した場合や、エラーが発生した場合
-    print(f"CRITICAL: Failed to run db.create_all() at startup: {e}", file=sys.stderr)
+# 以下の起動時ロジックを削除し、デプロイ時の接続エラーを防ぎます。
+# try:
+#     with app.app_context():
+#         db.create_all()
+#         print("Database tables ensured to be created by db.create_all() at startup.", file=sys.stderr)
+# except Exception as e:
+#     print(f"CRITICAL: Failed to run db.create_all() at startup: {e}", file=sys.stderr)
     
 # -------------------------------------------------------------------
+
+
+# --- データベース初期化専用ルート (一度実行後、削除/非公開推奨) ---
+@app.route('/db_init')
+def db_init():
+    try:
+        with app.app_context():
+            # データベース接続を試み、テーブルを作成する
+            db.create_all()
+            return "Database tables (Post and User) created successfully! Please remove this route after running once."
+    except Exception as e:
+        return f"Database initialization failed: {e}", 500
+# ---------------------------------------------------------------
+
 
 @app.route("/")
 def index():
