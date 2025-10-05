@@ -1,13 +1,18 @@
 import os
 from datetime import datetime
-import time # For exponential backoff
+import time 
 import logging
-from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 from sqlalchemy.exc import OperationalError, ProgrammingError 
+
+# --- Cloudinary Imports & Setup ---
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # --- 1. App Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -17,13 +22,28 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Load configuration from environment variables
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL', 
-    'sqlite:///myblog.db'
-).replace('postgres://', 'postgresql://') 
+# DATABASE_URLのpostgres://をpostgresql://に置換し、sslmode=requireを追加
+db_url = os.environ.get('DATABASE_URL', 'sqlite:///myblog.db')
+if db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql://', 1)
 
+if db_url.startswith('postgresql://'):
+    if '?' not in db_url:
+        db_url += '?sslmode=require'
+    elif 'sslmode' not in db_url:
+        db_url += '&sslmode=require'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_fallback_secret_key_12345')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Cloudinary Configuration
+cloudinary.config(
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key = os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET'),
+    secure = True
+)
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -32,7 +52,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインしてください。' 
 
-# Token Serializer (Timeout is set in loads() via max_age)
+# Token Serializer (有効期限30分)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY']) 
 
 # --- 2. Database Models ---
@@ -41,14 +61,12 @@ class User(UserMixin, db.Model):
     """ユーザーモデル: ユーザー認証情報を保存します。"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    
-    # 修正: PostgreSQLのStringDataRightTruncationエラーに備え、長さを256に拡張
+    # ハッシュ衝突を避けるため、パスワードハッシュの長さを256に拡張
     password_hash = db.Column(db.String(256), nullable=False)
-    
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
-        # 修正: method='sha256'を削除。デフォルトの安全なハッシュ（Bcrypt等）を使用します。
+        # デフォルトで安全なアルゴリズム (Bcryptなど) を使用
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
@@ -64,6 +82,9 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     create_at = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     
+    # Cloudinary Public ID を保存するフィールド
+    public_id = db.Column(db.String(255), nullable=True) 
+    
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
     def __repr__(self):
@@ -76,7 +97,46 @@ def load_user(user_id):
     """ユーザーIDに基づいてユーザーオブジェクトをロードします。"""
     return User.query.get(int(user_id))
 
-# --- 4. Database Initialization and Status Check ---
+# --- 4. Cloudinary Helper Functions ---
+
+def upload_image_to_cloudinary(file, folder="flask_blog_images"):
+    """ファイルをCloudinaryにアップロードし、public_idを返します。"""
+    # ファイルオブジェクトが空でないか、またはファイル名が存在するか確認
+    if not file or file.filename == '':
+        return None
+
+    try:
+        # アップロード先のフォルダを指定
+        upload_result = cloudinary.uploader.upload(file, folder=folder)
+        return upload_result.get('public_id')
+    except Exception as e:
+        logger.error(f"Cloudinary upload failed: {e}")
+        return None
+
+def delete_image_from_cloudinary(public_id):
+    """Cloudinaryから画像を削除します。"""
+    if not public_id:
+        return True # 削除する画像がないため成功とみなす
+        
+    try:
+        # 削除を実行
+        cloudinary.uploader.destroy(public_id)
+        return True
+    except Exception as e:
+        logger.error(f"Cloudinary deletion failed for {public_id}: {e}")
+        return False
+
+# --- 5. Application Context Processor ---
+
+@app.context_processor
+def inject_globals():
+    """テンプレートで現在時刻やCloudinaryヘルパーを利用可能にする。"""
+    return {
+        'now': datetime.utcnow, 
+        'cloudinary': cloudinary # Cloudinaryユーティリティをテンプレートに渡す
+    }
+
+# --- 6. Database Initialization and Health Check ---
 
 def check_db_health():
     """データベース接続とテーブル存在チェックを試みる"""
@@ -95,14 +155,13 @@ def check_db_health():
 
 @app.route('/db_init')
 def db_init():
-    """データベースとテーブルを初期化するためのルート。"""
+    """データベースとテーブルを初期化するためのルート (指数バックオフでリトライ)。"""
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            # テーブル作成
             db.drop_all()
             db.create_all()
-            logger.info("Database connection successful. Tables (Post and User) created successfully!")
+            logger.info("Database connection successful. Tables created successfully!")
             return "データベース接続が成功し、テーブルが初期化されました。次に <a href='/signup'>/signup</a> からユーザー登録を行ってください。", 200
         except OperationalError as e:
             logger.error(f"Database initialization failed (Attempt {attempt + 1}/{max_retries}): Connection refused or timeout. {e}")
@@ -113,16 +172,17 @@ def db_init():
             else:
                 return f"データベース初期化に失敗しました。データベースURLと接続設定を確認してください: {e}", 500
         except Exception as e:
-            logger.error(f"Database initialization failed unexpectedly: {e}")
+            logger.error(f"予期せぬエラーにより初期化に失敗しました: {e}")
             return f"予期せぬエラーにより初期化に失敗しました: {e}", 500
     return "Initialization failed unexpectedly.", 500
 
+# --- 7. Error Handlers ---
 
-# --- 5. Error Handlers ---
 def error_response(error_code, title, message):
     """カスタムエラーページをレンダリングします。"""
     logger.error(f"Error {error_code}: {title} - {message}")
-    return render_template('error_page.html', title=title, message=message), error_code
+    # 404.html を簡易エラーテンプレートとして使用
+    return render_template('404.html'), error_code 
 
 @app.errorhandler(403)
 def forbidden(error):
@@ -136,7 +196,6 @@ def not_found(error):
 def internal_server_error(error):
     # データベース未接続の場合を特別に扱う
     if not check_db_health():
-        # HTMLタグを含むため、安全のためにハードコーディングされたレスポンスを使用
         return f"""
         <!doctype html>
         <title>500 データベース接続エラー</title>
@@ -149,13 +208,12 @@ def internal_server_error(error):
         <h1>500 データベース接続エラー</h1>
         <p>データベースサーバーに接続できません。サービスの起動後、必ず 
         <a href="/db_init">/db_init</a> を実行し、データベースを初期化してください。</p>
-        <p>ログを確認し、Gunicornのタイムアウト設定（120秒推奨）が適用されているか確認してください。</p>
+        <p>Gunicornのタイムアウト設定が適用されていることを確認してください。</p>
         """, 500
         
-    # それ以外の500エラー
-    return error_response(500, '500 サーバーエラー', 'サーバー側で予期せぬエラーが発生しました。時間を置いて再度お試しください。')
+    return error_response(500, '500 サーバーエラー', f'サーバー側で予期せぬエラーが発生しました。詳細: {error}')
 
-# --- 6. Authentication Routes ---
+# --- 8. Authentication Routes ---
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -179,7 +237,6 @@ def signup():
                 return render_template('signup.html')
 
             new_user = User(username=username)
-            # generate_password_hashはset_password内で呼び出されます
             new_user.set_password(password)
             
             db.session.add(new_user)
@@ -237,6 +294,7 @@ def logout():
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     """パスワードリセットトークン生成のダミー処理。"""
+    # テンプレートは reset_password_dummy.html に依存
     if current_user.is_authenticated:
         return redirect(url_for('admin'))
 
@@ -265,6 +323,7 @@ def forgot_password():
 def reset_password(token):
     """パスワードリセット実行処理。"""
     try:
+        # トークンの有効期限をチェック (1800秒 = 30分)
         user_id = s.loads(token, salt='password-reset-salt', max_age=1800) 
     except SignatureExpired:
         flash('パスワードリセットリンクの有効期限が切れました。再度リクエストしてください。', 'danger')
@@ -289,11 +348,11 @@ def reset_password(token):
 
         if password != confirm_password:
             flash('パスワードと確認用パスワードが一致しません。', 'danger')
-            return render_template('reset_password.html', token=token)
-
+            return render_template('reset_password_dummy.html', token=token)
+             
         if len(password) < 6:
              flash('パスワードは6文字以上である必要があります。', 'danger')
-             return render_template('reset_password.html', token=token)
+             return render_template('reset_password_dummy.html', token=token)
              
         try:
             user.set_password(password)
@@ -305,7 +364,7 @@ def reset_password(token):
             logger.error(f"Password reset commit error: {e}")
             flash('パスワード更新中にエラーが発生しました。', 'danger')
 
-    return render_template('reset_password.html', token=token)
+    return render_template('reset_password_dummy.html', token=token)
 
 @app.route('/account', methods=['GET', 'POST'])
 @login_required
@@ -353,7 +412,9 @@ def account():
 
     return render_template('account.html', user=user)
 
-# --- 7. Blog Routes (CRUD) ---
+
+# --- 9. Blog Routes (CRUD with Cloudinary) ---
+
 @app.route('/')
 def index():
     """すべての記事を表示するトップページ。"""
@@ -384,16 +445,26 @@ def admin():
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事の作成。"""
+    """新規記事の作成。画像アップロード対応。"""
     if request.method == 'POST':
         title = request.form.get('title')
         content = request.form.get('content')
+        # ファイルオブジェクトを取得
+        image_file = request.files.get('image_file') 
 
         if not title or not content:
             flash('タイトルと本文は必須です。', 'danger')
             return render_template('create.html')
 
-        new_post = Post(title=title, content=content, user_id=current_user.id)
+        public_id = None
+        # 画像ファイルが選択され、ファイル名が存在する場合のみアップロードを試みる
+        if image_file and image_file.filename != '':
+             public_id = upload_image_to_cloudinary(image_file)
+             if not public_id:
+                 # アップロード失敗時
+                 flash('画像のアップロードに失敗しました。画像なしで記事を投稿します。', 'warning')
+        
+        new_post = Post(title=title, content=content, user_id=current_user.id, public_id=public_id)
         
         try:
             db.session.add(new_post)
@@ -416,6 +487,7 @@ def create():
 def view(post_id):
     """記事の詳細表示。"""
     try:
+        # postオブジェクトには public_id が含まれる
         post = Post.query.get_or_404(post_id)
         return render_template('view.html', post=post)
     except (OperationalError, ProgrammingError):
@@ -428,7 +500,7 @@ def view(post_id):
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事の更新。"""
+    """記事の更新。画像更新・削除対応。"""
     try:
         post = Post.query.get_or_404(post_id)
     except (OperationalError, ProgrammingError):
@@ -444,10 +516,33 @@ def update(post_id):
     if request.method == 'POST':
         post.title = request.form.get('title')
         post.content = request.form.get('content')
-        
+        image_file = request.files.get('image_file')
+        delete_image_flag = request.form.get('delete_image') # チェックボックスの値
+
         if not post.title or not post.content:
             flash('タイトルと本文は必須です。', 'danger')
             return render_template('update.html', post=post)
+
+        # 1. 既存の画像の削除を要求された場合 (チェックボックスがON)
+        if delete_image_flag == 'on':
+            if post.public_id:
+                delete_image_from_cloudinary(post.public_id)
+                post.public_id = None
+                flash('既存の画像を削除しました。', 'info')
+        
+        # 2. 新しい画像がアップロードされた場合
+        if image_file and image_file.filename != '':
+            # 既存の画像があれば、先に削除 (新しい画像で置き換えるため)
+            if post.public_id:
+                delete_image_from_cloudinary(post.public_id)
+            
+            new_public_id = upload_image_to_cloudinary(image_file)
+            if new_public_id:
+                post.public_id = new_public_id
+                flash('新しい画像をアップロードし、置き換えました。', 'success')
+            else:
+                 flash('新しい画像のアップロードに失敗しました。', 'warning')
+                 # post.public_id は変更しない (既存の画像が削除されていればNoneのまま)
 
         try:
             db.session.commit()
@@ -468,7 +563,7 @@ def update(post_id):
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
 def delete(post_id):
-    """記事の削除。"""
+    """記事の削除。Cloudinaryの画像も同時に削除。"""
     try:
         post = Post.query.get_or_404(post_id)
     except (OperationalError, ProgrammingError):
@@ -480,6 +575,10 @@ def delete(post_id):
         return redirect(url_for('admin'))
 
     try:
+        # Cloudinaryから画像を削除
+        if post.public_id:
+            delete_image_from_cloudinary(post.public_id)
+            
         db.session.delete(post)
         db.session.commit()
         flash('記事が正常に削除されました。', 'success')
@@ -494,8 +593,6 @@ def delete(post_id):
         flash('記事の削除中に予期せぬエラーが発生しました。', 'danger')
         return redirect(url_for('admin'))
 
-# --- 8. Run App (for local development) ---
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False) 
+    app.run(host='0.0.0.0', port=port, debug=False)
