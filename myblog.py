@@ -116,12 +116,22 @@ class Post(db.Model):
     
 @login_manager.user_loader 
 def load_user(user_id):
-    # **修正点**: user_idがNoneでないことを確認し、db.session.get()を使用
+    # Flask-Loginから渡される user_id は文字列の可能性があるため、確実に整数に変換します。
     if user_id is None:
         return None
-    return db.session.get(User, int(user_id))
+    try:
+        # IDを安全に整数型に変換し、ユーザーを取得
+        user_id_int = int(user_id)
+        return db.session.get(User, user_id_int)
+    except ValueError:
+        # 変換に失敗した場合（user_idが数字でなかった場合）
+        print(f"Error: Invalid user_id format received: {user_id}", file=sys.stderr)
+        return None
 
 # --- ヘルパー関数 (SQLAlchemy 2.0対応) ---
+
+def get_post_or_404(post_id):
+# ... (後略)
 
 def get_post_or_404(post_id):
     # SQLAlchemy 2.0 の推奨 get メソッドを使用
