@@ -5,6 +5,7 @@
 <div class="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-2xl">
     <h1 class="text-3xl font-extrabold text-gray-900 mb-8 text-center">新規記事を作成</h1>
 
+    <!-- enctype="multipart/form-data" を追加してファイルアップロードを有効化 -->
     <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6">
         <!-- タイトル -->
         <div>
@@ -18,9 +19,9 @@
             <textarea name="content" id="content" rows="10" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
         </div>
 
-        <!-- 画像ファイルアップロードフィールド -->
+        <!-- 画像ファイルアップロードフィールド (Cloudinaryへアップロード) -->
         <div>
-            <label for="image_file" class="block text-sm font-medium text-gray-700">画像ファイル (Cloudinaryにアップロード)</label>
+            <label for="image_file" class="block text-sm font-medium text-gray-700">画像ファイル (オプション)</label>
             <input type="file" name="image_file" id="image_file" accept="image/*" class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none p-3">
             <p class="mt-1 text-xs text-gray-500">PNG, JPG, GIFなどの画像ファイルを選択してください。</p>
         </div>
