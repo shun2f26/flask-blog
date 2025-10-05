@@ -197,7 +197,7 @@ def signup():
             flash('そのユーザー名はすでに使われています。', 'warning')
             return redirect(url_for('signup'))
 
-        hashed_pass = generate_password_hash(password, method='sha256')
+        hashed_pass = generate_password_hash(password)
         new_user = User(username=username, password=hashed_pass)
         
         db.session.add(new_user)
@@ -270,7 +270,7 @@ def account():
         # パスワード更新
         new_password = request.form.get('new_password')
         if new_password:
-            user.password = generate_password_hash(new_password, method='sha256')
+            hashed_pass = generate_password_hash(password)
             is_updated = True
             
         if is_updated:
@@ -333,7 +333,7 @@ def reset_password(token):
             # エラー時もトークンを保持して同じページに戻る
             return redirect(url_for('reset_password', token=token)) 
             
-        user.password = generate_password_hash(password, method='sha256')
+        hashed_pass = generate_password_hash(password)
         db.session.commit()
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
         return redirect(url_for('login'))
