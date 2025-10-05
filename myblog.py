@@ -41,7 +41,10 @@ class User(UserMixin, db.Model):
     """ユーザーモデル: ユーザー認証情報を保存します。"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    
+    # 修正: password_hashの長さを128から256に増やし、長いハッシュ値に対応
+    password_hash = db.Column(db.String(256), nullable=False)
+    
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
@@ -77,7 +80,6 @@ def load_user(user_id):
 def check_db_health():
     """データベース接続とテーブル存在チェックを試みる"""
     try:
-        # 軽いクエリを実行して接続とテーブルの存在をテスト
         db.session.execute(db.select(User).limit(1)).scalar_one_or_none()
         return True
     except OperationalError as e:
@@ -152,8 +154,8 @@ def internal_server_error(error):
     # それ以外の500エラー
     return error_response(500, '500 サーバーエラー', 'サーバー側で予期せぬエラーが発生しました。時間を置いて再度お試しください。')
 
-# --- 6. Authentication Routes (省略 - 変更なし) ---
-# ... (以前のコードの signup, login, logout, forgot_password, reset_password, account ルート)
+# --- 6. Authentication Routes ---
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """サインアップ (ユーザー登録) 処理を行います。"""
@@ -176,6 +178,7 @@ def signup():
                 return render_template('signup.html')
 
             new_user = User(username=username)
+            # generate_password_hashでハッシュ化し、db.Column(db.String(256))に保存
             new_user.set_password(password)
             
             db.session.add(new_user)
@@ -349,8 +352,7 @@ def account():
 
     return render_template('account.html', user=user)
 
-# --- 7. Blog Routes (CRUD) (省略 - 変更なし) ---
-# ... (以前のコードの index, admin, create, view, update, delete ルート)
+# --- 7. Blog Routes (CRUD) ---
 @app.route('/')
 def index():
     """すべての記事を表示するトップページ。"""
