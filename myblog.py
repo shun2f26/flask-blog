@@ -6,6 +6,9 @@ from flask import Flask, render_template, request, redirect, flash, url_for, abo
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
+import cloudinary 
+import cloudinary.uploader
+from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
@@ -85,7 +88,25 @@ class Post(db.Model):
     title = db.Column(db.String(100), nullable=False)
     body = db.Column(db.String(5000), nullable=False) # myblog.pyに合わせ5000に拡張
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") # デフォルト値を設定 
+    img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") # デフォルト値を設定
+
+def upload_image_to_cloudinary(file_data):
+    """
+    アップロードされたファイルをCloudinaryに送信し、公開URLを返す。
+    :param file_data: Werkzeug FileStorageオブジェクト (アップロードされたファイル)
+    :return: 公開画像URL (str) または None
+    """
+    try:
+        # ファイルの内容を直接Cloudinaryにアップロード
+        # folder='flask_blog' でCloudinary上にフォルダを作成
+        result = cloudinary.uploader.upload(file_data, folder="flask_blog")
+        
+        # アップロード成功後、安全なHTTPSの公開URLを取得して返す
+        return result.get('secure_url')
+    except Exception as e:
+        # アップロード失敗時はエラーをコンソールに出力し、Noneを返す
+        print(f"Cloudinary Upload Error: {e}")
+        return None
     
 @login_manager.user_loader 
 def load_user(user_id):
@@ -134,38 +155,74 @@ def admin():
     ).scalars().all()
     return render_template("admin.html", posts=posts)
 
-@app.route("/create", methods=['GET', 'POST'])
+@app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
     if request.method == 'POST':
         title = request.form.get('title')
-        body = request.form.get('body')
+        content = request.form.get('content')
+        # 🚨 request.filesからファイルデータを取得
+        image_file_data = request.files.get('image_file') 
         
-        # 画像アップロード機能はRender環境では永続化が難しいため、ここでは画像名のみを処理
-        img_name = request.form.get('img_name') or "placeholder.jpg" 
+        if not title or not content:
+            flash('タイトルと本文を入力してください。', 'warning')
+            return redirect(url_for('create'))
+        
+        image_url = None
+        # ファイルが提供され、かつファイル名がある場合のみ処理を実行
+        if image_file_data and image_file_data.filename != '':
+            # 🚨 Cloudinaryへのアップロードを実行
+            image_url = upload_image_to_cloudinary(image_file_data)
+            
+            if not image_url:
+                flash('画像のアップロードに失敗しました。', 'error')
+                return redirect(url_for('create'))
 
-        post = Post(title=title, body=body, img_name=img_name) 
+        new_post = Post(
+            title=title, 
+            content=content, 
+            author=current_user,
+            # 🚨 データベースにはファイル名ではなく、公開URLを保存する
+            image_file=image_url 
+        )
         
-        db.session.add(post)
+        db.session.add(new_post)
         db.session.commit()
-        flash('記事が正常に作成されました。', 'success')
-        return redirect(url_for('admin'))
-    
+        flash('新しい記事を投稿しました。', 'success')
+        return redirect(url_for('view', post_id=new_post.id))
+
     return render_template('create.html')
         
-@app.route("/<int:post_id>/update",methods =['GET','POST'])
+@app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    post = get_post_or_404(post_id)
-    
+    post = db.session.get(Post, post_id)
+    if post is None or post.author != current_user:
+        flash('記事が見つからないか、編集権限がありません。', 'danger')
+        return redirect(url_for('admin'))
+
     if request.method == 'POST':
         post.title = request.form.get('title')
-        post.body = request.form.get('body')
-        
+        post.content = request.form.get('content')
+        # 🚨 ファイルデータを取得
+        image_file_data = request.files.get('image_file')
+
+        if image_file_data and image_file_data.filename != '':
+            # 新しい画像をアップロード
+            image_url = upload_image_to_cloudinary(image_file_data)
+            
+            if image_url:
+                # 既存の画像ファイルがあれば、Cloudinaryから削除することも可能ですが、
+                # 今回はシンプルにURLを更新します。
+                post.image_file = image_url
+            else:
+                flash('画像の更新に失敗しました。', 'error')
+                return redirect(url_for('update', post_id=post.id))
+
         db.session.commit()
-        flash('記事が正常に更新されました。', 'success')
-        return redirect(url_for('admin'))
-        
+        flash('記事を更新しました。', 'success')
+        return redirect(url_for('view', post_id=post.id))
+
     return render_template('update.html', post=post)
     
 @app.route("/<int:post_id>/delete")
