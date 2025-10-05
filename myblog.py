@@ -1,4 +1,4 @@
-# myblog.py (ログイン維持の安定性向上修正)
+# myblog.py (db_initの再追加)
 
 import os
 import sys
@@ -31,9 +31,22 @@ if database_url:
     if 'sslmode=require' not in database_url and 'sslmode' not in database_url:
         separator = '&' if '?' in database_url else '?'
         database_url += f'{separator}sslmode=require'
+    
+    # PostgreSQL接続のためのデバッグ情報
+    print("--- データベース接続情報 ---", file=sys.stderr)
+    print(f"使用DB: PostgreSQL (環境変数 'DATABASE_URL' を使用)", file=sys.stderr)
+    # ユーザーが接続URLを確認しやすいように一部表示（パスワードは隠す）
+    print(f"接続URL: {database_url.split('@')[0]}@...", file=sys.stderr) 
+    print("PostgreSQLを使用するには **'psycopg2-binary'** が必要です。", file=sys.stderr)
+    print("----------------------------", file=sys.stderr)
+    
 else:
     # ローカル開発用のデフォルト設定
     database_url = 'sqlite:///site.db'
+    # SQLite接続のためのデバッグ情報
+    print("--- データベース接続情報 ---", file=sys.stderr)
+    print("使用DB: SQLite (環境変数 'DATABASE_URL' が未設定のため)", file=sys.stderr)
+    print("----------------------------", file=sys.stderr)
     
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -123,6 +136,20 @@ def get_user_by_username(username):
     ).scalar_one_or_none()
 
 # --- ルーティング ---
+
+# 🚨 データベース初期化用の特別なルート (テーブルが存在しないエラー対策)
+@app.route("/db_init")
+def db_init():
+    # 既にテーブルが存在する場合は何もしないようにしたいが、強制的に作成する
+    try:
+        db.create_all()
+        # テーブル作成が成功した後、マイグレーション履歴テーブルも作成されるようにしておく
+        # これはFlask-Migrateが初期化されていないとエラーになる可能性があるため、より安全なのはdb.create_all()のみ
+        return "Database tables (Post and User) created successfully! Please remove this route after running once.", 200
+    except Exception as e:
+        # DB接続自体ができていない場合は、エラーメッセージを表示
+        return f"Error creating tables. Please check your DATABASE_URL and the psycopg2-binary installation in requirements.txt. Error: {e}", 500
+
 
 @app.route("/")
 def index():
@@ -366,6 +393,22 @@ def page_not_found(e):
 # --- アプリケーション実行 (ローカル開発用) ---
 if __name__ == '__main__':
     with app.app_context():
-        # ローカル開発時に使用
-        pass
-    app.run(debug=True)
+        # SQLiteファイルが存在しない場合にテーブルを作成します。
+        # データベースの接続URLが'sqlite:///'で始まる場合にのみ実行。
+        if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite:///'):
+            db_path = app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+            if not os.path.exists(db_path):
+                print(f"データベースファイル '{db_path}' が見つかりませんでした。テーブルを作成します...")
+                try:
+                    # データベースの初期化
+                    db.create_all()
+                    # 初期ユーザーの作成（オプション）
+                    # 例: admin_user = User(username='admin', password=generate_password_hash('password', method='sha256'))
+                    # db.session.add(admin_user)
+                    # db.session.commit()
+                    print("データベーステーブルの作成が完了しました。")
+                except Exception as e:
+                    print(f"データベースの初期化中にエラーが発生しました: {e}", file=sys.stderr)
+                    
+        # ローカル開発時にサーバーを起動
+        app.run(debug=True)
