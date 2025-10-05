@@ -1,67 +1,79 @@
 {% extends 'base.html' %}
-{% block title %}管理ページ{% endblock %}
+{% block title %}管理画面 - 自分の記事{% endblock %}
+
 {% block content %}
- <nav class="navbar navbar-expand-lg bg-body-tertiary">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="#">My Flask Blog</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarText">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link active" aria-current="page" href="https://flask-myblog-lg1s.onrender.com/">Home</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('create') }}">新規作成画面</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('logout') }}">ログアウト</a>
-        </li>
-      </ul>
-        <span class="navbar-text">
-           <a class="nav-link" href="{{ url_for('account') }}">アカウント情報変更・退会</a>
-        </span>
+<div class="max-w-6xl mx-auto mt-10 p-6">
+    <div class="flex justify-between items-center mb-8 border-b pb-4">
+        <h1 class="text-3xl font-extrabold text-gray-900">
+            <i class="fas fa-tools mr-2 text-indigo-500"></i> 
+            自分の記事管理 ({{ current_user.username }} さん)
+        </h1>
+        <a href="{{ url_for('create') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out">
+            <i class="fas fa-plus-circle mr-2"></i> 新規記事を作成
+        </a>
     </div>
-  </div>
-</nav>　
-  <div class="container mt-5">
-    <h2>投稿の管理</h2>
-    <a href="{{ url_for('create') }}" class="btn btn-primary mb-3">新規投稿作成</a>
 
-    <div class="row">
-        {% for post in posts %}
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm h-100">
-                
-                <!-- 🚨 修正箇所: 画像パスのチェックとプレースホルダーの適用 -->
-                {% if post.image_file %}
-                    <!-- 画像ファイルパスがDBに保存されている場合 (ローカルパスはRenderでは機能しないため、読み込みエラー時に代替画像を表示) -->
-                    <img src="{{ url_for('static', filename='images/' + post.image_file) }}" 
-                         alt="{{ post.title }}" 
-                         class="card-img-top" 
-                         onerror="this.onerror=null; this.src='https://via.placeholder.com/600x300.png?text=Image+Not+Found';" 
-                         style="height: 200px; object-fit: cover;">
-                {% else %}
-                    <!-- 画像ファイルパスがない場合、プレースホルダーを表示 -->
-                    <img src="https://via.placeholder.com/600x300.png?text=No+Image+Available" 
-                         alt="画像なし" 
-                         class="card-img-top" 
-                         style="height: 200px; object-fit: cover;">
-                {% endif %}
-
-                <div class="card-body">
-                    <h5 class="card-title">{{ post.title }}</h5>
-                    <p class="card-text text-muted">{{ post.create_at.strftime('%Y/%m/%d') }}</p>
-                    <a href="{{ url_for('view', post_id=post.id) }}" class="btn btn-sm btn-info">閲覧</a>
-                    <a href="{{ url_for('update', post_id=post.id) }}" class="btn btn-sm btn-secondary">編集</a>
-                    <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" style="display:inline-block;">
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('本当にこの記事を削除しますか？');">削除</button>
-                    </form>
-                </div>
-            </div>
+    {% if not posts %}
+        <div class="text-center py-16 border border-dashed border-gray-300 rounded-xl bg-gray-50">
+            <p class="text-xl font-medium text-gray-600 mb-4">まだ記事がありません。</p>
+            <p class="text-gray-500">上の「新規記事を作成」ボタンから、最初の記事を投稿しましょう！</p>
         </div>
-        {% endfor %}
-    </div>
+    {% else %}
+        <!-- 記事一覧テーブル -->
+        <div class="bg-white shadow-2xl rounded-xl overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-indigo-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-1/12">サムネイル</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-5/12">タイトル</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-2/12">投稿日</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-4/12">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for post in posts %}
+                    <tr class="hover:bg-gray-50 transition duration-150">
+                        <!-- サムネイル表示 -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if post.public_id %}
+                                <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=50, height=50, crop='fill')[0] }}" 
+                                     alt="サムネイル" 
+                                     class="w-12 h-12 rounded-lg object-cover shadow-sm">
+                            {% else %}
+                                <div class="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 text-xs">画像なし</div>
+                            {% endif %}
+                        </td>
+                        
+                        <!-- タイトルとリンク -->
+                        <td class="px-6 py-4 max-w-sm truncate">
+                            <a href="{{ url_for('view', post_id=post.id) }}" class="text-sm font-medium text-indigo-700 hover:text-indigo-900 truncate block">
+                                {{ post.title }}
+                            </a>
+                            <p class="text-xs text-gray-500 truncate mt-1">{{ post.content | truncate(70) }}</p>
+                        </td>
+
+                        <!-- 投稿日 -->
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ post.create_at.strftime('%Y/%m/%d') }}
+                        </td>
+                        
+                        <!-- 操作ボタン -->
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <a href="{{ url_for('update', post_id=post.id) }}" class="text-indigo-600 hover:text-indigo-900 mr-4 inline-flex items-center">
+                                <i class="fas fa-edit mr-1"></i> 編集
+                            </a>
+                            <!-- 削除フォーム (確認ダイアログ付き) -->
+                            <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="inline-block" onsubmit="return confirm('本当に記事「{{ post.title }}」を削除しますか？\nこの操作は元に戻せません。');">
+                                <button type="submit" class="text-red-600 hover:text-red-900 inline-flex items-center bg-transparent border-none p-0 cursor-pointer">
+                                    <i class="fas fa-trash-alt mr-1"></i> 削除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
 </div>
 {% endblock %}
