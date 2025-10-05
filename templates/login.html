@@ -1,86 +1,46 @@
-<!-- login.html -->
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ログイン - My Flask Blog</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
-    <!-- ナビゲーションバー (ここではシンプルに) -->
-    <nav class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <a href="{{ url_for('index') }}" class="flex-shrink-0 flex items-center text-xl font-bold text-gray-900">
-                        My Flask Blog
-                    </a>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="{{ url_for('signup') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">新規登録</a>
-                </div>
+{% extends "base.html" %}
+{% block title %}ログイン{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center py-12">
+    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl">
+        <h2 class="text-3xl font-bold text-gray-900 text-center mb-6">ログイン</h2>
+        <p class="text-center text-gray-500 mb-8">ブログ管理画面へアクセス</p>
+        
+        <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名</label>
+                <input id="username" name="username" type="text" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                       placeholder="ユーザー名を入力">
             </div>
-        </div>
-    </nav>
-    
-    <!-- フラッシュメッセージ -->
-    <div class="max-w-md mx-auto mt-4 px-4 w-full">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="rounded-lg px-4 py-3 text-sm font-medium mb-3 
-                        {% if category == 'success' %} bg-green-100 text-green-700
-                        {% elif category == 'danger' %} bg-red-100 text-red-700
-                        {% elif category == 'info' %} bg-blue-100 text-blue-700
-                        {% else %} bg-yellow-100 text-yellow-700
-                        {% endif %}" role="alert">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-    </div>
-
-    <!-- ログインフォーム -->
-    <div class="flex-grow flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-            <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-6">アカウントにログイン</h2>
-            <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
-                <div>
-                    <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名 (メールの代わり)</label>
-                    <div class="mt-1">
-                        <input id="username" name="username" type="text" required class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                </div>
-
-                <div>
-                    <label for="password" class="block text-sm font-medium text-gray-700">パスワード</label>
-                    <div class="mt-1">
-                        <input id="password" name="password" type="password" required class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between">
-                    <div class="text-sm">
-                        <!-- ここにパスワードリセットリンクを追加 -->
-                        <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                            パスワードをお忘れですか？
-                        </a>
-                    </div>
-                </div>
-
-                <div>
-                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                        ログイン
-                    </button>
-                </div>
-            </form>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">パスワード</label>
+                <input id="password" name="password" type="password" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                       placeholder="パスワードを入力">
+            </div>
+            
+            <div>
+                <button type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    <i class="fas fa-sign-in-alt mr-2"></i>ログイン
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500 text-sm">
+                パスワードを忘れた場合
+            </a>
+            <p class="mt-2 text-sm text-gray-600">
+                アカウントをお持ちでないですか？
+                <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                    サインアップ
+                </a>
+            </p>
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
