@@ -6,7 +6,8 @@ from flask import Flask, render_template, redirect, url_for, request, flash, abo
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
+# itsdangerous v2.0以降、TimedSerializerはmax_ageをloads()メソッドで受け取るようになりました。
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
 
 # --- 1. App Configuration ---
 # Set up logging for better debugging in the console
@@ -37,8 +38,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインしてください。' # Login required message
 
-# Token Serializer for password reset links (valid for 1800 seconds = 30 minutes)
-s = URLSafeTimedSerializer(app.config['SECRET_KEY'], serializer_timeout=1800)
+# Token Serializer for password reset links. (timeout setting is done in loads() via max_age)
+# 修正点: serializer_timeout引数を削除しました。
+s = URLSafeTimedSerializer(app.config['SECRET_KEY']) 
 
 # --- 2. Database Models ---
 
@@ -234,8 +236,8 @@ def forgot_password():
 def reset_password(token):
     """パスワードリセット実行処理。"""
     try:
-        # トークンをデシリアライズし、ユーザーIDを取得
-        user_id = s.loads(token, salt='password-reset-salt', max_age=1800) # 30分有効
+        # 修正点: loads()にmax_age=1800 (30分) を渡すことで有効期限を設定
+        user_id = s.loads(token, salt='password-reset-salt', max_age=1800) 
     except SignatureExpired:
         flash('パスワードリセットリンクの有効期限が切れました。再度リクエストしてください。', 'danger')
         return redirect(url_for('forgot_password'))
