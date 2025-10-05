@@ -3,18 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- integrity属性の x を削除して正しい形式に戻す -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" xintegrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
-    <!-- ローカルCSSは現在不要であればコメントアウトまたは削除 -->
-    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='css/sample.css') }}"> -->
-    <title>{% block title %}タイトルデフォルト{% endblock %}</title>
+    <title>{% block title %}Flask My Blog{% endblock %}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        .flash-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+        .fade-out {
+            opacity: 0;
+        }
+    </style>
 </head>
-<body>
- 
-    {% block content %}
-    {% endblock %}
+<body class="min-h-screen flex flex-col">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <a href="{{ url_for('index') }}" class="flex-shrink-0 flex items-center">
+                        <span class="text-2xl font-bold text-indigo-600">Flask Blog</span>
+                    </a>
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        <a href="{{ url_for('index') }}" class="text-gray-900 inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 border-transparent hover:border-indigo-500">
+                            <i class="fas fa-home mr-2"></i>ホーム
+                        </a>
+                        {% if current_user.is_authenticated %}
+                            <a href="{{ url_for('admin') }}" class="text-gray-900 inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2 border-transparent hover:border-indigo-500">
+                                <i class="fas fa-user-shield mr-2"></i>管理画面
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    {% if current_user.is_authenticated %}
+                        <span class="text-gray-600 text-sm mr-4 hidden sm:inline">ようこそ, <strong>{{ current_user.username }}</strong> さん!</span>
+                        <a href="{{ url_for('logout') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700">
+                            <i class="fas fa-sign-out-alt mr-1"></i>ログアウト
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                            ログイン
+                        </a>
+                        <a href="{{ url_for('signup') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                            <i class="fas fa-user-plus mr-1"></i>サインアップ
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
 
-    <!-- Bootstrap JavaScript CDNを追加 -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" xintegrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigl/6hJ8YvLw/sL4iF" crossorigin="anonymous"></script>
+    <!-- Flash Messages Container -->
+    <div id="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message bg-{{ category | replace('success', 'green') | replace('danger', 'red') | replace('warning', 'yellow') | replace('info', 'blue') }}-500 text-white p-4 rounded-lg shadow-xl"
+                         data-category="{{ category }}">
+                        {{ message | safe }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-10">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+            &copy; 2025 Flask Blog. All rights reserved.
+            <div class="mt-1">
+                <a href="{{ url_for('forgot_password') }}" class="text-indigo-600 hover:text-indigo-800">パスワードを忘れた場合</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Flash Message Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const messages = document.querySelectorAll('.flash-message');
+            messages.forEach(message => {
+                setTimeout(() => {
+                    message.classList.add('fade-out');
+                    setTimeout(() => message.remove(), 500);
+                }, 4000); // 4秒後にフェードアウト開始
+            });
+        });
+    </script>
 </body>
 </html>
