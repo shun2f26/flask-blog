@@ -4,15 +4,13 @@ import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 import cloudinary 
 import cloudinary.uploader
-from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature # パスワードリセット用にインポート
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
 
 # --- アプリケーション設定 ---
 
@@ -61,12 +59,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login' 
 login_manager.login_message = 'ログインが必要です。' 
 
-# --- データベースとマイグレーションの設定 ---
+# --- データベースの設定 ---
 db = SQLAlchemy()
-# 🚨 Flask-Migrateは使用しない
-# migrate = Migrate() 
 db.init_app(app)
-# migrate.init_app(app, db) # 🚨 マイグレーションの使用は停止
 
 # アップロードが許可される拡張子 
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
@@ -77,8 +72,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    # 🚨 Postモデルに 'create_at' があるため、リレーションのバックリファレンスを修正
-    # posts = db.relationship('Post', backref='author', lazy=True)
+    # PostとUserのリレーションを設定。ユーザー削除時に記事も削除される設定を追加
     posts = db.relationship('Post', backref=db.backref('author', lazy=True), cascade="all, delete-orphan")
     
     def get_reset_token(self, expires_sec=1800): 
@@ -98,13 +92,11 @@ class User(UserMixin, db.Model):
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # bodyではなくcontentを使用
+    # エラーログに基づき、Postモデルの定義を確認
     content = db.Column(db.Text, nullable=False) 
-    # img_nameではなくimage_fileを使用
     image_file = db.Column(db.String(300), nullable=True) 
-    # 外部キーを追加
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # 記事作成日時を追加（クエリに使用されていたため）
+    # クエリに使用されている create_at を追加
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) 
 
 def upload_image_to_cloudinary(file_data):
@@ -112,7 +104,7 @@ def upload_image_to_cloudinary(file_data):
     アップロードされたファイルをCloudinaryに送信し、公開URLを返す。
     """
     try:
-        # Cloudinary API認証情報が設定されているか確認 (Render環境での重要チェック)
+        # Cloudinary API認証情報が設定されているか確認
         if not (os.environ.get('CLOUDINARY_CLOUD_NAME') and os.environ.get('CLOUDINARY_API_KEY')):
              print("Cloudinary API credentials not set. Skipping upload.", file=sys.stderr)
              return None 
@@ -149,37 +141,30 @@ def get_user_by_username(username):
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
 
-# -------------------------------------------------------------------
-# !!! 🚨 自動DB初期化ロジックを削除し、専用ルートへ移動する 🚨 !!!
-# -------------------------------------------------------------------
-# 以下の起動時ロジックを削除し、デプロイ時の接続エラーを防ぎます。
-# try:
-#     with app.app_context():
-#         db.create_all()
-#         print("Database tables ensured to be created by db.create_all() at startup.", file=sys.stderr)
-# except Exception as e:
-#     print(f"CRITICAL: Failed to run db.create_all() at startup: {e}", file=sys.stderr)
+
+# --- データベースリセット＆初期化専用ルート (重要: 実行後に必ずアクセス) ---
+# このルートは既存のテーブルをすべて削除してから再作成します。データは失われます。
+@app.route('/db_reset')
+def db_reset():
+    # 🚨 セキュリティのため、環境変数で指定されたSECRET_KEYを確認するなどの保護を検討してください。
     
-# -------------------------------------------------------------------
-
-
-# --- データベース初期化専用ルート (一度実行後、削除/非公開推奨) ---
-@app.route('/db_init')
-def db_init():
     try:
         with app.app_context():
-            # データベース接続を試み、テーブルを作成する
+            # 既存のテーブルをすべて削除
+            db.drop_all()
+            # 新しいスキーマでテーブルを作成
             db.create_all()
-            return "Database tables (Post and User) created successfully! Please remove this route after running once."
+            return "Database tables reset and recreated successfully! **IMPORTANT**: Please remove this route after running once."
     except Exception as e:
         return f"Database initialization failed: {e}", 500
-# ---------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 @app.route("/")
 def index():
     posts = db.session.execute(
-        db.select(Post).order_by(Post.create_at.desc())
+        # Post.create_at で降順ソート
+        db.select(Post).order_by(Post.create_at.desc()) 
     ).scalars().all()
     return render_template("index.html", posts=posts)
 
