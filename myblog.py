@@ -225,17 +225,20 @@ def update(post_id):
 
     return render_template('update.html', post=post)
     
-@app.route("/<int:post_id>/delete")
+@app.route('/delete/<int:post_id>', methods=['POST']) # 👈 ここを修正
 @login_required
 def delete(post_id):
-    post = get_post_or_404(post_id)
+    post = db.session.get(Post, post_id)
+    
+    # 記事が存在しない、または編集権限がない場合
+    if post is None or post.author != current_user:
+        flash('記事が見つからないか、削除権限がありません。', 'danger')
+        return redirect(url_for('admin'))
     
     db.session.delete(post)
     db.session.commit()
-    flash('記事が正常に削除されました。', 'danger')
-    return redirect(url_for('admin')) 
-
-# --- 認証ルート ---
+    flash(f'記事「{post.title}」を削除しました。', 'info')
+    return redirect(url_for('admin'))
 
 @app.route("/signup", methods=['GET', 'POST'])
 def signup():
