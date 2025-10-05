@@ -151,7 +151,7 @@ def delete(post_id):
     db.session.delete(post)
     db.session.commit()
     flash('記事が正常に削除されました。', 'danger')
-    return redirect(url_for('admin'))  
+    return redirect(url_for('admin'))
 
 # --- 認証ルート ---
 
