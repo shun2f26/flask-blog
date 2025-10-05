@@ -11,9 +11,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
-# SQLAlchemyのセッション制御に必要なimportを追加
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
 
 # --- アプリケーション設定 ---
 
@@ -66,19 +63,7 @@ login_manager.login_message = 'ログインが必要です。'
 db = SQLAlchemy()
 db.init_app(app) 
 
-# --- GUNICORN起動時のデータベース初期化 (Render対応) ---
-# アプリケーションがGunicornによって起動される際、このコードブロックが一度実行されます。
-# テーブルが存在しない場合にのみ作成を試み、ビルドエラーを回避します。
-with app.app_context():
-    try:
-        # テーブルが存在しない場合にのみ作成
-        db.create_all() 
-        print("Database tables initialized successfully on startup.", file=sys.stderr)
-    except Exception as e:
-        # DB接続エラー（PostgreSQLサーバーがまだ起動していないなど）の場合はここでキャッチ
-        print(f"Database initialization failed at startup (may be expected if DB is slow to start): {e}", file=sys.stderr)
-# ---------------------------------------------------------
-
+# ★注意: Gunicorn起動時のdb.create_all()は削除しました。
 
 # アップロードが許可される拡張子 
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
@@ -109,7 +94,6 @@ class User(UserMixin, db.Model):
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # ★重要な確認点: ここは 'content' であり、変更されていません。
     content = db.Column(db.Text, nullable=False) 
     image_file = db.Column(db.String(300), nullable=True) 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -158,31 +142,22 @@ def get_user_by_username(username):
     ).scalar_one_or_none()
 
 
-# --- データベースリセット＆初期化専用ルート (重要: 実行後に必ずアクセス) ---
-@app.route('/db_reset')
-def db_reset():
-    try:
-        # 1. すべてのテーブルを削除
-        db.drop_all()
-        
-        # 2. すべてのテーブルを再作成
-        db.create_all()
-        
-        # 3. 既存のDBセッションを閉じる (Gunicornのワーカースレッドが古いスキーマを持つセッションを使わないようにする)
-        db.session.remove()
-        
-        return "Database tables reset and recreated successfully! **IMPORTANT**: Please remove this route after running once."
-    except Exception as e:
-        return f"Database initialization failed: {e}", 500
-# ----------------------------------------------------------------------
+# ★db_resetルートは削除しました。データベースの初期化はビルドスクリプトで行います。
 
 
 @app.route("/")
 def index():
-    posts = db.session.execute(
-        # Post.create_at で降順ソート
-        db.select(Post).order_by(Post.create_at.desc()) 
-    ).scalars().all()
+    # 記事を取得する際に、まだテーブルが存在しない可能性があるためtry-exceptを追加
+    try:
+        posts = db.session.execute(
+            # Post.create_at で降順ソート
+            db.select(Post).order_by(Post.create_at.desc()) 
+        ).scalars().all()
+    except Exception as e:
+        # テーブルがない場合は空のリストを返し、エラーをログに出力
+        print(f"Error fetching posts (Table may not exist yet): {e}", file=sys.stderr)
+        posts = []
+        
     return render_template("index.html", posts=posts)
 
 @app.route("/post/<int:post_id>")
@@ -220,7 +195,7 @@ def create():
                 
         new_post = Post(
             title=title, 
-            content=content, # ★ここで 'content' カラムに書き込みます★
+            content=content, 
             author=current_user,
             image_file=image_url 
         )
