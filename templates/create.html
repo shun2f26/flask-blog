@@ -1,37 +1,72 @@
 {% extends 'base.html' %}
-{% block title %}新規記事作成{% endblock %}
+{% block title %}記事作成{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-2xl">
-    <h1 class="text-3xl font-extrabold text-gray-900 mb-8 text-center">新規記事を作成</h1>
+<div class="max-w-4xl mx-auto mt-10 p-4 sm:p-6 lg:p-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-8 border-b pb-4">
+        <i class="fas fa-file-alt mr-2 text-indigo-600"></i> 新しいブログ記事を作成
+    </h1>
 
-    <!-- enctype="multipart/form-data" を追加してファイルアップロードを有効化 -->
-    <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6">
-        <!-- タイトル -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="p-4 mb-4 text-sm rounded-lg shadow-md 
+                    {% if category == 'success' %} bg-green-100 text-green-800 {% elif category == 'danger' %} bg-red-100 text-red-800 {% else %} bg-yellow-100 text-yellow-800 {% endif %} 
+                    flex justify-between items-center" role="alert">
+                    <div>{{ message }}</div>
+                    <button type="button" class="ml-auto -mx-1.5 -my-1.5 rounded-lg p-1.5 hover:bg-opacity-50 inline-flex items-center justify-center h-8 w-8 
+                        {% if category == 'success' %} text-green-800 hover:bg-green-200 {% elif category == 'danger' %} text-red-800 hover:bg-red-200 {% else %} text-yellow-800 hover:bg-yellow-200 {% endif %}" 
+                        onclick="this.parentElement.style.display='none';" aria-label="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- ファイルアップロードには enctype="multipart/form-data" が必須 -->
+    <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="bg-white p-6 md:p-10 rounded-xl shadow-2xl space-y-7">
+        
+        <!-- タイトル入力フィールド -->
         <div>
-            <label for="title" class="block text-sm font-medium text-gray-700">タイトル</label>
-            <input type="text" name="title" id="title" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500">
+            <label for="title" class="block text-sm font-semibold text-gray-700 mb-2">タイトル <span class="text-red-500">* 必須</span></label>
+            <input type="text" id="title" name="title" required
+                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition duration-150"
+                   placeholder="記事のタイトルを入力">
         </div>
 
-        <!-- 本文 -->
+        <!-- 本文入力フィールド -->
         <div>
-            <label for="content" class="block text-sm font-medium text-gray-700">本文</label>
-            <textarea name="content" id="content" rows="10" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+            <label for="content" class="block text-sm font-semibold text-gray-700 mb-2">内容 <span class="text-red-500">* 必須</span></label>
+            <textarea id="content" name="content" rows="10" required
+                      class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition duration-150"
+                      placeholder="記事の本文を入力"></textarea>
         </div>
 
-        <!-- 画像ファイルアップロードフィールド (Cloudinaryへアップロード) -->
+        <!-- 画像ファイルアップロードフィールド -->
         <div>
-            <label for="image_file" class="block text-sm font-medium text-gray-700">画像ファイル (オプション)</label>
-            <input type="file" name="image_file" id="image_file" accept="image/*" class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none p-3">
-            <p class="mt-1 text-xs text-gray-500">PNG, JPG, GIFなどの画像ファイルを選択してください。</p>
+            <label for="image_file" class="block text-sm font-semibold text-gray-700 mb-2">サムネイル画像 (オプション)</label>
+            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl bg-gray-50 hover:bg-gray-100 transition duration-150">
+                <div class="space-y-2 text-center">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-indigo-400"></i>
+                    <div class="flex text-sm text-gray-600 justify-center">
+                        <!-- ラベルをクリックすることでファイル選択ダイアログを開く -->
+                        <label for="image_file" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 p-1">
+                            <span>ファイルを選択</span>
+                            <!-- image_fileというnameがmyblog.pyのrequest.files.get('image_file')に対応 -->
+                            <input id="image_file" name="image_file" type="file" class="sr-only" accept="image/png, image/jpeg, image/gif">
+                        </label>
+                        <p class="pl-1 text-gray-500">またはドラッグ＆ドロップ</p>
+                    </div>
+                    <p class="text-xs text-gray-500">PNG, JPG, GIF形式のみ対応</p>
+                </div>
+            </div>
         </div>
 
         <!-- 送信ボタン -->
-        <div class="flex justify-end">
-            <button type="submit" class="w-full sm:w-auto inline-flex justify-center py-3 px-6 border border-transparent rounded-lg shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i class="fas fa-paper-plane mr-2"></i> 記事を投稿
-            </button>
-        </div>
+        <button type="submit" class="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-lg font-bold rounded-lg shadow-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transform hover:scale-105 transition duration-200 ease-in-out">
+            <i class="fas fa-feather-alt mr-3"></i> 記事を投稿
+        </button>
     </form>
 </div>
 {% endblock %}
