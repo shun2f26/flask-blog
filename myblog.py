@@ -102,10 +102,6 @@ def load_user(user_id):
         return None
 
 # --- ヘルパー関数 (SQLAlchemy 2.0対応) ---
-
-def get_post_or_404(post_id):
-# ... (後略)
-
 def get_post_or_404(post_id):
     # SQLAlchemy 2.0 の推奨 get メソッドを使用
     post = db.session.get(Post, post_id)
