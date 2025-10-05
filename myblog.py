@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
-from sqlalchemy.exc import OperationalError, ProgrammingError # データベース接続エラーをキャッチするため
+from sqlalchemy.exc import OperationalError, ProgrammingError 
 
 # --- 1. App Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Load configuration from environment variables
-# Render環境ではDATABASE_URLを使用。ローカルではsqlite。
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 
     'sqlite:///myblog.db'
@@ -61,7 +60,6 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     create_at = db.Column(db.DateTime, index=True, default=datetime.utcnow)
     
-    # 外部キー: どのユーザーがこの記事を作成したか
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
     def __repr__(self):
@@ -79,15 +77,13 @@ def load_user(user_id):
 def check_db_health():
     """データベース接続とテーブル存在チェックを試みる"""
     try:
-        # 接続確認: 何らかのクエリを実行して接続をテスト
-        # テーブルが存在しない場合はProgrammingErrorが発生するが、ここでは接続自体を重視
+        # 軽いクエリを実行して接続とテーブルの存在をテスト
         db.session.execute(db.select(User).limit(1)).scalar_one_or_none()
         return True
     except OperationalError as e:
         logger.error(f"Database Operational Error: Connection failed. {e}")
         return False
     except ProgrammingError as e:
-        # テーブルが存在しない場合は初期化が必要
         logger.warning(f"Database Programming Error: Tables not found. Initialization required. {e}")
         return False
     except Exception as e:
@@ -96,15 +92,10 @@ def check_db_health():
 
 @app.route('/db_init')
 def db_init():
-    """
-    データベースとテーブルを初期化するためのルート。
-    """
+    """データベースとテーブルを初期化するためのルート。"""
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            # 接続確認
-            db.session.execute(db.select(User).limit(0)) # 軽いクエリで接続テスト
-            
             # テーブル作成
             db.drop_all()
             db.create_all()
@@ -142,12 +133,27 @@ def not_found(error):
 def internal_server_error(error):
     # データベース未接続の場合を特別に扱う
     if not check_db_health():
-        return error_response(500, '500 データベース接続エラー', 'データベースサーバーに接続できません。サービスの起動後、必ず <a href="/db_init">/db_init</a> を実行し、データベースを初期化してください。')
+        # HTMLタグを含むため、安全のためにハードコーディングされたレスポンスを使用
+        return f"""
+        <!doctype html>
+        <title>500 データベース接続エラー</title>
+        <style>
+          body {{ font-family: sans-serif; text-align: center; padding: 20px; }}
+          h1 {{ color: #dc3545; }}
+          p {{ font-size: 1.2em; }}
+          a {{ color: #007bff; text-decoration: none; font-weight: bold; }}
+        </style>
+        <h1>500 データベース接続エラー</h1>
+        <p>データベースサーバーに接続できません。サービスの起動後、必ず 
+        <a href="/db_init">/db_init</a> を実行し、データベースを初期化してください。</p>
+        <p>ログを確認し、Gunicornのタイムアウト設定（120秒推奨）が適用されているか確認してください。</p>
+        """, 500
         
+    # それ以外の500エラー
     return error_response(500, '500 サーバーエラー', 'サーバー側で予期せぬエラーが発生しました。時間を置いて再度お試しください。')
 
-# --- 6. Authentication Routes ---
-
+# --- 6. Authentication Routes (省略 - 変更なし) ---
+# ... (以前のコードの signup, login, logout, forgot_password, reset_password, account ルート)
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     """サインアップ (ユーザー登録) 処理を行います。"""
@@ -164,7 +170,6 @@ def signup():
             return render_template('signup.html')
             
         try:
-            # データベース接続確認 (OperationalError/ProgrammingErrorをキャッチ)
             user = User.query.filter_by(username=username).first()
             if user:
                 flash('そのユーザー名は既に使用されています。別の名前をお試しください。', 'warning')
@@ -344,18 +349,15 @@ def account():
 
     return render_template('account.html', user=user)
 
-
-# --- 7. Blog Routes (CRUD) ---
-
+# --- 7. Blog Routes (CRUD) (省略 - 変更なし) ---
+# ... (以前のコードの index, admin, create, view, update, delete ルート)
 @app.route('/')
 def index():
     """すべての記事を表示するトップページ。"""
     try:
-        # 記事を新しい順に取得 (DB接続/テーブルの存在を確認)
         posts = Post.query.order_by(Post.create_at.desc()).all()
         return render_template('index.html', posts=posts)
     except (OperationalError, ProgrammingError):
-        # DB接続またはテーブル未作成のエラーをキャッチし、初期化を促す
         return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
     except Exception as e:
         logger.error(f"Index route error: {e}")
@@ -367,11 +369,9 @@ def index():
 def admin():
     """ログインユーザーの記事管理画面。"""
     try:
-        # 現在のユーザーが作成した記事のみを新しい順に取得
         posts = Post.query.filter_by(user_id=current_user.id).order_by(Post.create_at.desc()).all()
         return render_template('admin.html', posts=posts)
     except (OperationalError, ProgrammingError):
-        # DB接続またはテーブル未作成のエラーをキャッチ
         return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
     except Exception as e:
         logger.error(f"Admin route error: {e}")
@@ -434,7 +434,6 @@ def update(post_id):
         logger.error(f"Update retrieve error: {e}")
         return internal_server_error(e)
 
-    # 記事の作者と現在のユーザーが一致するか確認
     if post.author != current_user:
         flash('あなたはこの記事を編集する権限がありません。', 'danger')
         return redirect(url_for('view', post_id=post.id))
@@ -473,7 +472,6 @@ def delete(post_id):
         flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
         return redirect(url_for('admin'))
     
-    # 記事の作者と現在のユーザーが一致するか確認
     if post.author != current_user:
         flash('あなたはこの記事を削除する権限がありません。', 'danger')
         return redirect(url_for('admin'))
