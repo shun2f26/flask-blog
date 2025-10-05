@@ -1,10 +1,11 @@
-# myblog.py (パスワードリセット機能追加 & SQLAlchemy 2.0対応)
+# myblog.py (ログイン維持の安定性向上修正)
 
 import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+# UserMixin, login_user, ... はそのまま
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -59,6 +60,19 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    
+    # Flask-Login の要件を満たすために is_active などを明示的に定義 (UserMixinに含まれているが、明示することで安全性が向上)
+    @property
+    def is_active(self):
+        return True # ユーザーは常にアクティブ
+    
+    @property
+    def is_authenticated(self):
+        return True # 認証済み
+    
+    @property
+    def is_anonymous(self):
+        return False # 匿名ではない
 
     # パスワードリセット用のトークンを生成するメソッド
     def get_reset_token(self, expires_sec=1800): # トークン有効期限30分
@@ -89,7 +103,9 @@ class Post(db.Model):
     
 @login_manager.user_loader 
 def load_user(user_id):
-    # SQLAlchemy 2.0 形式
+    # **修正点**: user_idがNoneでないことを確認し、db.session.get()を使用
+    if user_id is None:
+        return None
     return db.session.get(User, int(user_id))
 
 # --- ヘルパー関数 (SQLAlchemy 2.0対応) ---
@@ -196,15 +212,17 @@ def signup():
         
         db.session.add(new_user)
         db.session.commit()
-        flash('登録が完了しました。ログインしてください。', 'success')
-        return redirect(url_for('login'))
+        # **重要**: サインアップ後、すぐにログイン状態にする
+        login_user(new_user)
+        flash('登録が完了しました。', 'success')
+        return redirect(url_for('admin')) # 登録後、管理画面へ
         
     return render_template('signup.html')
         
 @app.route("/login", methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('admin')) # 既にログイン済みなら管理画面へ
 
     if request.method == 'POST':
         username = request.form.get('username')
@@ -213,10 +231,12 @@ def login():
         user = get_user_by_username(username)
         
         if user and check_password_hash(user.password, password=password):
+            # ログイン成功
             login_user(user)
             flash('ログイン成功！', 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('admin'))
+            # ログイン要求元（next）がなければ admin へリダイレクト
+            return redirect(next_page or url_for('admin')) 
         else:
             flash('ユーザー名またはパスワードが違います', 'danger')
             return redirect(url_for('login'))
@@ -240,15 +260,14 @@ def account():
         new_username = request.form.get('username')
         current_password = request.form.get('current_password')
 
-        # 1. パスワード確認（必須）
-        # current_passwordフィールドがない場合を考慮し、ここでは省略しますが、本番では必要
+        # パスワード確認（現在のパスワードが必須）
         if not check_password_hash(user.password, current_password or ''):
             flash('現在のパスワードが間違っています。', 'danger')
             return redirect(url_for('account'))
 
         is_updated = False
         
-        # 2. ユーザー名更新
+        # ユーザー名更新
         if new_username and new_username != user.username:
             existing_user = get_user_by_username(new_username)
             if existing_user and existing_user.id != user.id:
@@ -258,7 +277,7 @@ def account():
             user.username = new_username
             is_updated = True
 
-        # 3. パスワード更新
+        # パスワード更新
         new_password = request.form.get('new_password')
         if new_password:
             user.password = generate_password_hash(new_password, method='sha256')
@@ -291,7 +310,6 @@ def forgot_password():
             token = user.get_reset_token()
             
             # **重要**: Render環境ではメール送信機能がないため、デバッグ用にリンクをフラッシュメッセージとして表示します。
-            # ユーザーはこのリンクをコピーしてブラウザに貼り付けることで次のステップに進めます。
             reset_url = url_for('reset_password', token=token, _external=True)
             
             flash(f'パスワードリセットのリンクを送信しました（ダミー）。次のリンクにアクセスしてください（30分有効）：{reset_url}', 'success')
