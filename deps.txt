@@ -6,3 +6,6 @@ Werkzeug
 python-dotenv	
 psycopg2-binary
 gunicorn
+Flask-WTF
+pydrive2
+google-auth
