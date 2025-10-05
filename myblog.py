@@ -42,12 +42,13 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     
-    # 修正: password_hashの長さを128から256に増やし、長いハッシュ値に対応
+    # 修正: PostgreSQLのStringDataRightTruncationエラーに備え、長さを256に拡張
     password_hash = db.Column(db.String(256), nullable=False)
     
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
+        # 修正: method='sha256'を削除。デフォルトの安全なハッシュ（Bcrypt等）を使用します。
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
@@ -178,7 +179,7 @@ def signup():
                 return render_template('signup.html')
 
             new_user = User(username=username)
-            # generate_password_hashでハッシュ化し、db.Column(db.String(256))に保存
+            # generate_password_hashはset_password内で呼び出されます
             new_user.set_password(password)
             
             db.session.add(new_user)
