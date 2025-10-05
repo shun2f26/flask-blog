@@ -63,9 +63,10 @@ login_manager.login_message = 'ログインが必要です。'
 
 # --- データベースとマイグレーションの設定 ---
 db = SQLAlchemy()
-migrate = Migrate()
+# 🚨 シェルを使わないため、Flask-Migrateはバインドしないか、バインドしても使わない
+# migrate = Migrate() 
 db.init_app(app)
-migrate.init_app(app, db) 
+# migrate.init_app(app, db) # 🚨 マイグレーションの使用は停止
 
 # アップロードが許可される拡張子 
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
@@ -76,8 +77,6 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    
-    # 🌟 記事とのリレーションシップを追加
     posts = db.relationship('Post', backref='author', lazy=True)
     
     def get_reset_token(self, expires_sec=1800): 
@@ -97,13 +96,11 @@ class User(UserMixin, db.Model):
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    # 🌟 bodyからcontentに名称変更
+    # bodyではなくcontentを使用
     content = db.Column(db.Text, nullable=False) 
-    create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    # 🌟 img_nameからimage_fileに名称変更（URLを保存するため）
+    # img_nameではなくimage_fileを使用
     image_file = db.Column(db.String(300), nullable=True) 
-    
-    # 🌟 外部キーを追加: 'user.id' は 'user' テーブルの 'id' カラムを参照
+    # 外部キーを追加
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 def upload_image_to_cloudinary(file_data):
@@ -128,43 +125,39 @@ def upload_image_to_cloudinary(file_data):
     
 @login_manager.user_loader 
 def load_user(user_id):
-    # Flask-Loginから渡される user_id は文字列の可能性があるため、確実に整数に変換します。
     if user_id is None:
         return None
     try:
-        # IDを安全に整数型に変換し、ユーザーを取得
         user_id_int = int(user_id)
         return db.session.get(User, user_id_int)
     except ValueError:
-        # 変換に失敗した場合（user_idが数字でなかった場合）
         print(f"Error: Invalid user_id format received: {user_id}", file=sys.stderr)
         return None
 
 # --- ヘルパー関数 (SQLAlchemy 2.0対応) ---
 def get_post_or_404(post_id):
-    # SQLAlchemy 2.0 の推奨 get メソッドを使用
     post = db.session.get(Post, post_id)
     if post is None: abort(404)
     return post
 
 def get_user_by_username(username):
-    # SQLAlchemy 2.0 の select + scalar_one_or_none を使用
     return db.session.execute(
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
 
 # -------------------------------------------------------------------
-# !!! Render Free Tier 対策: アプリ起動時にテーブル作成を試みる (このロジックは残す) !!!
+# !!! 🚨 シェルを使わない場合の自動DB初期化ロジック (重要) 🚨 !!!
 # -------------------------------------------------------------------
+# Webサービスが起動する際に、このブロックが実行されるようにする。
+# db.create_all() はテーブルが存在しない場合のみ作成し、存在する場合は何もしない。
 try:
     with app.app_context():
-        # UserとPostモデルの変更（外部キー追加）があったため、マイグレーションが必要です。
-        # ローカルでの開発を続行する場合は、マイグレーションコマンド（flask db init/migrate/upgrade）を実行してください。
-        # Renderでマイグレーションを実行しない場合は、既存のテーブルを削除してから再デプロイしてください。
-        # db.create_all() # <-- マイグレーションを利用する場合はコメントアウト
-        pass
+        # データベースに接続し、テーブルが存在しなければ作成する
+        db.create_all()
+        print("Database tables ensured to be created by db.create_all() at startup.", file=sys.stderr)
 except Exception as e:
-    print(f"CRITICAL: Error during initial db check: {e}", file=sys.stderr)
+    # 接続自体が失敗した場合や、エラーが発生した場合
+    print(f"CRITICAL: Failed to run db.create_all() at startup: {e}", file=sys.stderr)
     
 # -------------------------------------------------------------------
 
@@ -183,7 +176,7 @@ def view(post_id):
 @app.route("/admin")
 @login_required
 def admin():
-    # 🌟 ログインユーザーの記事のみ取得するように修正
+    # ログインユーザーの記事のみ取得
     posts = db.session.execute(
         db.select(Post).filter_by(user_id=current_user.id).order_by(Post.create_at.desc())
     ).scalars().all()
@@ -194,7 +187,6 @@ def admin():
 def create():
     if request.method == 'POST':
         title = request.form.get('title')
-        # 🌟 bodyではなくcontentを使用
         content = request.form.get('content')
         image_file_data = request.files.get('image_file') 
         
@@ -203,22 +195,16 @@ def create():
             return redirect(url_for('create'))
         
         image_url = None
-        # ファイルが提供され、かつファイル名がある場合のみ処理を実行
         if image_file_data and image_file_data.filename != '':
             image_url = upload_image_to_cloudinary(image_file_data)
             
             if not image_url:
-                # 画像アップロード失敗でも、記事自体は投稿可能とする
                 flash('画像のアップロードに失敗しました。', 'error')
-                # return redirect(url_for('create')) # 記事自体は投稿できるようにリダイレクトはしない
                 
         new_post = Post(
             title=title, 
-            # 🌟 contentを使用
             content=content, 
-            # 🌟 author=current_user (Userモデルでリレーションを設定済みのため利用可能)
             author=current_user,
-            # 🌟 image_fileを使用
             image_file=image_url 
         )
         
@@ -233,14 +219,12 @@ def create():
 @login_required
 def update(post_id):
     post = db.session.get(Post, post_id)
-    # 🌟 記事の存在チェックと所有者チェック
     if post is None or post.author != current_user:
         flash('記事が見つからないか、編集権限がありません。', 'danger')
         return redirect(url_for('admin'))
 
     if request.method == 'POST':
         post.title = request.form.get('title')
-        # 🌟 contentを使用
         post.content = request.form.get('content')
         image_file_data = request.files.get('image_file')
 
@@ -248,7 +232,6 @@ def update(post_id):
             image_url = upload_image_to_cloudinary(image_file_data)
             
             if image_url:
-                # 🌟 image_fileを使用
                 post.image_file = image_url
             else:
                 flash('画像の更新に失敗しましたが、記事内容は保存されました。', 'error')
@@ -264,7 +247,6 @@ def update(post_id):
 def delete(post_id):
     post = db.session.get(Post, post_id)
     
-    # 🌟 記事の存在チェックと所有者チェック
     if post is None or post.author != current_user:
         flash('記事が見つからないか、削除権限がありません。', 'danger')
         return redirect(url_for('admin'))
@@ -296,17 +278,16 @@ def signup():
         
         db.session.add(new_user)
         db.session.commit()
-        # **重要**: サインアップ後、すぐにログイン状態にする
         login_user(new_user)
         flash('登録が完了しました。', 'success')
-        return redirect(url_for('admin')) # 登録後、管理画面へ
+        return redirect(url_for('admin')) 
         
     return render_template('signup.html')
     
 @app.route("/login", methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('admin')) # 既にログイン済みなら管理画面へ
+        return redirect(url_for('admin')) 
 
     if request.method == 'POST':
         username = request.form.get('username')
@@ -315,11 +296,9 @@ def login():
         user = get_user_by_username(username)
         
         if user and check_password_hash(user.password, password=password):
-            # ログイン成功
             login_user(user)
             flash('ログイン成功！', 'success')
             next_page = request.args.get('next')
-            # ログイン要求元（next）がなければ admin へリダイレクト
             return redirect(next_page or url_for('admin')) 
         else:
             flash('ユーザー名またはパスワードが違います', 'danger')
@@ -344,14 +323,12 @@ def account():
         new_username = request.form.get('username')
         current_password = request.form.get('current_password')
 
-        # パスワード確認（現在のパスワードが必須）
         if not check_password_hash(user.password, current_password or ''):
             flash('現在のパスワードが間違っています。', 'danger')
             return redirect(url_for('account'))
 
         is_updated = False
         
-        # ユーザー名更新
         if new_username and new_username != user.username:
             existing_user = get_user_by_username(new_username)
             if existing_user and existing_user.id != user.id:
@@ -361,10 +338,8 @@ def account():
             user.username = new_username
             is_updated = True
 
-        # パスワード更新
         new_password = request.form.get('new_password')
         if new_password:
-            # 🚨 パスワードをハッシュ化して更新
             user.password = generate_password_hash(new_password)
             is_updated = True
             
@@ -380,34 +355,28 @@ def account():
 
 # --- パスワードリセット関連ルート ---
 
-# ステップ1: リセット要求（ユーザー名/メールアドレスの入力）
 @app.route("/forgot_password", methods=['GET', 'POST'])
 def forgot_password():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        username = request.form.get('username') # ユーザー名 (メールアドレスの代わり)
+        username = request.form.get('username') 
         user = get_user_by_username(username)
 
         if user:
-            # 実際にはここで Flask-Mail を使ってメールを送信する
             token = user.get_reset_token()
-            
-            # **重要**: Render環境ではメール送信機能がないため、デバッグ用にリンクをフラッシュメッセージとして表示します。
             reset_url = url_for('reset_password', token=token, _external=True)
             
             flash(f'パスワードリセットのリンクを送信しました（ダミー）。次のリンクにアクセスしてください（30分有効）：{reset_url}', 'success')
             
             return redirect(url_for('login'))
         else:
-            # セキュリティのため、ユーザーが存在しない場合でも成功したかのように振る舞う
             flash('リセット情報が送信されました（ユーザーが存在すれば）。', 'info')
             return redirect(url_for('login'))
 
     return render_template('forgot_password.html')
 
-# ステップ2: 新しいパスワードの設定
 @app.route("/reset_password/<token>", methods=['GET', 'POST'])
 def reset_password(token):
     if current_user.is_authenticated:
@@ -425,16 +394,13 @@ def reset_password(token):
         
         if password != confirm_password:
             flash('パスワードが一致しません。', 'danger')
-            # エラー時もトークンを保持して同じページに戻る
             return redirect(url_for('reset_password', token=token)) 
             
-        # 🚨 パスワードをハッシュ化して更新
         user.password = generate_password_hash(password)
         db.session.commit()
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
         return redirect(url_for('login'))
 
-    # 成功したトークンがある場合、リセットフォームを表示
     return render_template('reset_password.html', token=token)
 
 
@@ -442,7 +408,6 @@ def reset_password(token):
 
 @app.errorhandler(404)
 def page_not_found(e):
-    # 404.html テンプレートが存在することを想定
     try:
         return render_template('404.html'), 404
     except:
@@ -452,6 +417,6 @@ def page_not_found(e):
 # --- アプリケーション実行 (ローカル開発用) ---
 if __name__ == '__main__':
     with app.app_context():
-        # 🚨 ローカル開発用の db.create_all() を追加
+        # ローカルでの開発実行時にテーブルを作成
         db.create_all() 
     app.run(debug=True)
