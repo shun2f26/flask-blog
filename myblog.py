@@ -1,15 +1,18 @@
 import os
 import datetime
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 import cloudinary
-from cloudinary.uploader import upload
-from cloudinary.utils import cloudinary_url
-from sqlalchemy import exc # SQLAlchemyの例外をインポート
+from cloudinary.uploader import upload, destroy
+from sqlalchemy import exc 
+import time
+import requests
+import json
+import logging
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -18,23 +21,43 @@ load_dotenv()
 app = Flask(__name__)
 
 # 環境変数から設定を読み込む
-# PostgreSQL接続URI
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace('postgres://', 'postgresql://')
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'my-secret-key') # セッション管理用
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    # RenderのPostgreSQL URI互換性のための置換
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL.replace('postgres://', 'postgresql://')
+else:
+    # 開発環境用のデフォルト
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-fallback-key-for-dev') 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# ロガー設定
+app.logger.setLevel(logging.INFO)
+
 # Cloudinary設定
-cloudinary.config(
-    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.getenv('CLOUDINARY_API_KEY'),
-    api_secret=os.getenv('CLOUDINARY_API_SECRET')
-)
+cloudinary_cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME')
+cloudinary_api_key = os.getenv('CLOUDINARY_API_KEY')
+cloudinary_api_secret = os.getenv('CLOUDINARY_API_SECRET')
+
+if cloudinary_cloud_name and cloudinary_api_key and cloudinary_api_secret:
+    cloudinary.config(
+        cloud_name=cloudinary_cloud_name,
+        api_key=cloudinary_api_key,
+        api_secret=cloudinary_api_secret
+    )
+else:
+    app.logger.error("Cloudinary API keys are not set!")
+
+# Gemini API設定
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
 
 # データベース、マイグレーション、ログインマネージャの初期化
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
-login_manager.login_view = 'login' # ログインが必要なページにアクセスした際のリダイレクト先
+login_manager.login_view = 'login' 
 
 # 許可する画像拡張子
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -50,13 +73,14 @@ class User(UserMixin, db.Model):
     """ユーザーモデル"""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
-    # ユーザーが投稿した記事と1対多の関係を定義
+    # パスワードハッシュの長さを256に設定 (bcryptのハッシュ長を考慮)
+    password_hash = db.Column(db.String(256)) 
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
         """パスワードをハッシュ化して保存する"""
-        self.password_hash = generate_password_hash(password)
+        # Bcryptのハッシュは通常60文字以上になるため、長めに設定
+        self.password_hash = generate_password_hash(password) 
 
     def check_password(self, password):
         """入力されたパスワードとハッシュを比較する"""
@@ -68,9 +92,7 @@ class Post(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     create_at = db.Column(db.DateTime, default=datetime.datetime.now)
-    # CloudinaryのPublic IDを保存するためのカラム
     public_id = db.Column(db.String(255), nullable=True)
-    # ユーザーIDを外部キーとして設定
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 # --- Flask-Login ユーザーローダー ---
@@ -81,41 +103,82 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 # --- カスタムコンテキストプロセッサ ---
+
+# Jinjaテンプレートでcloudinaryオブジェクトとdatetimeを利用可能にする
 @app.context_processor
 def utility_processor():
-    """テンプレート内でcloudinaryオブジェクトを利用可能にする"""
-    return dict(cloudinary=cloudinary)
+    """テンプレート内でcloudinaryオブジェクトとdatetimeを利用可能にする"""
+    return dict(cloudinary=cloudinary, now=datetime.datetime.now)
+
+# --- LLM機能 ---
+
+def generate_content_with_llm(prompt):
+    """Gemini APIを使用してコンテンツを生成する"""
+    if not GEMINI_API_KEY:
+        return "Gemini APIキーが設定されていません。"
+
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "systemInstruction": {"parts": [{"text": "あなたはプロのブログ記事ライターです。ユーザーの要求に基づき、魅力的で詳細なブログ記事を日本語で記述してください。"}]}
+    }
+
+    # Exponential Backoff for API calls
+    for attempt in range(3):
+        try:
+            response = requests.post(f"{GEMINI_API_URL}?key={GEMINI_API_KEY}", 
+                                     headers=headers, json=payload, timeout=20)
+            response.raise_for_status() 
+            result = response.json()
+            
+            text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text')
+            if text:
+                return text
+            else:
+                return "AIによる記事生成に失敗しました: 不明な応答形式です。"
+
+        except requests.exceptions.RequestException as e:
+            app.logger.error(f"Gemini API Request Error on attempt {attempt + 1}: {e}")
+            if attempt < 2:
+                time.sleep(2 ** attempt) # Exponential backoff: 1s, 2s
+                continue
+            return f"AIによる記事生成に失敗しました: ネットワークまたはAPIエラー ({e})"
+    return "AIによる記事生成に失敗しました: リトライ後もエラーが解消しませんでした。"
+
 
 # --- ルーティング関数 ---
 
-# データベース初期化ルート (一度実行したら削除することを推奨)
-@app.route('/db_reset')
-def db_reset():
-    """データベースのテーブルをリセットし、再作成する"""
+# データベース初期化ルート
+@app.route('/db_init')
+def db_init():
+    """データベースのテーブルを作成する"""
     try:
-        # すべてのテーブルを削除
-        db.drop_all()
         # すべてのテーブルを作成
         db.create_all()
-        flash('データベーステーブルがリセットされ、正常に再作成されました。**重要**: 一度実行した後は、このルートを削除してください。', 'success')
-        return render_template('db_reset.html')
+        flash('データベーステーブルが初期化され、正常に作成されました。', 'success')
+        return redirect(url_for('index'))
     except Exception as e:
-        flash(f'データベースのリセット中にエラーが発生しました: {e}', 'danger')
-        app.logger.error(f"DB Reset Error: {e}")
-        return render_template('db_reset.html', error=str(e))
+        flash(f'データベースの初期化中にエラーが発生しました: {e}', 'danger')
+        app.logger.error(f"DB Init Error: {e}")
+        return redirect(url_for('index'))
 
 
 @app.route('/')
 def index():
     """トップページ: 全記事を新しい順に表示"""
-    # 記事を投稿日時の降順（新しい順）で取得
-    posts = Post.query.order_by(Post.create_at.desc()).all()
+    try:
+        posts = Post.query.order_by(Post.create_at.desc()).all()
+    except Exception as e:
+        app.logger.error(f"Database Query Error on Index: {e}")
+        flash('データベースから記事を読み込む際にエラーが発生しました。DBが初期化されているか確認してください。', 'danger')
+        posts = []
+        
     return render_template('index.html', posts=posts)
 
 # --- 認証ルート ---
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@app.route('/signup', methods=['GET', 'POST']) # <-- ここを 'signup' に変更
+def signup(): # <-- ここを 'signup' に変更
     """ユーザー登録"""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -126,12 +189,12 @@ def register():
 
         if not username or not password:
             flash('ユーザー名とパスワードを両方入力してください。', 'warning')
-            return redirect(url_for('register'))
+            return redirect(url_for('signup'))
 
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
             flash('そのユーザー名は既に使用されています。', 'danger')
-            return redirect(url_for('register'))
+            return redirect(url_for('signup'))
 
         new_user = User(username=username)
         new_user.set_password(password)
@@ -146,7 +209,7 @@ def register():
             flash('データベースエラーにより登録に失敗しました。', 'danger')
             app.logger.error(f"Registration DB Error: {e}")
 
-    return render_template('register.html')
+    return render_template('signup.html') # signup.html をレンダリング
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -166,7 +229,6 @@ def login():
 
         login_user(user)
         flash('ログインに成功しました！', 'success')
-        # ログイン後にユーザーがアクセスしようとしていたページがあればそこにリダイレクト
         next_page = request.args.get('next')
         return redirect(next_page or url_for('index'))
 
@@ -180,6 +242,18 @@ def logout():
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
 
+# パスワードリセット系のダミーエンドポイント（テンプレートからの参照エラーを回避するため）
+@app.route('/forgot_password')
+def forgot_password():
+    flash('この機能はまだ実装されていません。', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/reset_password')
+def reset_password():
+    flash('この機能はまだ実装されていません。', 'info')
+    return redirect(url_for('login'))
+
+
 # --- 記事管理ルート ---
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -191,6 +265,14 @@ def create():
         content = request.form.get('content')
         image_file = request.files.get('image_file')
         
+        # AIアシスタント機能
+        if request.form.get('action') == 'generate_article':
+            prompt = f"ブログ記事のタイトル案と本文を生成してください。テーマ: {title}"
+            generated_content = generate_content_with_llm(prompt)
+            # 生成されたコンテンツをフォームに再表示
+            return render_template('create.html', title=title, content=generated_content)
+
+        # 投稿処理
         if not title or not content:
             flash('タイトルと本文を両方入力してください。', 'warning')
             return render_template('create.html', title=title, content=content)
@@ -200,12 +282,11 @@ def create():
         # 1. 画像ファイルの処理
         if image_file and image_file.filename != '' and allowed_file(image_file.filename):
             try:
-                # Cloudinaryに画像をアップロード
                 upload_result = upload(image_file)
                 new_public_id = upload_result.get('public_id')
                 flash('画像が正常にアップロードされました。', 'success')
             except Exception as e:
-                flash('画像のアップロードに失敗しました。', 'danger')
+                flash('画像のアップロードに失敗しました。Cloudinary設定を確認してください。', 'danger')
                 app.logger.error(f"Cloudinary Upload Error: {e}")
                 # 画像アップロードが失敗しても記事自体は保存可能とするため、処理を続行
 
@@ -265,7 +346,7 @@ def update(post_id):
                 try:
                     # 既存の画像があればCloudinaryから削除
                     if current_public_id:
-                        cloudinary.uploader.destroy(current_public_id)
+                        destroy(current_public_id)
                     
                     # 新しい画像をアップロード
                     upload_result = upload(image_file)
@@ -305,7 +386,7 @@ def delete(post_id):
     # Cloudinary画像の削除
     if post.public_id:
         try:
-            cloudinary.uploader.destroy(post.public_id)
+            destroy(post.public_id)
             flash('Cloudinaryの画像も正常に削除されました。', 'info')
         except Exception as e:
             flash('Cloudinary画像の削除に失敗しました。手動で削除する必要があるかもしれません。', 'warning')
@@ -335,13 +416,7 @@ def admin():
 # --- 実行ブロック ---
 
 if __name__ == '__main__':
-    # 開発環境でのみdb.create_all()を実行することを推奨
-    # 本番環境ではflask db migrate/upgradeを使用
     with app.app_context():
-        # モデルに public_id カラムを追加したので、マイグレーションが必要です。
-        # 開発環境であれば db.create_all() を実行できますが、
-        # 本番環境では以下のコマンドを実行してください:
-        # 1. flask db migrate -m "Add public_id to Post"
-        # 2. flask db upgrade
+        # 開発環境でSQLiteを使う場合はここで db.create_all() を実行
         pass
     app.run(debug=True)
