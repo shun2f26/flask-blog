@@ -1,52 +1,39 @@
-{% extends 'base.html' %}
-
-{% block title %}しゅんブログ - 最新記事{% endblock %}
+{% extends "base.html" %}
+{% block title %}最新記事{% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="text-center mb-5">
-        <h1 class="display-4">しゅんブログ</h1>
-        <p class="lead text-muted">最近の出来事をお伝えします。</p>
-        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-sm">管理者ログイン</a>
-    </div>
-
-    {# フラッシュメッセージ表示エリア #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'message' else 'success' }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <div class="row row-cols-1 row-cols-md-2 g-4">
-        {% for post in posts %}
-        <div class="col">
-            <div class="card h-100 shadow-sm border-light">
-                <a href="{{ url_for('view', post_id=post.id) }}" class="text-decoration-none text-dark">
-                    {% if post.img_name %}
-                    <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="card-img-top" style="height: 250px; object-fit: cover;" alt="{{ post.title }}">
-                    {% endif %}
-                    <div class="card-body">
-                        <h5 class="card-title text-primary">{{ post.title }}</h5>
-                        <p class="card-text text-muted">{{ post.body | truncate(150) }}</p>
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-8 border-b-4 border-indigo-500 pb-2">最新のブログ記事</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {% if posts %}
+            {% for post in posts %}
+            <div class="bg-white shadow-xl rounded-xl overflow-hidden hover:shadow-2xl transition duration-300">
+                <div class="p-6">
+                    <div class="text-sm text-gray-500 mb-2">
+                        <i class="far fa-calendar-alt mr-1"></i> {{ post.create_at.strftime('%Y/%m/%d') }}
                     </div>
-                </a>
-                <div class="card-footer bg-white border-0">
-                    <small class="text-muted">
-                        投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
-                    </small>
+                    <h2 class="text-xl font-bold text-gray-900 mb-3 line-clamp-2">{{ post.title }}</h2>
+                    <p class="text-gray-600 mb-4 text-sm line-clamp-3">
+                        {{ post.content | striptags | truncate(100) }}
+                    </p>
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="text-indigo-600 font-medium hover:text-indigo-800 transition duration-150 ease-in-out flex items-center">
+                        続きを読む
+                        <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                    </a>
                 </div>
             </div>
-        </div>
+            {% endfor %}
         {% else %}
-        <div class="col-12 text-center py-5">
-            <p class="lead text-muted">まだ記事がありません。</p>
-        </div>
-        {% endfor %}
+            <div class="col-span-full bg-white p-8 rounded-lg shadow-md text-center">
+                <p class="text-gray-500 text-lg">まだ記事が投稿されていません。</p>
+                {% if current_user.is_authenticated %}
+                    <p class="mt-4"><a href="{{ url_for('create') }}" class="text-indigo-600 hover:underline font-medium">最初の記事を投稿しましょう！</a></p>
+                {% else %}
+                    <p class="mt-4">記事を投稿するには<a href="{{ url_for('signup') }}" class="text-indigo-600 hover:underline font-medium">サインアップ</a>してください。</p>
+                {% endif %}
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
