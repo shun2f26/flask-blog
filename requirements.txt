@@ -1,10 +1,10 @@
 Flask
 Flask-SQLAlchemy
-Flask-Migrate
 Flask-Login
-Werkzeug
+Flask-Migrate
 python-dotenv
-psycopg2-binary
+Werkzeug
 gunicorn
-Pillow
+psycopg2-binary
+requests
 cloudinary
