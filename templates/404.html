@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}404 Not Found{% endblock %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center text-center py-20">
+    <p class="text-9xl font-extrabold text-indigo-600 tracking-widest">404</p>
+    <div class="bg-gray-800 px-2 text-sm rounded rotate-12 absolute text-white">
+        ページが見つかりません
+    </div>
+    <h1 class="mt-8 text-2xl font-bold text-gray-800 sm:text-4xl">お探しのページが見つかりませんでした。</h1>
+    <p class="mt-4 text-gray-600">URLが正しいかご確認ください。または、ホームに戻ってください。</p>
+
+    <a href="{{ url_for('index') }}" class="mt-8 inline-block px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg shadow-md hover:bg-indigo-700 transition">
+        ホームに戻る
+    </a>
+</div>
+{% endblock %}
