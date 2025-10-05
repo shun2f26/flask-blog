@@ -47,6 +47,14 @@ else:
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Cloudinaryの設定（環境変数から自動読み込み）
+cloudinary.config(
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key = os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET'),
+    secure = True
+)
+
 # ログイン管理システム
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -69,6 +77,9 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     
+    # 🌟 記事とのリレーションシップを追加
+    posts = db.relationship('Post', backref='author', lazy=True)
+    
     def get_reset_token(self, expires_sec=1800): 
         s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
         return s.dumps({'user_id': self.id})
@@ -86,26 +97,33 @@ class User(UserMixin, db.Model):
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    body = db.Column(db.String(5000), nullable=False) # myblog.pyに合わせ5000に拡張
+    # 🌟 bodyからcontentに名称変更
+    content = db.Column(db.Text, nullable=False) 
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") # デフォルト値を設定
+    # 🌟 img_nameからimage_fileに名称変更（URLを保存するため）
+    image_file = db.Column(db.String(300), nullable=True) 
+    
+    # 🌟 外部キーを追加: 'user.id' は 'user' テーブルの 'id' カラムを参照
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 def upload_image_to_cloudinary(file_data):
     """
     アップロードされたファイルをCloudinaryに送信し、公開URLを返す。
-    :param file_data: Werkzeug FileStorageオブジェクト (アップロードされたファイル)
-    :return: 公開画像URL (str) または None
     """
     try:
+        # Cloudinary API認証情報が設定されているか確認 (Render環境での重要チェック)
+        if not (os.environ.get('CLOUDINARY_CLOUD_NAME') and os.environ.get('CLOUDINARY_API_KEY')):
+             print("Cloudinary API credentials not set. Skipping upload.", file=sys.stderr)
+             return None 
+             
         # ファイルの内容を直接Cloudinaryにアップロード
-        # folder='flask_blog' でCloudinary上にフォルダを作成
         result = cloudinary.uploader.upload(file_data, folder="flask_blog")
         
         # アップロード成功後、安全なHTTPSの公開URLを取得して返す
         return result.get('secure_url')
     except Exception as e:
         # アップロード失敗時はエラーをコンソールに出力し、Noneを返す
-        print(f"Cloudinary Upload Error: {e}")
+        print(f"Cloudinary Upload Error: {e}", file=sys.stderr)
         return None
     
 @login_manager.user_loader 
@@ -135,6 +153,21 @@ def get_user_by_username(username):
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
 
+# -------------------------------------------------------------------
+# !!! Render Free Tier 対策: アプリ起動時にテーブル作成を試みる (このロジックは残す) !!!
+# -------------------------------------------------------------------
+try:
+    with app.app_context():
+        # UserとPostモデルの変更（外部キー追加）があったため、マイグレーションが必要です。
+        # ローカルでの開発を続行する場合は、マイグレーションコマンド（flask db init/migrate/upgrade）を実行してください。
+        # Renderでマイグレーションを実行しない場合は、既存のテーブルを削除してから再デプロイしてください。
+        # db.create_all() # <-- マイグレーションを利用する場合はコメントアウト
+        pass
+except Exception as e:
+    print(f"CRITICAL: Error during initial db check: {e}", file=sys.stderr)
+    
+# -------------------------------------------------------------------
+
 @app.route("/")
 def index():
     posts = db.session.execute(
@@ -150,8 +183,9 @@ def view(post_id):
 @app.route("/admin")
 @login_required
 def admin():
+    # 🌟 ログインユーザーの記事のみ取得するように修正
     posts = db.session.execute(
-        db.select(Post).order_by(Post.create_at.desc())
+        db.select(Post).filter_by(user_id=current_user.id).order_by(Post.create_at.desc())
     ).scalars().all()
     return render_template("admin.html", posts=posts)
 
@@ -160,8 +194,8 @@ def admin():
 def create():
     if request.method == 'POST':
         title = request.form.get('title')
+        # 🌟 bodyではなくcontentを使用
         content = request.form.get('content')
-        # 🚨 request.filesからファイルデータを取得
         image_file_data = request.files.get('image_file') 
         
         if not title or not content:
@@ -171,18 +205,20 @@ def create():
         image_url = None
         # ファイルが提供され、かつファイル名がある場合のみ処理を実行
         if image_file_data and image_file_data.filename != '':
-            # 🚨 Cloudinaryへのアップロードを実行
             image_url = upload_image_to_cloudinary(image_file_data)
             
             if not image_url:
+                # 画像アップロード失敗でも、記事自体は投稿可能とする
                 flash('画像のアップロードに失敗しました。', 'error')
-                return redirect(url_for('create'))
-
+                # return redirect(url_for('create')) # 記事自体は投稿できるようにリダイレクトはしない
+                
         new_post = Post(
             title=title, 
+            # 🌟 contentを使用
             content=content, 
+            # 🌟 author=current_user (Userモデルでリレーションを設定済みのため利用可能)
             author=current_user,
-            # 🚨 データベースにはファイル名ではなく、公開URLを保存する
+            # 🌟 image_fileを使用
             image_file=image_url 
         )
         
@@ -192,45 +228,43 @@ def create():
         return redirect(url_for('view', post_id=new_post.id))
 
     return render_template('create.html')
-        
+    
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
     post = db.session.get(Post, post_id)
+    # 🌟 記事の存在チェックと所有者チェック
     if post is None or post.author != current_user:
         flash('記事が見つからないか、編集権限がありません。', 'danger')
         return redirect(url_for('admin'))
 
     if request.method == 'POST':
         post.title = request.form.get('title')
+        # 🌟 contentを使用
         post.content = request.form.get('content')
-        # 🚨 ファイルデータを取得
         image_file_data = request.files.get('image_file')
 
         if image_file_data and image_file_data.filename != '':
-            # 新しい画像をアップロード
             image_url = upload_image_to_cloudinary(image_file_data)
             
             if image_url:
-                # 既存の画像ファイルがあれば、Cloudinaryから削除することも可能ですが、
-                # 今回はシンプルにURLを更新します。
+                # 🌟 image_fileを使用
                 post.image_file = image_url
             else:
-                flash('画像の更新に失敗しました。', 'error')
-                return redirect(url_for('update', post_id=post.id))
-
+                flash('画像の更新に失敗しましたが、記事内容は保存されました。', 'error')
+        
         db.session.commit()
         flash('記事を更新しました。', 'success')
         return redirect(url_for('view', post_id=post.id))
 
     return render_template('update.html', post=post)
     
-@app.route('/delete/<int:post_id>', methods=['POST']) # 👈 ここを修正
+@app.route('/delete/<int:post_id>', methods=['POST']) 
 @login_required
 def delete(post_id):
     post = db.session.get(Post, post_id)
     
-    # 記事が存在しない、または編集権限がない場合
+    # 🌟 記事の存在チェックと所有者チェック
     if post is None or post.author != current_user:
         flash('記事が見つからないか、削除権限がありません。', 'danger')
         return redirect(url_for('admin'))
@@ -268,7 +302,7 @@ def signup():
         return redirect(url_for('admin')) # 登録後、管理画面へ
         
     return render_template('signup.html')
-        
+    
 @app.route("/login", methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -330,7 +364,8 @@ def account():
         # パスワード更新
         new_password = request.form.get('new_password')
         if new_password:
-            hashed_pass = generate_password_hash(password)
+            # 🚨 パスワードをハッシュ化して更新
+            user.password = generate_password_hash(new_password)
             is_updated = True
             
         if is_updated:
@@ -393,7 +428,8 @@ def reset_password(token):
             # エラー時もトークンを保持して同じページに戻る
             return redirect(url_for('reset_password', token=token)) 
             
-        hashed_pass = generate_password_hash(password)
+        # 🚨 パスワードをハッシュ化して更新
+        user.password = generate_password_hash(password)
         db.session.commit()
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
         return redirect(url_for('login'))
@@ -415,5 +451,7 @@ def page_not_found(e):
 
 # --- アプリケーション実行 (ローカル開発用) ---
 if __name__ == '__main__':
-    # ... (ローカルでのdb.create_all()ロジックは省略)
+    with app.app_context():
+        # 🚨 ローカル開発用の db.create_all() を追加
+        db.create_all() 
     app.run(debug=True)
