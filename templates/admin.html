@@ -25,56 +25,43 @@
     </div>
   </div>
 </nav>　
-  <div class="container my-5">
-    <div class="text-center mb-4">
-      <h1>しゅんブログ</h1>
-      <h2>最近の出来事をお伝えします。</h2>
-    </div>
+  <div class="container mt-5">
+    <h2>投稿の管理</h2>
+    <a href="{{ url_for('create') }}" class="btn btn-primary mb-3">新規投稿作成</a>
 
-    {# フラッシュメッセージ表示エリア #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                
+                <!-- 🚨 修正箇所: 画像パスのチェックとプレースホルダーの適用 -->
+                {% if post.image_file %}
+                    <!-- 画像ファイルパスがDBに保存されている場合 (ローカルパスはRenderでは機能しないため、読み込みエラー時に代替画像を表示) -->
+                    <img src="{{ url_for('static', filename='images/' + post.image_file) }}" 
+                         alt="{{ post.title }}" 
+                         class="card-img-top" 
+                         onerror="this.onerror=null; this.src='https://via.placeholder.com/600x300.png?text=Image+Not+Found';" 
+                         style="height: 200px; object-fit: cover;">
+                {% else %}
+                    <!-- 画像ファイルパスがない場合、プレースホルダーを表示 -->
+                    <img src="https://via.placeholder.com/600x300.png?text=No+Image+Available" 
+                         alt="画像なし" 
+                         class="card-img-top" 
+                         style="height: 200px; object-fit: cover;">
+                {% endif %}
 
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-      {% for post in posts %}
-        <div class="col">
-          <div class="card h-100 shadow-sm border-secondary">
-            {# 画像があれば表示 #}
-            {% if post.img_name %}
-            <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ post.title }}">
-            {% else %}
-            {# 画像がない場合のプレースホルダー #}
-            <div class="bg-light text-center p-5" style="height: 200px; line-height: 150px;">画像なし</div>
-            {% endif %}
-            
-            <div class="card-body d-flex flex-column">
-              <h5 class="card-title text-truncate">{{ post.title }}</h5>
-              <p class="card-text flex-grow-1">{{ post.body | truncate(100) }}</p>
-              <p class="text-muted small mt-2">投稿日：{{ post.create_at.strftime('%Y/%m/%d %H:%M') }}</p>
-              
-              <div class="d-flex justify-content-between mt-auto">
-                <a href="/{{ post.id }}/update" role="button" class="btn btn-success flex-fill me-2">更新</a>
-                <a href="/{{ post.id }}/delete" role="button" class="btn btn-danger flex-fill">削除</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      {% endfor %}
-    </div>
-
-    {# 記事がない場合のメッセージ #}
-    {% if not posts %}
-    <div class="alert alert-info text-center mt-5">
-      まだ記事がありません。新規作成ボタンから記事を投稿しましょう！
-    </div>
-    {% endif %}
-  </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ post.title }}</h5>
+                    <p class="card-text text-muted">{{ post.create_at.strftime('%Y/%m/%d') }}</p>
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="btn btn-sm btn-info">閲覧</a>
+                    <a href="{{ url_for('update', post_id=post.id) }}" class="btn btn-sm btn-secondary">編集</a>
+                    <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" style="display:inline-block;">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('本当にこの記事を削除しますか？');">削除</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
 {% endblock %}
