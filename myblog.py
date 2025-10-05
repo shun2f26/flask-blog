@@ -11,6 +11,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
+# SQLAlchemyのセッション制御に必要なimportを追加
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 # --- アプリケーション設定 ---
 
@@ -106,6 +109,7 @@ class User(UserMixin, db.Model):
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
+    # ★重要な確認点: ここは 'content' であり、変更されていません。
     content = db.Column(db.Text, nullable=False) 
     image_file = db.Column(db.String(300), nullable=True) 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -155,17 +159,20 @@ def get_user_by_username(username):
 
 
 # --- データベースリセット＆初期化専用ルート (重要: 実行後に必ずアクセス) ---
-# このルートは既存のテーブルをすべて削除してから再作成します。データは失われます。
 @app.route('/db_reset')
 def db_reset():
-    # 🚨 セキュリティのため、環境変数で指定されたSECRET_KEYを確認するなどの保護を検討してください。
-    
     try:
+        # 1. すべてのテーブルを削除
         db.drop_all()
+        
+        # 2. すべてのテーブルを再作成
         db.create_all()
+        
+        # 3. 既存のDBセッションを閉じる (Gunicornのワーカースレッドが古いスキーマを持つセッションを使わないようにする)
+        db.session.remove()
+        
         return "Database tables reset and recreated successfully! **IMPORTANT**: Please remove this route after running once."
     except Exception as e:
-        # エラーが発生した場合は、contextの欠如ではなく他の問題の可能性が高いため、エラーログを出力
         return f"Database initialization failed: {e}", 500
 # ----------------------------------------------------------------------
 
@@ -196,12 +203,13 @@ def admin():
 @login_required
 def create():
     if request.method == 'POST':
-        title = request.form.get('title') # 'title' という名前のフォーム要素を期待
-        content = request.form.get('content') # 'content' という名前のフォーム要素を期待
-        # ...
+        title = request.form.get('title')
+        content = request.form.get('content')
+        image_file_data = request.files.get('image_file') 
         
         if not title or not content:
             flash('タイトルと本文を入力してください。', 'warning')
+            return redirect(url_for('create'))
         
         image_url = None
         if image_file_data and image_file_data.filename != '':
@@ -212,7 +220,7 @@ def create():
                 
         new_post = Post(
             title=title, 
-            content=content, 
+            content=content, # ★ここで 'content' カラムに書き込みます★
             author=current_user,
             image_file=image_url 
         )
