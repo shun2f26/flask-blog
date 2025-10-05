@@ -196,13 +196,12 @@ def admin():
 @login_required
 def create():
     if request.method == 'POST':
-        title = request.form.get('title')
-        content = request.form.get('content')
-        image_file_data = request.files.get('image_file') 
+        title = request.form.get('title') # 'title' という名前のフォーム要素を期待
+        content = request.form.get('content') # 'content' という名前のフォーム要素を期待
+        # ...
         
         if not title or not content:
             flash('タイトルと本文を入力してください。', 'warning')
-            return redirect(url_for('create'))
         
         image_url = None
         if image_file_data and image_file_data.filename != '':
