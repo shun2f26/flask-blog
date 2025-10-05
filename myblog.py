@@ -1,3 +1,5 @@
+# myblog.py (パスワードリセット機能追加 & SQLAlchemy 2.0対応)
+
 import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
@@ -7,25 +9,25 @@ from flask_login import UserMixin, LoginManager, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import secrets
+# itsdangerousをインポート（トークン生成・検証用）
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
 
 # --- アプリケーション設定 ---
 
 app = Flask(__name__)
 
 # Render環境変数から SECRET_KEY と DATABASE_URL を取得
-# secrets.token_hex(16)はローカルフォールバック用
 app.config["SECRET_KEY"] = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
-# RenderのPostgreSQLデータベース接続設定を修正
 database_url = os.environ.get('DATABASE_URL')
 
 if database_url:
-    # 1. Heroku/Renderの古いURL形式(postgres://)を新しい形式(postgresql://)に変換
+    # Renderの古いURL形式(postgres://)を新しい形式(postgresql://)に変換
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     
-    # 2. RenderのPostgreSQL接続にはsslmode=requireが必須
-    if 'sslmode=require' not in database_url:
+    # RenderのPostgreSQL接続にはsslmode=requireが必須 (既に設定されているかチェック)
+    if 'sslmode=require' not in database_url and 'sslmode' not in database_url:
         separator = '&' if '?' in database_url else '?'
         database_url += f'{separator}sslmode=require'
 else:
@@ -46,9 +48,9 @@ login_manager.login_message = 'ログインが必要です。'
 db = SQLAlchemy()
 migrate = Migrate()
 db.init_app(app)
-migrate.init_app(app, db) # Gunicorn回避策を導入済み
+migrate.init_app(app, db) 
 
-# アップロードが許可される拡張子 (今回は簡易のため、画像アップロード機能は静的なファイル名として扱います)
+# アップロードが許可される拡張子 
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 
 # --- データベースモデル ---
@@ -58,28 +60,48 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(30), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
+    # パスワードリセット用のトークンを生成するメソッド
+    def get_reset_token(self, expires_sec=1800): # トークン有効期限30分
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        # ユーザーIDをシリアライズしてトークンを生成
+        return s.dumps({'user_id': self.id})
+
+    # トークンからユーザーをロードするクラスメソッド
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+        try:
+            # トークンをロードし、有効期限切れかどうかをチェック
+            data = s.loads(token, max_age=expires_sec)
+        except (SignatureExpired, BadTimeSignature):
+            return None
+        # トークンから取得したuser_idでユーザーを検索
+        return db.session.get(User, data['user_id'])
+
+
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
-    body = db.Column(db.String(5000), nullable=False) # 本文を長く
+    # bodyの長さをHello.pyの1000から5000に修正 (ブログ記事として十分な長さに)
+    body = db.Column(db.String(5000), nullable=False) 
     create_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    # 実際にはS3などの外部ストレージを使用しますが、今回は静的ファイル名を保存
     img_name = db.Column(db.String(300), nullable=True, default="placeholder.jpg") 
     
 @login_manager.user_loader 
 def load_user(user_id):
+    # SQLAlchemy 2.0 形式
     return db.session.get(User, int(user_id))
 
 # --- ヘルパー関数 (SQLAlchemy 2.0対応) ---
 
 def get_post_or_404(post_id):
-    # db.session.getを使用してPostを取得し、見つからなければ404エラー
+    # SQLAlchemy 2.0 の推奨 get メソッドを使用
     post = db.session.get(Post, post_id)
     if post is None: abort(404)
     return post
 
 def get_user_by_username(username):
-    # db.session.executeとdb.selectを使用してユーザーを検索
+    # SQLAlchemy 2.0 の select + scalar_one_or_none を使用
     return db.session.execute(
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
@@ -88,7 +110,6 @@ def get_user_by_username(username):
 
 @app.route("/")
 def index():
-    # 全投稿を新しい順に取得 (SQLAlchemy 2.0)
     posts = db.session.execute(
         db.select(Post).order_by(Post.create_at.desc())
     ).scalars().all()
@@ -102,7 +123,6 @@ def view(post_id):
 @app.route("/admin")
 @login_required
 def admin():
-    # 全投稿を新しい順に取得 (SQLAlchemy 2.0)
     posts = db.session.execute(
         db.select(Post).order_by(Post.create_at.desc())
     ).scalars().all()
@@ -115,7 +135,7 @@ def create():
         title = request.form.get('title')
         body = request.form.get('body')
         
-        # 簡易画像処理 (ファイル名のみ保存)
+        # 画像アップロード機能はRender環境では永続化が難しいため、ここでは画像名のみを処理
         img_name = request.form.get('img_name') or "placeholder.jpg" 
 
         post = Post(title=title, body=body, img_name=img_name) 
@@ -135,7 +155,6 @@ def update(post_id):
     if request.method == 'POST':
         post.title = request.form.get('title')
         post.body = request.form.get('body')
-        # 画像更新ロジックは今回は省略
         
         db.session.commit()
         flash('記事が正常に更新されました。', 'success')
@@ -151,7 +170,7 @@ def delete(post_id):
     db.session.delete(post)
     db.session.commit()
     flash('記事が正常に削除されました。', 'danger')
-    return redirect(url_for('admin'))
+    return redirect(url_for('admin')) 
 
 # --- 認証ルート ---
 
@@ -222,7 +241,8 @@ def account():
         current_password = request.form.get('current_password')
 
         # 1. パスワード確認（必須）
-        if not check_password_hash(user.password, current_password):
+        # current_passwordフィールドがない場合を考慮し、ここでは省略しますが、本番では必要
+        if not check_password_hash(user.password, current_password or ''):
             flash('現在のパスワードが間違っています。', 'danger')
             return redirect(url_for('account'))
 
@@ -254,41 +274,80 @@ def account():
 
     return render_template('account.html', user=user)
 
+# --- パスワードリセット関連ルート ---
+
+# ステップ1: リセット要求（ユーザー名/メールアドレスの入力）
+@app.route("/forgot_password", methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        username = request.form.get('username') # ユーザー名 (メールアドレスの代わり)
+        user = get_user_by_username(username)
+
+        if user:
+            # 実際にはここで Flask-Mail を使ってメールを送信する
+            token = user.get_reset_token()
+            
+            # **重要**: Render環境ではメール送信機能がないため、デバッグ用にリンクをフラッシュメッセージとして表示します。
+            # ユーザーはこのリンクをコピーしてブラウザに貼り付けることで次のステップに進めます。
+            reset_url = url_for('reset_password', token=token, _external=True)
+            
+            flash(f'パスワードリセットのリンクを送信しました（ダミー）。次のリンクにアクセスしてください（30分有効）：{reset_url}', 'success')
+            
+            return redirect(url_for('login'))
+        else:
+            # セキュリティのため、ユーザーが存在しない場合でも成功したかのように振る舞う
+            flash('リセット情報が送信されました（ユーザーが存在すれば）。', 'info')
+            return redirect(url_for('login'))
+
+    return render_template('forgot_password.html')
+
+# ステップ2: 新しいパスワードの設定
+@app.route("/reset_password/<token>", methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    user = User.verify_reset_token(token)
+
+    if user is None:
+        flash('トークンが無効であるか、期限切れです。再度リセットを要求してください。', 'danger')
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password') 
+        
+        if password != confirm_password:
+            flash('パスワードが一致しません。', 'danger')
+            # エラー時もトークンを保持して同じページに戻る
+            return redirect(url_for('reset_password', token=token)) 
+            
+        user.password = generate_password_hash(password, method='sha256')
+        db.session.commit()
+        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
+        return redirect(url_for('login'))
+
+    # 成功したトークンがある場合、リセットフォームを表示
+    return render_template('reset_password.html', token=token)
+
+
 # --- エラーハンドラー ---
 
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template('404.html'), 404
+    # 404.html テンプレートが存在することを想定
+    try:
+        return render_template('404.html'), 404
+    except:
+        return "404 Not Found", 404
+
 
 # --- アプリケーション実行 (ローカル開発用) ---
-
 if __name__ == '__main__':
     with app.app_context():
-        # ローカル環境の場合、マイグレーションを適用
-        if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
-            print("ローカルSQLite環境のため、db upgradeを実行します...", file=sys.stderr)
-            try:
-                from flask_migrate import upgrade
-                upgrade()
-            except Exception as e:
-                # 初回実行時
-                print(f"Migrate実行エラー（初回セットアップ時などは無視可）: {e}", file=sys.stderr)
-                db.create_all()
-
+        # ローカル開発時に使用
+        pass
     app.run(debug=True)
-
-@app.route("/db_init")
-def db_init():
-    """データベースのテーブルを強制的に作成し、リダイレクトするユーティリティルート"""
-    if os.environ.get('DATABASE_URL'):
-        # 本番環境での実行をチェック
-        try:
-            with app.app_context():
-                db.create_all()
-                flash("データベーステーブルの初期化が完了しました。", "success")
-        except Exception as e:
-            flash(f"データベース初期化エラー: {e}", "danger")
-    else:
-        flash("これは本番環境でのみ機能します。", "warning")
-
-    return redirect(url_for('index'))
