@@ -1,53 +1,55 @@
-{% extends 'base.html' %}
-
+{% extends "base.html" %}
 {% block title %}アカウント設定{% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-6">
-            <div class="card shadow-lg">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">アカウント情報</h3>
+<div class="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-8 border-b-4 border-indigo-500 pb-2">アカウント設定</h1>
+    
+    <div class="bg-white p-8 rounded-xl shadow-2xl">
+        <p class="text-lg font-semibold text-gray-700 mb-6">現在のユーザー名: <span class="text-indigo-600">{{ user.username }}</span></p>
+
+        <form method="POST" action="{{ url_for('account') }}" class="space-y-6">
+            <!-- ユーザー名変更 -->
+            <fieldset class="border border-gray-200 p-4 rounded-lg">
+                <legend class="text-base font-medium text-gray-900 px-2">ユーザー名の変更</legend>
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">新しいユーザー名</label>
+                    <input id="username" name="username" type="text"
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                           placeholder="変更しない場合は空欄">
                 </div>
-                <div class="card-body">
-                    {# フラッシュメッセージ表示エリア #}
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category if category != 'message' else 'success' }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+            </fieldset>
 
-                    <form method="POST" action="{{ url_for('account') }}">
-                        <div class="mb-3">
-                            <label for="username" class="form-label">ユーザー名</label>
-                            {# current_user は Flask-Login によって提供されます #}
-                            <input type="text" name="username" id="username" class="form-control" value="{{ current_user.username }}" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="new_password" class="form-label">新しいパスワード (変更する場合のみ)</label>
-                            <input type="password" name="new_password" id="new_password" class="form-control" placeholder="新しいパスワードを入力">
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="confirm_password" class="form-label">パスワード確認</label>
-                            <input type="password" name="confirm_password" id="confirm_password" class="form-control" placeholder="新しいパスワードを再入力">
-                        </div>
-
-                        <button type="submit" class="btn btn-success w-100">設定を保存</button>
-                    </form>
-
-                    <hr class="my-4">
-                    <a href="{{ url_for('admin') }}" class="btn btn-outline-secondary w-100">管理画面に戻る</a>
+            <!-- パスワード変更 -->
+            <fieldset class="border border-gray-200 p-4 rounded-lg">
+                <legend class="text-base font-medium text-gray-900 px-2">パスワードの変更</legend>
+                <div>
+                    <label for="new_password" class="block text-sm font-medium text-gray-700">新しいパスワード</label>
+                    <input id="new_password" name="new_password" type="password"
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                           placeholder="変更しない場合は空欄">
                 </div>
+            </fieldset>
+
+            <!-- 現在のパスワード確認 (必須) -->
+            <div class="pt-4 border-t border-gray-200">
+                <p class="text-red-600 text-sm font-medium mb-2">変更を保存するには、現在のパスワードが必要です。</p>
+                <label for="current_password" class="block text-sm font-medium text-gray-700">現在のパスワード <span class="text-red-500">*</span></label>
+                <input id="current_password" name="current_password" type="password" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                       placeholder="現在のパスワードを入力">
             </div>
-        </div>
+            
+            <div class="flex justify-end space-x-4">
+                <a href="{{ url_for('admin') }}" class="inline-flex items-center px-6 py-3 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-2"></i>管理画面に戻る
+                </a>
+                <button type="submit"
+                        class="inline-flex items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                    <i class="fas fa-sync-alt mr-2"></i>設定を保存
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
