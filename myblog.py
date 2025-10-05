@@ -276,3 +276,19 @@ if __name__ == '__main__':
                 db.create_all()
 
     app.run(debug=True)
+
+@app.route("/db_init")
+def db_init():
+    """データベースのテーブルを強制的に作成し、リダイレクトするユーティリティルート"""
+    if os.environ.get('DATABASE_URL'):
+        # 本番環境での実行をチェック
+        try:
+            with app.app_context():
+                db.create_all()
+                flash("データベーステーブルの初期化が完了しました。", "success")
+        except Exception as e:
+            flash(f"データベース初期化エラー: {e}", "danger")
+    else:
+        flash("これは本番環境でのみ機能します。", "warning")
+
+    return redirect(url_for('index'))
