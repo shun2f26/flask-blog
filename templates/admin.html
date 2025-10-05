@@ -1,28 +1,34 @@
 {% extends 'base.html' %}
 {% block title %}管理ページ{% endblock %}
 {% block content %}
-    <nav class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="fle        x">
-                    <a href="{{ url_for('index') }}" class="flex-shrink-0 flex items-center text-xl font-bold text-gray-900">
-                        My Flask Blog
-                    </a>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="{{ url_for('account') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">アカウント情報変更・退会</a>
-                </div>
-            </div>
-        </div>
-    </nav>　
+ <nav class="navbar navbar-expand-lg bg-body-tertiary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">My Flask Blog</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarText">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link active" aria-current="page" href="https://flask-myblog-lg1s.onrender.com/">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('create') }}">新規作成画面</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('logout') }}">ログアウト</a>
+        </li>
+      </ul>
+        <span class="navbar-text">
+           <a class="nav-link" href="{{ url_for('account') }}">アカウント情報変更・退会</a>
+        </span>
+    </div>
+  </div>
+</nav>　
   <div class="container my-5">
     <div class="text-center mb-4">
       <h1>しゅんブログ</h1>
       <h2>最近の出来事をお伝えします。</h2>
-      <div class="d-flex justify-content-center gap-3">
-        <a href="{{ url_for('create') }}" role="button" class="btn btn-info btn-lg">新規作成画面</a>
-        <a href="{{ url_for('logout') }}" role="button" class="btn btn-warning btn-lg">ログアウト</a>
-      </div>
     </div>
 
     {# フラッシュメッセージ表示エリア #}
