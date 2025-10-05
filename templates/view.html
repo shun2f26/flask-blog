@@ -1,36 +1,47 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}{{ post.title }}{% endblock %}
+{% block title %}
+    {{ post.title }}
+{% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="row justify-content-center">
+<div class="container mt-5">
+    <div class="row">
         <div class="col-lg-8">
-            <article class="bg-white p-4 p-md-5 rounded shadow-lg">
-                <h1 class="mb-3 display-5">{{ post.title }}</h1>
-                <p class="text-muted mb-4">
-                    投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
-                </p>
+            <h1 class="mb-4">{{ post.title }}</h1>
+            <p class="text-muted">投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}</p>
+            
+            <hr>
+            
+            <!-- 🚨 修正箇所: 画像パスのチェックとプレースホルダーの適用 -->
+            {% if post.image_file %}
+                <!-- 画像ファイルパスがDBに保存されている場合 -->
+                <img src="{{ url_for('static', filename='images/' + post.image_file) }}" 
+                     alt="{{ post.title }}" 
+                     class="img-fluid mb-4 rounded" 
+                     onerror="this.onerror=null; this.src='https://placehold.co/800x400/D3D3D3/000000?text=No+Image';" 
+                     style="max-height: 400px; object-fit: cover;">
+            {% else %}
+                <!-- 画像ファイルパスがない場合、プレースホルダーを表示 -->
+                <img src="https://placehold.co/800x400/D3D3D3/000000?text=No+Image" 
+                     alt="画像なし" 
+                     class="img-fluid mb-4 rounded" 
+                     style="max-height: 400px; object-fit: cover;">
+            {% endif %}
+            
+            <div class="lead">
+                {{ post.content|safe }}
+            </div>
+            
+            <hr>
 
-                {% if post.img_name %}
-                <div class="mb-4">
-                    <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="img-fluid rounded" alt="{{ post.title }}">
-                </div>
-                {% endif %}
+            {% if current_user.is_authenticated and post.author == current_user %}
+            <a href="{{ url_for('update', post_id=post.id) }}" class="btn btn-secondary">編集</a>
+            <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" style="display:inline-block;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('本当にこの記事を削除しますか？');">削除</button>
+            </form>
+            {% endif %}
 
-                <div class="lead" style="white-space: pre-wrap;">
-                    {{ post.body }}
-                </div>
-                
-                <hr class="my-5">
-                
-                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-                    </svg>
-                    記事一覧に戻る
-                </a>
-            </article>
         </div>
     </div>
 </div>
