@@ -1,8 +1,9 @@
+# Hello.py (SQLAlchemy 2.0 形式に統一)
+
 import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
-# from flask_migrate import Migrate # 🚨 インポートを削除
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 import cloudinary 
 import cloudinary.uploader
@@ -12,14 +13,8 @@ import secrets
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
 
 # --- アプリケーション設定 ---
-# ... (変更なし)
-# ...
-# ...
-# --- データベースの設定 ---
-db = SQLAlchemy()
-# migrate = Migrate() # 🚨 ここも使用しない
-db.init_app(app)
-# migrate.init_app(app, db) # 🚨 ここも使用しない
+
+app = Flask(__name__) # 👈 ここで 'app' が定義される
 
 # Render環境変数から SECRET_KEY と DATABASE_URL を取得
 app.config["SECRET_KEY"] = os.environ.get('SECRET_KEY', secrets.token_hex(16))
@@ -64,9 +59,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login' 
 login_manager.login_message = 'ログインが必要です。' 
 
-# --- データベースの設定 ---
+# --- データベースの設定 (app定義後に移動) ---
 db = SQLAlchemy()
-db.init_app(app)
+db.init_app(app) # 👈 'app' が定義されているため、これでエラーは発生しないはず
 
 # アップロードが許可される拡張子 
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
@@ -154,13 +149,12 @@ def db_reset():
     # 🚨 セキュリティのため、環境変数で指定されたSECRET_KEYを確認するなどの保護を検討してください。
     
     try:
-        with app.app_context():
-            # 既存のテーブルをすべて削除
-            db.drop_all()
-            # 新しいスキーマでテーブルを作成
-            db.create_all()
-            return "Database tables reset and recreated successfully! **IMPORTANT**: Please remove this route after running once."
+        # db.init_app(app) が既に実行されているため、app_context は不要
+        db.drop_all()
+        db.create_all()
+        return "Database tables reset and recreated successfully! **IMPORTANT**: Please remove this route after running once."
     except Exception as e:
+        # エラーが発生した場合は、contextの欠如ではなく他の問題の可能性が高いため、エラーログを出力
         return f"Database initialization failed: {e}", 500
 # ----------------------------------------------------------------------
 
