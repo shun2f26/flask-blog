@@ -6,11 +6,10 @@ from flask import Flask, render_template, redirect, url_for, request, flash, abo
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-# itsdangerous v2.0以降、TimedSerializerはmax_ageをloads()メソッドで受け取るようになりました。
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
+from sqlalchemy.exc import OperationalError, ProgrammingError # データベース接続エラーをキャッチするため
 
 # --- 1. App Configuration ---
-# Set up logging for better debugging in the console
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -18,17 +17,13 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Load configuration from environment variables
-# IMPORTANT: Render typically uses the environment variable 'DATABASE_URL' for PostgreSQL.
-# For local testing, you might use 'sqlite:///myblog.db'
+# Render環境ではDATABASE_URLを使用。ローカルではsqlite。
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 
     'sqlite:///myblog.db'
-).replace('postgres://', 'postgresql://') # SQLAlchemy requires 'postgresql://' prefix
+).replace('postgres://', 'postgresql://') 
 
-# SECRET_KEY is mandatory for session security and flashing messages
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_fallback_secret_key_12345')
-
-# Suppress the deprecation warning, though setting it to False is now the default behavior
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
@@ -36,10 +31,9 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-login_manager.login_message = 'このページにアクセスするにはログインしてください。' # Login required message
+login_manager.login_message = 'このページにアクセスするにはログインしてください。' 
 
-# Token Serializer for password reset links. (timeout setting is done in loads() via max_age)
-# 修正点: serializer_timeout引数を削除しました。
+# Token Serializer (Timeout is set in loads() via max_age)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY']) 
 
 # --- 2. Database Models ---
@@ -49,16 +43,12 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    
-    # リレーションシップ: このユーザーが作成したすべての記事
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
-        """パスワードをハッシュ化して保存します。"""
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        """入力されたパスワードと保存されたハッシュを比較します。"""
         return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
@@ -84,39 +74,60 @@ def load_user(user_id):
     """ユーザーIDに基づいてユーザーオブジェクトをロードします。"""
     return User.query.get(int(user_id))
 
-# --- 4. Database Initialization Route ---
+# --- 4. Database Initialization and Status Check ---
+
+def check_db_health():
+    """データベース接続とテーブル存在チェックを試みる"""
+    try:
+        # 接続確認: 何らかのクエリを実行して接続をテスト
+        # テーブルが存在しない場合はProgrammingErrorが発生するが、ここでは接続自体を重視
+        db.session.execute(db.select(User).limit(1)).scalar_one_or_none()
+        return True
+    except OperationalError as e:
+        logger.error(f"Database Operational Error: Connection failed. {e}")
+        return False
+    except ProgrammingError as e:
+        # テーブルが存在しない場合は初期化が必要
+        logger.warning(f"Database Programming Error: Tables not found. Initialization required. {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unknown Database Error: {e}")
+        return False
 
 @app.route('/db_init')
 def db_init():
     """
     データベースとテーブルを初期化するためのルート。
-    デプロイ後の初回アクセス時に実行する必要があります。
     """
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            db.drop_all() # 既存のテーブルがあれば削除
-            db.create_all() # 新しいテーブルを作成
+            # 接続確認
+            db.session.execute(db.select(User).limit(0)) # 軽いクエリで接続テスト
+            
+            # テーブル作成
+            db.drop_all()
+            db.create_all()
             logger.info("Database connection successful. Tables (Post and User) created successfully!")
-            return "Database connection successful. Tables (Post and User) created successfully! Please proceed to <a href='/signup'>/signup</a> to register the first user."
-        except Exception as e:
-            logger.error(f"Database initialization failed (Attempt {attempt + 1}/{max_retries}): {e}")
+            return "データベース接続が成功し、テーブルが初期化されました。次に <a href='/signup'>/signup</a> からユーザー登録を行ってください。", 200
+        except OperationalError as e:
+            logger.error(f"Database initialization failed (Attempt {attempt + 1}/{max_retries}): Connection refused or timeout. {e}")
             if attempt < max_retries - 1:
-                # Exponential backoff: 1s, 2s, 4s, 8s...
                 wait_time = 2 ** attempt
                 logger.info(f"Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
-                return f"Database initialization failed after {max_retries} attempts: {e}", 500
+                return f"データベース初期化に失敗しました。データベースURLと接続設定を確認してください: {e}", 500
+        except Exception as e:
+            logger.error(f"Database initialization failed unexpectedly: {e}")
+            return f"予期せぬエラーにより初期化に失敗しました: {e}", 500
     return "Initialization failed unexpectedly.", 500
 
 
 # --- 5. Error Handlers ---
 def error_response(error_code, title, message):
     """カスタムエラーページをレンダリングします。"""
-    # ログにエラー情報を記録
     logger.error(f"Error {error_code}: {title} - {message}")
-    # error_page.htmlをレンダリング
     return render_template('error_page.html', title=title, message=message), error_code
 
 @app.errorhandler(403)
@@ -129,7 +140,10 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_server_error(error):
-    # 500エラーはセキュリティ上の理由で詳細なメッセージを表示しない
+    # データベース未接続の場合を特別に扱う
+    if not check_db_health():
+        return error_response(500, '500 データベース接続エラー', 'データベースサーバーに接続できません。サービスの起動後、必ず <a href="/db_init">/db_init</a> を実行し、データベースを初期化してください。')
+        
     return error_response(500, '500 サーバーエラー', 'サーバー側で予期せぬエラーが発生しました。時間を置いて再度お試しください。')
 
 # --- 6. Authentication Routes ---
@@ -149,19 +163,23 @@ def signup():
             flash('ユーザー名とパスワードは必須です。', 'danger')
             return render_template('signup.html')
             
-        user = User.query.filter_by(username=username).first()
-        if user:
-            flash('そのユーザー名は既に使用されています。別の名前をお試しください。', 'warning')
-            return render_template('signup.html')
-
-        new_user = User(username=username)
-        new_user.set_password(password)
-        
         try:
+            # データベース接続確認 (OperationalError/ProgrammingErrorをキャッチ)
+            user = User.query.filter_by(username=username).first()
+            if user:
+                flash('そのユーザー名は既に使用されています。別の名前をお試しください。', 'warning')
+                return render_template('signup.html')
+
+            new_user = User(username=username)
+            new_user.set_password(password)
+            
             db.session.add(new_user)
             db.session.commit()
             flash('ユーザー登録が完了しました！ログインしてください。', 'success')
             return redirect(url_for('login'))
+        except (OperationalError, ProgrammingError):
+            db.session.rollback()
+            flash('データベースエラーにより登録に失敗しました。**`/db_init`を実行してください**。', 'danger')
         except Exception as e:
             db.session.rollback()
             logger.error(f"Signup error: {e}")
@@ -179,21 +197,23 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        remember = True # 常にセッションを維持
+        remember = True 
 
-        user = User.query.filter_by(username=username).first()
+        try:
+            user = User.query.filter_by(username=username).first()
 
-        if user and user.check_password(password):
-            # ログイン成功
-            login_user(user, remember=remember)
-            flash(f'ようこそ、{user.username} さん！', 'success')
-            
-            # ログイン前のページにリダイレクト。なければ/adminへ。
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('admin'))
-        else:
-            # ログイン失敗
-            flash('ユーザー名またはパスワードが正しくありません。', 'danger')
+            if user and user.check_password(password):
+                login_user(user, remember=remember)
+                flash(f'ようこそ、{user.username} さん！', 'success')
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('admin'))
+            else:
+                flash('ユーザー名またはパスワードが正しくありません。', 'danger')
+        except (OperationalError, ProgrammingError):
+             flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
+        except Exception as e:
+            logger.error(f"Login error: {e}")
+            flash('ログイン中に予期せぬエラーが発生しました。', 'danger')
 
     return render_template('login.html')
 
@@ -213,21 +233,21 @@ def forgot_password():
 
     if request.method == 'POST':
         username = request.form.get('username')
-        user = User.query.filter_by(username=username).first()
-        
-        # ユーザーが存在するかに関わらず、セキュリティのために一律のメッセージを表示
-        if user:
-            # ユーザーIDをトークンとしてシリアライズ
-            token = s.dumps(user.id, salt='password-reset-salt')
-            reset_url = url_for('reset_password', token=token, _external=True)
+        try:
+            user = User.query.filter_by(username=username).first()
+            if user:
+                token = s.dumps(user.id, salt='password-reset-salt')
+                reset_url = url_for('reset_password', token=token, _external=True)
+                flash(f'パスワードリセットリンクが生成されました（有効期限30分）。デモのため、以下に表示します: <a href="{reset_url}" class="underline font-bold">リセットリンク</a>', 'info')
+                logger.info(f"Password reset link generated for {username}: {reset_url}")
+            else:
+                flash('ユーザー名が登録されていれば、リセットリンクが生成されました。', 'info')
+        except (OperationalError, ProgrammingError):
+             flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
+        except Exception as e:
+            logger.error(f"Forgot password error: {e}")
+            flash('処理中に予期せぬエラーが発生しました。', 'danger')
             
-            # 本番環境ではメールで送信しますが、ここではデモとしてフラッシュメッセージに表示
-            flash(f'パスワードリセットリンクが生成されました（有効期限30分）。デモのため、以下に表示します: <a href="{reset_url}" class="underline font-bold">リセットリンク</a>', 'info')
-            logger.info(f"Password reset link generated for {username}: {reset_url}")
-        else:
-             # ユーザーが存在しなくても成功メッセージを返し、ユーザー名の存在を推測させない
-            flash('ユーザー名が登録されていれば、リセットリンクが生成されました。', 'info')
-
         return render_template('forgot_password.html')
 
     return render_template('forgot_password.html')
@@ -236,7 +256,6 @@ def forgot_password():
 def reset_password(token):
     """パスワードリセット実行処理。"""
     try:
-        # 修正点: loads()にmax_age=1800 (30分) を渡すことで有効期限を設定
         user_id = s.loads(token, salt='password-reset-salt', max_age=1800) 
     except SignatureExpired:
         flash('パスワードリセットリンクの有効期限が切れました。再度リクエストしてください。', 'danger')
@@ -245,7 +264,12 @@ def reset_password(token):
         flash('無効なリセットリンクです。', 'danger')
         return redirect(url_for('forgot_password'))
         
-    user = User.query.get(user_id)
+    try:
+        user = User.query.get(user_id)
+    except (OperationalError, ProgrammingError):
+        flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
+        return redirect(url_for('forgot_password'))
+        
     if not user:
         flash('無効なユーザー情報です。', 'danger')
         return redirect(url_for('forgot_password'))
@@ -262,12 +286,15 @@ def reset_password(token):
              flash('パスワードは6文字以上である必要があります。', 'danger')
              return render_template('reset_password.html', token=token)
              
-        # パスワードを更新
-        user.set_password(password)
-        db.session.commit()
-        
-        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
-        return redirect(url_for('login'))
+        try:
+            user.set_password(password)
+            db.session.commit()
+            flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Password reset commit error: {e}")
+            flash('パスワード更新中にエラーが発生しました。', 'danger')
 
     return render_template('reset_password.html', token=token)
 
@@ -282,30 +309,32 @@ def account():
         new_password = request.form.get('new_password')
         current_password = request.form.get('current_password')
 
-        # 1. 現在のパスワードを確認
         if not user.check_password(current_password):
             flash('現在のパスワードが正しくありません。変更は適用されませんでした。', 'danger')
             return redirect(url_for('account'))
 
-        # 2. ユーザー名の変更
-        if new_username and new_username != user.username:
-            if User.query.filter_by(username=new_username).first():
-                flash('そのユーザー名は既に使用されています。', 'warning')
-                return redirect(url_for('account'))
-            
-            user.username = new_username
-            flash(f'ユーザー名が「{new_username}」に変更されました。', 'success')
-
-        # 3. パスワードの変更
-        if new_password:
-            if len(new_password) < 6:
-                flash('新しいパスワードは6文字以上である必要があります。', 'danger')
-                return redirect(url_for('account'))
-            user.set_password(new_password)
-            flash('パスワードが正常に更新されました。', 'success')
-
         try:
+            # ユーザー名の変更
+            if new_username and new_username != user.username:
+                if User.query.filter_by(username=new_username).first():
+                    flash('そのユーザー名は既に使用されています。', 'warning')
+                    return redirect(url_for('account'))
+                
+                user.username = new_username
+                flash(f'ユーザー名が「{new_username}」に変更されました。', 'success')
+
+            # パスワードの変更
+            if new_password:
+                if len(new_password) < 6:
+                    flash('新しいパスワードは6文字以上である必要があります。', 'danger')
+                    return redirect(url_for('account'))
+                user.set_password(new_password)
+                flash('パスワードが正常に更新されました。', 'success')
+
             db.session.commit()
+        except (OperationalError, ProgrammingError):
+             db.session.rollback()
+             flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
         except Exception as e:
             db.session.rollback()
             logger.error(f"Account update error: {e}")
@@ -321,17 +350,33 @@ def account():
 @app.route('/')
 def index():
     """すべての記事を表示するトップページ。"""
-    # 記事を新しい順に取得
-    posts = Post.query.order_by(Post.create_at.desc()).all()
-    return render_template('index.html', posts=posts)
+    try:
+        # 記事を新しい順に取得 (DB接続/テーブルの存在を確認)
+        posts = Post.query.order_by(Post.create_at.desc()).all()
+        return render_template('index.html', posts=posts)
+    except (OperationalError, ProgrammingError):
+        # DB接続またはテーブル未作成のエラーをキャッチし、初期化を促す
+        return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
+    except Exception as e:
+        logger.error(f"Index route error: {e}")
+        return internal_server_error(e)
+
 
 @app.route('/admin')
 @login_required
 def admin():
     """ログインユーザーの記事管理画面。"""
-    # 現在のユーザーが作成した記事のみを新しい順に取得
-    posts = Post.query.filter_by(user_id=current_user.id).order_by(Post.create_at.desc()).all()
-    return render_template('admin.html', posts=posts)
+    try:
+        # 現在のユーザーが作成した記事のみを新しい順に取得
+        posts = Post.query.filter_by(user_id=current_user.id).order_by(Post.create_at.desc()).all()
+        return render_template('admin.html', posts=posts)
+    except (OperationalError, ProgrammingError):
+        # DB接続またはテーブル未作成のエラーをキャッチ
+        return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
+    except Exception as e:
+        logger.error(f"Admin route error: {e}")
+        return internal_server_error(e)
+
 
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -352,10 +397,14 @@ def create():
             db.session.commit()
             flash('新しい記事が正常に投稿されました。', 'success')
             return redirect(url_for('admin'))
+        except (OperationalError, ProgrammingError):
+            db.session.rollback()
+            flash('データベースエラーにより投稿に失敗しました。**`/db_init`を実行してください**。', 'danger')
+            return render_template('create.html')
         except Exception as e:
             db.session.rollback()
             logger.error(f"Post creation error: {e}")
-            flash('記事の投稿中にエラーが発生しました。', 'danger')
+            flash('記事の投稿中に予期せぬエラーが発生しました。', 'danger')
             return render_template('create.html')
 
     return render_template('create.html')
@@ -363,14 +412,27 @@ def create():
 @app.route('/view/<int:post_id>')
 def view(post_id):
     """記事の詳細表示。"""
-    post = Post.query.get_or_404(post_id)
-    return render_template('view.html', post=post)
+    try:
+        post = Post.query.get_or_404(post_id)
+        return render_template('view.html', post=post)
+    except (OperationalError, ProgrammingError):
+        return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
+    except Exception as e:
+        logger.error(f"View route error: {e}")
+        return internal_server_error(e)
+
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
     """記事の更新。"""
-    post = Post.query.get_or_404(post_id)
+    try:
+        post = Post.query.get_or_404(post_id)
+    except (OperationalError, ProgrammingError):
+        return error_response(500, 'データベースエラー', 'データベース接続またはテーブルの初期化が必要です。**<a href="/db_init">/db_init</a>** を実行してください。')
+    except Exception as e:
+        logger.error(f"Update retrieve error: {e}")
+        return internal_server_error(e)
 
     # 記事の作者と現在のユーザーが一致するか確認
     if post.author != current_user:
@@ -389,10 +451,14 @@ def update(post_id):
             db.session.commit()
             flash('記事が正常に更新されました。', 'success')
             return redirect(url_for('view', post_id=post.id))
+        except (OperationalError, ProgrammingError):
+            db.session.rollback()
+            flash('データベースエラーにより更新に失敗しました。**`/db_init`を実行してください**。', 'danger')
+            return render_template('update.html', post=post)
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Post update error: {e}")
-            flash('記事の更新中にエラーが発生しました。', 'danger')
+            logger.error(f"Post update commit error: {e}")
+            flash('記事の更新中に予期せぬエラーが発生しました。', 'danger')
             return render_template('update.html', post=post)
 
     return render_template('update.html', post=post)
@@ -401,7 +467,11 @@ def update(post_id):
 @login_required
 def delete(post_id):
     """記事の削除。"""
-    post = Post.query.get_or_404(post_id)
+    try:
+        post = Post.query.get_or_404(post_id)
+    except (OperationalError, ProgrammingError):
+        flash('データベース接続エラー: **`/db_init`を実行してください**。', 'danger')
+        return redirect(url_for('admin'))
     
     # 記事の作者と現在のユーザーが一致するか確認
     if post.author != current_user:
@@ -413,26 +483,18 @@ def delete(post_id):
         db.session.commit()
         flash('記事が正常に削除されました。', 'success')
         return redirect(url_for('admin'))
+    except (OperationalError, ProgrammingError):
+        db.session.rollback()
+        flash('データベースエラーにより削除に失敗しました。**`/db_init`を実行してください**。', 'danger')
+        return redirect(url_for('admin'))
     except Exception as e:
         db.session.rollback()
         logger.error(f"Post deletion error: {e}")
-        flash('記事の削除中にエラーが発生しました。', 'danger')
+        flash('記事の削除中に予期せぬエラーが発生しました。', 'danger')
         return redirect(url_for('admin'))
 
 # --- 8. Run App (for local development) ---
 
 if __name__ == '__main__':
-    # Flaskアプリを直接実行するための設定（RenderではGunicornなどのWSGIサーバーが実行します）
-    # ローカルでテストする場合は以下のコメントアウトを解除
-    # with app.app_context():
-    #     # データベースの初期化をローカルで自動的に試みる
-    #     try:
-    #         db.create_all()
-    #         logger.info("Local database initialized or already exists.")
-    #     except Exception as e:
-    #         logger.error(f"Local database creation failed: {e}")
-    # app.run(debug=True)
-    
-    # Renderで動作させるためにポートとホストを環境変数から取得
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False) # デバッグモードはRenderではFalseに設定
+    app.run(host='0.0.0.0', port=port, debug=False) 
