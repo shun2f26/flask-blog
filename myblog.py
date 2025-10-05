@@ -1,9 +1,8 @@
-# Hello.py (SQLAlchemy 2.0 形式に統一)
-
 import os
 import sys
 from flask import Flask, render_template, request, redirect, flash, url_for, abort
 from flask_sqlalchemy import SQLAlchemy
+# from flask_migrate import Migrate # 🚨 インポートを削除
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 import cloudinary 
 import cloudinary.uploader
@@ -13,8 +12,14 @@ import secrets
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature 
 
 # --- アプリケーション設定 ---
-
-app = Flask(__name__)
+# ... (変更なし)
+# ...
+# ...
+# --- データベースの設定 ---
+db = SQLAlchemy()
+# migrate = Migrate() # 🚨 ここも使用しない
+db.init_app(app)
+# migrate.init_app(app, db) # 🚨 ここも使用しない
 
 # Render環境変数から SECRET_KEY と DATABASE_URL を取得
 app.config["SECRET_KEY"] = os.environ.get('SECRET_KEY', secrets.token_hex(16))
