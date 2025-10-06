@@ -20,6 +20,8 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.utils
 
+from forms import RegistrationForm
+
 # Cloudinaryの設定 (環境変数から取得 - 未設定の場合はエラーにならないよう注意)
 # 🚨 警告: 実際のデプロイではCLOUDINARY_*環境変数を設定してください
 try:
@@ -229,36 +231,40 @@ def login():
 # サインアップ
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    """サインアップ（新規ユーザー登録）ページ"""
+    """
+    新規ユーザー登録ページ
+    """
+    # ログイン済みの場合はインデックスページにリダイレクト
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-
-        if password != confirm_password:
-            flash('パスワードが一致しません。', 'danger')
+    # forms.py で定義された RegistrationForm のインスタンスを作成し、テンプレートに渡す
+    form = RegistrationForm() 
+    
+    if form.validate_on_submit():
+        # フォームの検証に成功した場合の処理
+        username = form.username.data
+        password = form.password.data
+        
+        # ユーザー名の重複チェック
+        user = User.query.filter_by(username=username).first()
+        if user:
+            flash('そのユーザー名はすでに使用されています。', 'danger')
         else:
-            existing_user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none()
-            if existing_user:
-                flash('このユーザー名は既に使われています。', 'danger')
-            elif len(username) < 3:
-                flash('ユーザー名は3文字以上で入力してください。', 'danger')
-            elif len(password) < 6:
-                flash('パスワードは6文字以上で入力してください。', 'danger')
-            else:
-                new_user = User(username=username)
-                new_user.set_password(password)
-
-                db.session.add(new_user)
-                db.session.commit()
-
-                flash('登録が完了しました。ログインしてください。', 'success')
-                return redirect(url_for('login'))
-
-    return render_template('signup.html', title='サインアップ')
+            # 新しいユーザーオブジェクトを作成
+            new_user = User(username=username)
+            new_user.set_password(password) # パスワードをハッシュ化して設定
+            
+            # データベースに保存
+            db.session.add(new_user)
+            db.session.commit()
+            
+            flash(f'アカウントが作成されました: {username}! ログインしてください。', 'success')
+            return redirect(url_for('login'))
+        
+    # GETリクエスト、または検証に失敗したPOSTリクエストの場合
+    # 'form' オブジェクトをテンプレートに渡す (エラー修正箇所)
+    return render_template('signup.html', title='サインアップ', form=form) # form=form を渡す
 
 # ログアウト
 @app.route('/logout')
