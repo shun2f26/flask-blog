@@ -272,7 +272,7 @@ def view(post_id):
 def login():
     """ログインページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin'))
 
     form = LoginForm()
 
@@ -286,7 +286,7 @@ def login():
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash(f'ログインに成功しました！ようこそ、{user.username}さん。', 'success')
-            return redirect(next_page or url_for('dashboard'))
+            return redirect(next_page or url_for('admin'))
         else:
             flash('ユーザー名またはパスワードが正しくありません。', 'danger')
 
