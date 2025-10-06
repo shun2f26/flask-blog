@@ -20,7 +20,7 @@
                 <div class="h-48 w-full bg-gray-100 overflow-hidden">
                     {% if post.public_id %}
                     <!-- Cloudinaryで画像を最適化して表示 -->
-                    <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=400, height=300, crop='fill', gravity='auto', quality='auto', fetch_format='auto')[0] }}" 
+                    <img src="{{ get_cloudinary_url(post.public_id, width=400, height=300, crop='fill', gravity='auto', quality='auto', fetch_format='auto')[0] }}" 
                          alt="{{ post.title }}の画像" 
                          class="w-full h-full object-cover transition duration-300 hover:opacity-90">
                     {% else %}
