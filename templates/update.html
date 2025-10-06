@@ -1,89 +1,69 @@
-{% extends "base.html" %}
-{% block title %}記事の編集: {{ post.title }}{% endblock %}
-
-{% block content %}
-<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-    <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">記事の編集・更新</h1>
-
-    <!-- 記事編集フォーム -->
-    <!-- enctype="multipart/form-data" を追加してファイルアップロードを可能にする -->
-    <form method="POST" action="{{ url_for('update', post_id=post.id) }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
-
-        <!-- CSRFトークン (セキュリティ対策) -->
-        <!-- CSRFトークンの記述を修正: Jinja2では{{ csrf_token() }}が直接トークン値を出力する -->
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <!-- タイトル入力欄 -->
-        <div>
-            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
-            <input id="title" name="title" type="text" required
-                   class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
-                   placeholder="記事のタイトルを入力してください"
-                   value="{{ request.form.title if request.form.title else post.title }}">
-            <!-- post.title を初期値として表示 -->
-        </div>
-
-        <!-- コンテンツ入力欄 -->
-        <div>
-            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
-            <textarea id="content" name="content" rows="15" required
-                      class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
-                      placeholder="記事の内容を記述してください">{{ request.form.content if request.form.content else post.content }}</textarea>
-            <!-- post.content を初期値として表示 -->
-        </div>
-
-        <!-- 既存の画像プレビューと削除オプション -->
-        <div class="border-t pt-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center"><i class="fas fa-image mr-2 text-indigo-600"></i> サムネイル画像管理</h3>
-            
-            {% if post.public_id %}
-                <!-- Cloudinary URLで既存の画像を表示 (view.htmlと同じく最適化) -->
-                <div class="mb-4">
-                    <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=300, crop='limit', quality='auto', fetch_format='auto')[0] }}" 
-                         alt="現在の画像" 
-                         class="max-w-xs h-auto rounded-lg shadow-md border border-gray-200">
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask Blog | {{ title }}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="bg-white shadow-lg sticky top-0 z-10">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex-shrink-0">
+                    <a href="{{ url_for('index') }}" class="text-xl font-bold text-gray-800 hover:text-red-600 transition duration-150">
+                        My Flask Blog
+                    </a>
                 </div>
-                
-                <div class="flex items-center mb-6">
-                    <input id="delete_image" name="delete_image" type="checkbox" value="1"
-                            class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer">
-                    <label for="delete_image" class="ml-2 block text-sm font-medium text-red-700 cursor-pointer">
-                        <i class="fas fa-times-circle mr-1"></i> 既存の画像を削除する (チェックを入れると削除されます)
-                    </label>
+                <div class="flex items-center space-x-4">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.is_admin %}
+                            <a href="{{ url_for('admin') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">管理者</a>
+                        {% endif %}
+                        <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ダッシュボード</a>
+                        <a href="{{ url_for('create') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150">新規投稿</a>
+                        <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ログアウト</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ログイン</a>
+                        <a href="{{ url_for('signup') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150">サインアップ</a>
+                    {% endif %}
                 </div>
-            {% else %}
-                <p class="text-sm text-gray-500 mb-4">現在、画像は設定されていません。</p>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container mx-auto px-4 pt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="p-3 mb-4 rounded-lg shadow-md {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% elif category == 'info' %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
             {% endif %}
+        {% endwith %}
+    </div>
 
-            <!-- 新しい画像ファイル入力欄 (上書き用) -->
-            <label for="image" class="text-sm font-medium text-gray-700 block mb-2">新しいサムネイル画像を選択 (オプション)</label>
-            <input id="image" name="image" type="file" accept="image/*"
-                   class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-            <p class="text-xs text-gray-500 mt-1">ファイルをアップロードすると、既存の画像は上書きされます。最大ファイルサイズ: 1MB。</p>
-        </div>
+    <!-- Main Content Block -->
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+        {% block content %}{% endblock %}
+    </main>
 
-        <!-- AIアシスタントボタン -->
-        <div class="border-t pt-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-3 flex items-center"><i class="fas fa-robot mr-2 text-green-600"></i> AIアシスタント</h3>
-            <p class="text-sm text-gray-600 mb-3">現在の**コンテンツ**の内容を元に、Gemini AIが校正や改善を提案します。提案は**コンテンツ**入力欄に上書きされます。</p>
-            <button type="submit" name="action" value="ai_assist"
-                    class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
-                <i class="fas fa-magic mr-2"></i>AIアシスタントに依頼 (校正/改善)
-            </button>
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-4 mt-auto">
+        <div class="container mx-auto text-center text-sm">
+            &copy; {{ now().year }} Flask Blog App. All Rights Reserved.
         </div>
-
-        <!-- 更新ボタンと戻るボタン -->
-        <div class="flex justify-between items-center pt-6 border-t">
-            <a href="{{ url_for('view', post_id=post.id) }}" 
-               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition duration-150 ease-in-out">
-                <i class="fas fa-arrow-left mr-2"></i>詳細画面に戻る
-            </a>
-            
-            <button type="submit" name="action" value="update"
-                    class="flex justify-center py-3 px-6 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i class="fas fa-save mr-2"></i>記事を更新する
-            </button>
-        </div>
-    </form>
-</div>
-{% endblock %}
+    </footer>
+</body>
+</html>
