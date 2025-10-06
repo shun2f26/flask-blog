@@ -29,7 +29,6 @@
                         {% if current_user.is_admin %}
                             <a href="{{ url_for('admin') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">管理者</a>
                         {% endif %}
-                        <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ダッシュボード</a>
                         <a href="{{ url_for('create') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150">新規投稿</a>
                         <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ログアウト</a>
                     {% else %}
