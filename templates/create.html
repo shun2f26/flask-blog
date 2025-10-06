@@ -6,38 +6,49 @@
     <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">新規記事作成</h1>
 
     <!-- 記事作成フォーム -->
-    <!-- enctype="multipart/form-data" を追加してファイルアップロードを可能にする -->
-    <input type="hidden" form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+    <!-- app.pyで定義したPostFormを使用し、ファイルアップロードのためにenctypeを設定 -->
+    <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
 
-        <!-- CSRFトークン (セキュリティ対策) -->
-        <!-- CSRFトークンを挿入する標準的な方法。単独で呼び出すと隠しフィールドが生成されます。 -->
-        {{ csrf_token() }}
+        <!-- CSRFトークン (フォームセキュリティ対策) -->
+        {{ form.hidden_tag() }}
 
-        <!-- タイトル入力欄 -->
+        <!-- タイトル入力欄 (WTFormsフィールド) -->
         <div>
-            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
-            <input id="title" name="title" type="text" required
-                   class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
-                   placeholder="記事のタイトルを入力してください"
-                   value="{{ request.form.title if request.form.title else '' }}">
+            <!-- form.title.label: フィールドのラベルをレンダリング -->
+            {{ form.title.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+            
+            <!-- form.title(): フィールドの入力要素をレンダリング -->
+            {{ form.title(class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg",
+                          placeholder="記事のタイトルを入力してください") }}
+            
+            <!-- バリデーションエラー表示 -->
+            {% for error in form.title.errors %}
+                <p class="text-red-500 text-xs italic">{{ error }}</p>
+            {% endfor %}
         </div>
 
-        <!-- コンテンツ入力欄 -->
+        <!-- コンテンツ入力欄 (WTFormsフィールド) -->
         <div>
-            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
-            <textarea id="content" name="content" rows="10" required
-                      class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
-                      placeholder="記事の内容を記述してください">{{ request.form.content if request.form.content else '' }}</textarea>
+            {{ form.content.label(class="block text-sm font-medium text-gray-700 mb-1") }}
+            {{ form.content(class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base",
+                            rows="10",
+                            placeholder="記事の内容を記述してください") }}
+            
+            <!-- バリデーションエラー表示 -->
+            {% for error in form.content.errors %}
+                <p class="text-red-500 text-xs italic">{{ error }}</p>
+            {% endfor %}
         </div>
-
-        <!-- 画像ファイル入力欄 -->
+        
+        <!-- 画像ファイル入力欄 (WTFormsを使わず、生のHTML inputを使用) -->
+        <!-- PostFormにFileFieldを含めていないため、手動で処理を維持します -->
         <div class="flex items-center space-x-4">
             <label for="image" class="text-sm font-medium text-gray-700">サムネイル画像</label>
             <input id="image" name="image" type="file" accept="image/*"
                    class="block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
         </div>
 
-        <!-- AIアシスタントボタン -->
+        <!-- AIアシスタントボタン (name="action"で識別) -->
         <div class="border-t pt-4">
             <p class="text-sm text-gray-500 mb-2">Gemini AIに記事の校正や改善を依頼できます。</p>
             <button type="submit" name="action" value="ai_assist"
@@ -46,12 +57,12 @@
             </button>
         </div>
 
-        <!-- 投稿ボタン -->
+        <!-- 投稿ボタン (WTFormsのSubmitFieldを使用) -->
         <div>
-            <button type="submit" name="action" value="create"
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i class="fas fa-paper-plane mr-2"></i>記事を投稿する
-            </button>
+            <!-- name="action" と value="create" を追加して、AIアシスタント機能との識別を可能にする -->
+            {{ form.submit(class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out", 
+                           name="action", 
+                           value="create") }}
         </div>
     </form>
 </div>
