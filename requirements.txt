@@ -2,6 +2,7 @@ Flask
 Flask-SQLAlchemy
 Flask-Login
 Flask-Migrate
+flask-bcrypt
 python-dotenv
 Werkzeug
 gunicorn
