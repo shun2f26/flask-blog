@@ -1,11 +1,9 @@
 Flask
 Flask-SQLAlchemy
-Flask-Login
-Flask-Migrate
-flask-bcrypt
-python-dotenv
-Werkzeug
+Flask-Bcrypt
 gunicorn
-psycopg2-binary
-requests
+psycopg2-binary  # PostgreSQL接続用
+sqlalchemy-utils # データベース初期化用
+requests         # Gemini API通信用
+python-dotenv    # ローカル開発で環境変数(.env)を使用する場合
 cloudinary
