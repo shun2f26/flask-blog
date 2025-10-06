@@ -43,8 +43,14 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key')
 
 # Heroku / Render 互換性のためのURL修正ロジック
 uri = os.environ.get('DATABASE_URL')
+# SSLMODE=requireの追加
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
+    if '?' not in uri:
+        uri += '?sslmode=require'
+    elif 'sslmode' not in uri:
+        uri += '&sslmode=require'
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -70,19 +76,9 @@ login_manager.login_message_category = 'info'
 # -------------------------------------------------------------------
 # データベース初期化
 # -------------------------------------------------------------------
-@app.before_request
-def create_tables():
-    """最初のHTTPリクエストが来る前にデータベーステーブルが存在することを確認する。"""
-    if not hasattr(app, 'tables_created'):
-        try:
-            with app.app_context():
-                db.create_all()
-                app.tables_created = True
-                print("db.create_all()を実行し、テーブル初期化を完了しました。", file=sys.stderr)
-
-        except Exception as e:
-            print(f"データベースの初期化中にエラーが発生しました: {e}", file=sys.stderr)
-            pass
+# @app.before_request ブロックを削除し、Render環境での競合を避けます。
+# テーブル作成はローカル実行時(if __name__ == '__main__':)または
+# /db_reset ルート、または render-build.sh にて行われます。
 # -------------------------------------------------------------------
 
 
@@ -144,8 +140,8 @@ class RegistrationForm(FlaskForm):
                                           Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                    validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                EqualTo('password', message='パスワードが一致しません。')])
+                                     validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                 EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -396,10 +392,10 @@ def create():
                 return render_template('create_update.html', title='新規投稿', form=form, post=post)
 
         new_post = Post(title=title,
-                        content=content,
-                        user_id=current_user.id,
-                        public_id=public_id,
-                        create_at=now())
+                         content=content,
+                         user_id=current_user.id,
+                         public_id=public_id,
+                         create_at=now())
         db.session.add(new_post)
         db.session.commit()
         flash('新しい記事が正常に投稿されました。', 'success')
@@ -451,9 +447,9 @@ def update(post_id):
         flash('記事が正常に更新されました。', 'success')
         
         if current_user.is_admin and post.user_id != current_user.id:
-             return redirect(url_for('admin'))
+              return redirect(url_for('admin'))
         else:
-             return redirect(url_for('dashboard'))
+              return redirect(url_for('dashboard'))
     
     current_image_url = None
     if post.public_id and 'cloudinary' in sys.modules:
@@ -569,13 +565,15 @@ def toggle_admin(user_id):
 @app.route("/db_reset", methods=["GET", "POST"])
 def db_reset():
     """データベーステーブルのリセット（開発用）"""
+    # POSTリクエストまたは ?confirm=yes パラメータで実行を許可
     if request.method == 'POST' or request.args.get('confirm') == 'yes':
         try:
             with app.app_context():
                 db.session.close()
-                db.drop_all()
-                db.create_all()
+                db.drop_all() # 全テーブルを削除
+                db.create_all() # 最新のモデル定義で再作成
                 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+                    # PostgreSQLではマイグレーション履歴テーブルもクリア
                     db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
                     db.session.commit()
                 flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
@@ -585,6 +583,7 @@ def db_reset():
             print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
             flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
             return redirect(url_for('index'))
+    # 実行が許可されていない場合は警告メッセージを表示
     flash("データベースリセットを実行するには、POSTリクエストまたはURLに ?confirm=yes をつけてください。", 'danger')
     return redirect(url_for('index'))
 
@@ -619,11 +618,10 @@ def internal_error(error):
 if __name__ == '__main__':
     # ローカル開発環境でのみ実行
     with app.app_context():
-        if not hasattr(app, 'tables_created'):
-            try:
-                db.create_all()
-                app.tables_created = True
-            except Exception as e:
-                print(f"Local db.create_all() error: {e}", file=sys.stderr)
+        # ローカルでのみテーブル作成を試みる
+        try:
+            db.create_all()
+        except Exception as e:
+            print(f"Local db.create_all() error: {e}", file=sys.stderr)
 
     app.run(debug=True)
