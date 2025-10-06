@@ -3,21 +3,49 @@
 
 {% block content %}
 <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h1 class="text-4xl font-extrabold text-gray-900 mb-8 border-b-4 border-indigo-500 pb-2">最新のブログ記事</h1>
+    <div class="flex justify-between items-center mb-8 border-b-4 border-indigo-500 pb-2">
+        <h1 class="text-4xl font-extrabold text-gray-900">最新のブログ記事</h1>
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('create') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-md text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out">
+            <i class="fas fa-plus-circle mr-2"></i> 新規記事を投稿
+        </a>
+        {% endif %}
+    </div>
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {% if posts %}
             {% for post in posts %}
-            <div class="bg-white shadow-xl rounded-xl overflow-hidden hover:shadow-2xl transition duration-300">
-                <div class="p-6">
-                    <div class="text-sm text-gray-500 mb-2">
-                        <i class="far fa-calendar-alt mr-1"></i> {{ post.create_at.strftime('%Y/%m/%d') }}
+            <div class="bg-white shadow-xl rounded-xl overflow-hidden flex flex-col hover:shadow-2xl transition duration-300 transform hover:scale-[1.01]">
+                <!-- サムネイル画像エリア -->
+                <div class="h-48 w-full bg-gray-100 overflow-hidden">
+                    {% if post.public_id %}
+                    <!-- Cloudinaryで画像を最適化して表示 -->
+                    <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=400, height=300, crop='fill', gravity='auto', quality='auto', fetch_format='auto')[0] }}" 
+                         alt="{{ post.title }}の画像" 
+                         class="w-full h-full object-cover transition duration-300 hover:opacity-90">
+                    {% else %}
+                    <!-- 画像がない場合のプレースホルダー -->
+                    <div class="w-full h-full flex items-center justify-center text-gray-400 text-lg font-bold border border-dashed border-gray-300">
+                        <i class="fas fa-image mr-2"></i> No Image
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="p-6 flex flex-col flex-grow">
+                    <div class="text-sm text-gray-500 mb-3 flex items-center justify-between">
+                        <span class="flex items-center">
+                            <i class="far fa-calendar-alt mr-1"></i> {{ post.create_at.strftime('%Y/%m/%d') }}
+                        </span>
+                        <span class="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
+                            <i class="fas fa-user-edit mr-1"></i> {{ post.author.username }}
+                        </span>
                     </div>
                     <h2 class="text-xl font-bold text-gray-900 mb-3 line-clamp-2">{{ post.title }}</h2>
-                    <p class="text-gray-600 mb-4 text-sm line-clamp-3">
+                    <p class="text-gray-600 mb-4 text-sm line-clamp-3 flex-grow">
+                        <!-- HTMLタグを取り除き、先頭100文字に切り詰める -->
                         {{ post.content | striptags | truncate(100) }}
                     </p>
-                    <a href="{{ url_for('view', post_id=post.id) }}" class="text-indigo-600 font-medium hover:text-indigo-800 transition duration-150 ease-in-out flex items-center">
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="mt-4 text-indigo-600 font-medium hover:text-indigo-800 transition duration-150 ease-in-out flex items-center self-start">
                         続きを読む
                         <i class="fas fa-arrow-right ml-2 text-xs"></i>
                     </a>
@@ -25,12 +53,14 @@
             </div>
             {% endfor %}
         {% else %}
-            <div class="col-span-full bg-white p-8 rounded-lg shadow-md text-center">
-                <p class="text-gray-500 text-lg">まだ記事が投稿されていません。</p>
+            <div class="col-span-full bg-white p-8 rounded-xl shadow-2xl text-center border border-gray-100">
+                <p class="text-gray-500 text-xl font-semibold mb-4"><i class="fas fa-box-open mr-2"></i> まだ記事が投稿されていません。</p>
                 {% if current_user.is_authenticated %}
-                    <p class="mt-4"><a href="{{ url_for('create') }}" class="text-indigo-600 hover:underline font-medium">最初の記事を投稿しましょう！</a></p>
+                    <p class="mt-4"><a href="{{ url_for('create') }}" class="inline-flex items-center text-white bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium transition duration-150 ease-in-out">
+                        <i class="fas fa-pen-nib mr-2"></i> 最初の記事を投稿しましょう！
+                    </a></p>
                 {% else %}
-                    <p class="mt-4">記事を投稿するには<a href="{{ url_for('signup') }}" class="text-indigo-600 hover:underline font-medium">サインアップ</a>してください。</p>
+                    <p class="mt-4 text-gray-600">記事を投稿するには <a href="{{ url_for('signup') }}" class="text-indigo-600 hover:underline font-medium">サインアップ</a> または <a href="{{ url_for('login') }}" class="text-indigo-600 hover:underline font-medium">ログイン</a> してください。</p>
                 {% endif %}
             </div>
         {% endif %}
