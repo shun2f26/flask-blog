@@ -23,8 +23,7 @@ app = Flask(__name__)
 # 環境変数から設定を読み込む
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
-    # RenderのPostgreSQL URI互換性のための置換
-    # SSLモードの要求を追加 (Render接続には必須)
+    # RenderのPostgreSQL URI互換性のための置換とSSLモードの要求を追加
     uri = DATABASE_URL.replace('postgres://', 'postgresql://')
     if '?' not in uri:
         uri += '?sslmode=require'
@@ -55,7 +54,6 @@ if cloudinary_cloud_name and cloudinary_api_key and cloudinary_api_secret:
         api_secret=cloudinary_api_secret
     )
 else:
-    # Cloudinaryキーがない場合でもアプリケーションはクラッシュしない
     app.logger.warning("Cloudinary API keys are not set. Image upload will be disabled.")
 
 # Gemini API設定
@@ -63,7 +61,6 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
 
 # データベース、マイグレーション、ログインマネージャの初期化
-# db.init_app(app) は不要です。SQLAlchemy(app) で初期化済み
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
@@ -81,10 +78,13 @@ def allowed_file(filename):
 
 class User(UserMixin, db.Model):
     """ユーザーモデル"""
+    # PostgreSQLの予約語 'user' を避けるため、テーブル名を明示的に 'users' に設定
+    __tablename__ = 'users' 
+    
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    # パスワードハッシュの長さを256に設定 (bcryptのハッシュ長を考慮)
     password_hash = db.Column(db.String(256)) 
+    # ForeignKeyを 'user.id' から 'users.id' に変更する必要がある
     posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def set_password(self, password):
@@ -102,7 +102,8 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     create_at = db.Column(db.DateTime, default=datetime.datetime.now)
     public_id = db.Column(db.String(255), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # 外部キーを 'users.id' に変更
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
 
 # --- Flask-Login ユーザーローダー ---
@@ -119,7 +120,7 @@ def utility_processor():
     """テンプレート内でcloudinaryオブジェクトとdatetimeを利用可能にする"""
     return dict(cloudinary=cloudinary, now=datetime.datetime.now)
 
-# --- LLM機能 ---
+# --- LLM機能（変更なし） ---
 
 def generate_content_with_llm(prompt):
     """Gemini APIを使用してコンテンツを生成する"""
@@ -156,6 +157,8 @@ def generate_content_with_llm(prompt):
 
 
 # --- ルーティング関数 ---
+
+# DB初期化ルートは削除しました。代わりに render-build.sh を修正します。
 
 @app.route('/')
 def index():
@@ -258,7 +261,7 @@ def logout():
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
 
-# --- 全テンプレート対応のためのダミー・ルート ---
+# --- 全テンプレート対応のためのダミー・ルート（変更なし） ---
 
 @app.route('/forgot_password')
 def forgot_password():
@@ -274,7 +277,6 @@ def reset_password():
 @login_required
 def account():
     """ユーザーアカウント設定ページ"""
-    # 実際にはユーザー情報などを渡す
     return render_template('account.html')
 
 # --- 記事管理ルート ---
@@ -335,7 +337,6 @@ def create():
 @app.route('/<int:post_id>/view')
 def view(post_id):
     """記事詳細表示"""
-    # ダミー表示用のPostオブジェクトを作成
     post = db.session.get(Post, post_id)
     
     if post is None:
@@ -349,7 +350,6 @@ def view(post_id):
                 self.user_id = 1
                 self.author = type('Author', (object,), {'username': 'デモユーザー'})()
         
-        # IDが1の記事が存在しない場合のデモ
         post = DummyPost(post_id, "記事が見つかりません", "この記事はデータベースに存在しません。")
 
     return render_template('view.html', post=post)
@@ -362,24 +362,50 @@ def update(post_id):
 
     if post is None or post.user_id != current_user.id:
         flash('記事が見つからないか、編集権限がありません。', 'danger')
-        # update.htmlをレンダリングするために、ダミーデータが必要
-        if post is None:
-            post = type('DummyPost', (object,), {
-                'id': post_id, 
-                'title': 'デモ更新記事', 
-                'content': 'コンテンツのデモ',
-                'public_id': None,
-                'user_id': current_user.id
-            })()
-        
-        # 権限がない場合はリダイレクトが望ましいが、テンプレート表示確認のためにダミーを返すことも可能
-        # 今回はリダイレクトを優先する
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        # ... (POST処理ロジックは省略、上記createを参照) ...
-        # テンプレート表示確認のため、GET処理のみ残す
-        pass 
+        title = request.form.get('title')
+        content = request.form.get('content')
+        image_file = request.files.get('image_file')
+
+        if not title or not content:
+            flash('タイトルと本文を両方入力してください。', 'warning')
+            return render_template('update.html', post=post)
+        
+        # 1. 画像ファイルの処理
+        current_public_id = post.public_id
+        
+        if image_file and image_file.filename != '':
+            if allowed_file(image_file.filename):
+                try:
+                    # 既存の画像があればCloudinaryから削除
+                    if current_public_id:
+                        destroy(current_public_id)
+                    
+                    # 新しい画像をアップロード
+                    upload_result = upload(image_file)
+                    post.public_id = upload_result.get('public_id')
+                    flash('新しい画像が正常にアップロードされました。', 'success')
+                except Exception as e:
+                    flash('新しい画像のアップロードに失敗しました。', 'danger')
+                    app.logger.error(f"Cloudinary Update Upload Error: {e}")
+            else:
+                flash('許可されていないファイル形式です。', 'warning')
+        
+        # 2. 記事データの更新
+        post.title = title
+        post.content = content
+        post.create_at = datetime.datetime.now() # 更新日時を更新
+
+        try:
+            db.session.commit()
+            flash('記事が正常に更新されました。', 'success')
+            return redirect(url_for('view', post_id=post.id))
+        except exc.SQLAlchemyError as e:
+            db.session.rollback()
+            flash('記事の更新中にデータベースエラーが発生しました。', 'danger')
+            app.logger.error(f"Post Update DB Error: {e}")
 
     return render_template('update.html', post=post)
 
@@ -387,9 +413,31 @@ def update(post_id):
 @login_required
 def delete(post_id):
     """記事削除"""
-    # POSTメソッドのみ受け付けるため、テンプレート表示の確認は不要
-    flash('記事が削除されました。（デモ）', 'success')
-    return redirect(url_for('index'))
+    post = db.session.get(Post, post_id)
+
+    if post is None or post.user_id != current_user.id:
+        flash('記事が見つからないか、削除権限がありません。', 'danger')
+        return redirect(url_for('index'))
+    
+    # Cloudinary画像の削除
+    if post.public_id:
+        try:
+            destroy(post.public_id)
+            flash('Cloudinaryの画像も正常に削除されました。', 'info')
+        except Exception as e:
+            flash('Cloudinary画像の削除に失敗しました。手動で削除する必要があるかもしれません。', 'warning')
+            app.logger.error(f"Cloudinary Delete Error: {e}")
+
+    # 記事の削除
+    try:
+        db.session.delete(post)
+        db.session.commit()
+        flash('記事が正常に削除されました。', 'success')
+        return redirect(url_for('index'))
+    except exc.SQLAlchemyError as e:
+        db.session.rollback()
+        flash('記事の削除中にデータベースエラーが発生しました。', 'danger')
+        app.logger.error(f"Post Delete DB Error: {e}")
 
 # --- 管理画面 ---
 
@@ -426,7 +474,7 @@ def page_not_found(error):
     """404 Not Found ページ"""
     return render_template('404.html'), 404
 
-# 500エラーハンドラ (ダミーとしてerror_page.htmlに対応)
+# 500エラーハンドラ (error_page.htmlに対応)
 @app.errorhandler(500)
 def internal_server_error(error):
     """500 Internal Server Error ページ"""
@@ -440,5 +488,4 @@ def error_page_test():
 
 # --- 実行ブロック ---
 if __name__ == '__main__':
-    # ローカル開発環境でのみ実行
     app.run(debug=True)
