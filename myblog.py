@@ -17,32 +17,48 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError
 
-# Cloudinary設定と依存性チェック
+
+# --- Cloudinary設定と依存性チェック ---
 CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
 API_KEY = os.environ.get('CLOUDINARY_API_KEY')
 API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
 
 CLOUDINARY_AVAILABLE = False
+# cloudinaryモジュール自体はtryブロックの外で宣言しておく
+cloudinary = None 
 try:
     if CLOUD_NAME and API_KEY and API_SECRET:
-        import cloudinary
+        import cloudinary as actual_cloudinary # 実際のモジュールを別名でインポート
         import cloudinary.uploader
         import cloudinary.utils
-        cloudinary.config(
+        actual_cloudinary.config(
             cloud_name=CLOUD_NAME,
             api_key=API_KEY,
             api_secret=API_SECRET,
             secure=True
         )
+        cloudinary = actual_cloudinary # グローバル変数に設定
         CLOUDINARY_AVAILABLE = True
-        print("Cloudinary config successful.", file=sys.stderr)
     else:
-        print("Cloudinary environment variables (CLOUD_NAME, API_KEY, API_SECRET) are not fully set. Image features disabled.", file=sys.stderr)
+        pass
 except ImportError:
-    print("Cloudinary package not installed. Image features disabled.", file=sys.stderr)
+    pass
 except Exception as e:
     print(f"Cloudinary configuration failed: {e}. Image features disabled.", file=sys.stderr)
-    
+
+# --- 画像URL生成の安全なヘルパー関数 ---
+def get_safe_cloudinary_url(public_id, **kwargs):
+    """
+    Cloudinaryが利用可能かチェックし、可能であればURLを生成して返す。
+    利用不可な場合は空の文字列を返す。
+    """
+    if not public_id or not CLOUDINARY_AVAILABLE:
+        return ""
+    # cloudinary.utils は CLOUDINARY_AVAILABLE が True のときのみ安全にアクセスされる
+    return cloudinary.utils.cloudinary_url(public_id, **kwargs)[0]
+# --- ここまで修正 ---
+
+
 # Flaskアプリのインスタンス作成
 app = Flask(__name__)
 
@@ -51,7 +67,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key')
 
 # Heroku / Render 互換性のためのURL修正ロジック
 uri = os.environ.get('DATABASE_URL')
-# SSLMODE=requireの追加
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
     if '?' not in uri:
@@ -73,8 +88,8 @@ csrf = CSRFProtect()
 db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
-csrf.init_app(app) # CSRFを有効化
-migrate.init_app(app, db) # Migrateの初期化
+csrf.init_app(app) 
+migrate.init_app(app, db) 
 
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインが必要です。'
@@ -94,8 +109,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    is_admin = db.Column(db.Boolean, default=False, nullable=False) # 管理者ステータスを追加
-    created_at = db.Column(db.DateTime, nullable=False, default=now) # 登録日時を追加
+    is_admin = db.Column(db.Boolean, default=False, nullable=False) 
+    created_at = db.Column(db.DateTime, nullable=False, default=now) 
     posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
 
     reset_token = db.Column(db.String(256), nullable=True)
@@ -126,7 +141,7 @@ class Post(db.Model):
         return f"Post('{self.title}', '{self.create_at}')"
 
 
-# --- フォーム定義 (forms.py から統合) ---
+# --- フォーム定義 ---
 
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
@@ -165,7 +180,6 @@ class PostForm(FlaskForm):
 
 class RequestResetForm(FlaskForm):
     """パスワードリセット要求用のフォームクラス"""
-    # ユーザー名を入力してもらい、そのユーザーが存在するか確認する
     username = StringField('ユーザー名', validators=[DataRequired()])
     submit = SubmitField('リセットリンクを送信')
 
@@ -175,13 +189,17 @@ class ResetPasswordForm(FlaskForm):
     confirm_password = PasswordField('パスワード（確認用）', validators=[DataRequired(), EqualTo('password', message='パスワードが一致しません')])
     submit = SubmitField('パスワードをリセット')
 
-# --- ユーザーローダー ---
+# --- ユーザーローダーとコンテキストプロセッサ ---
 
 @app.context_processor
-def inject_now():
-    """Jinja2テンプレートにdatetime.datetime.now()関数を 'now' として提供する。"""
-    # テンプレート内で {{ now().year }} のように呼び出すと、現在の年が取得可能になる
-    return {'now': datetime.now}
+def inject_globals():
+    """Jinja2テンプレートにグローバル変数とヘルパーを注入します。"""
+    
+    return {
+        'now': datetime.now,
+        'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE, 
+        'get_cloudinary_url': get_safe_cloudinary_url # 安全なヘルパー関数を注入
+    }
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -194,7 +212,6 @@ def admin_required(f):
     """管理者権限が必要なルートのためのデコレータ"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # ログインしていること、かつ管理者(is_admin=True)であることを確認
         if not current_user.is_authenticated or not current_user.is_admin:
             flash('この操作には管理者権限が必要です。', 'danger')
             return redirect(url_for('index'))
@@ -213,7 +230,7 @@ def index():
 
 
 # -----------------------------------------------
-# 公開ブログ閲覧ページ (変更なし)
+# 公開ブログ閲覧ページ
 # -----------------------------------------------
 
 @app.route("/blog/<username>")
@@ -243,13 +260,8 @@ def view(post_id):
     if not post:
         abort(404)
         
-    # Cloudinaryが利用可能であれば、記事の画像URLを生成して渡す（ビューテンプレート側で直接呼び出される場合があるため、念のため）
-    image_url = None
-    if post.public_id and CLOUDINARY_AVAILABLE:
-         # cloudinary.utils は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
-        image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=800, crop="scale")[0]
-        
-    return render_template('view.html', post=post, title=post.title, image_url=image_url)
+    # image_url の計算はテンプレート側のヘルパー関数に任せる
+    return render_template('view.html', post=post, title=post.title)
 
 
 # -----------------------------------------------
@@ -327,11 +339,9 @@ def logout():
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     """パスワードリセット要求ページ (forgot_password.htmlをレンダリング)"""
-    # 実際にはここでメールアドレスを受け取り、リセットトークンを発行する
     form = RequestResetForm()
     
     if form.validate_on_submit():
-        # ダミー処理：ユーザー名を確認した体でメッセージを表示
         flash(f'ユーザー名 "{form.username.data}" にリセットリンクを送信しました。(※ダミー)', 'info')
         return redirect(url_for('login'))
         
@@ -341,29 +351,25 @@ def forgot_password():
 @app.route('/reset_password/<path:token>', methods=['GET', 'POST'])
 def reset_password(token):
     """パスワードリセット実行ページ (reset_password.htmlをレンダリング)"""
-    # 実際にはここでトークンを検証し、パスワードを更新する
     form = ResetPasswordForm()
     
     if form.validate_on_submit():
-        # ダミー処理：パスワードを更新した体でメッセージを表示
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。(※ダミー)', 'success')
         return redirect(url_for('login'))
     
-    # トークン情報 (デバッグ用)
     print(f"Received reset token: {token}", file=sys.stderr)
     
     return render_template('reset_password.html', title='パスワードリセット', form=form)
 
 
 # -----------------------------------------------
-# ユーザー専用管理画面 (変更なし)
+# ユーザー専用管理画面
 # -----------------------------------------------
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
     """ログインユーザー専用の記事管理画面"""
-    # ログインユーザーの記事のみを取得
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=current_user.id)
@@ -376,7 +382,7 @@ def dashboard():
 
 
 # -----------------------------------------------
-# 記事作成・編集・削除 (統合されたルーティング)
+# 記事作成・編集・削除
 # -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -393,7 +399,6 @@ def create():
         image_file = request.files.get('image')
         public_id = None
 
-        # Cloudinaryが利用可能で、かつ画像ファイルがアップロードされた場合
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
                 # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
@@ -403,7 +408,7 @@ def create():
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 return render_template('create_update.html', title='新規投稿', form=form, post=post)
-        
+
         new_post = Post(title=title,
                         content=content,
                         user_id=current_user.id,
@@ -414,8 +419,6 @@ def create():
         flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('dashboard'))
 
-    # post=None を渡すことで「新規作成」モードであることをテンプレートに伝える
-    # current_image_url は None のままテンプレートに渡される
     return render_template('create_update.html', title='新規投稿', form=form, post=None, current_image_url=None)
 
 
@@ -425,7 +428,6 @@ def update(post_id):
     """記事編集ページ (統合テンプレートを使用)"""
     post = db.session.get(Post, post_id)
     
-    # 権限チェック: 自分の記事または管理者
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('編集権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
@@ -442,7 +444,6 @@ def update(post_id):
         # 画像削除処理
         if delete_image == 'on' and post.public_id and CLOUDINARY_AVAILABLE:
             try:
-                # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
                 cloudinary.uploader.destroy(post.public_id)
                 post.public_id = None
                 flash('画像を削除しました。', 'success')
@@ -452,7 +453,6 @@ def update(post_id):
         # 新規画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
-                # 既存の画像があれば削除し、新しい画像をアップロードする
                 if post.public_id: cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
@@ -468,13 +468,9 @@ def update(post_id):
         else:
               return redirect(url_for('dashboard'))
     
-    # 編集時のみ、現在の画像URLを生成 (ここが最も重要な修正点)
-    current_image_url = None
-    if post.public_id and CLOUDINARY_AVAILABLE:
-        # CLOUDINARY_AVAILABLE が True の場合のみ、cloudinary.utils を呼び出すため安全
-        current_image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=200, crop="scale")[0]
+    # テンプレート側で get_cloudinary_url ヘルパー関数を使用するため、current_image_url の計算は不要
+    current_image_url = get_safe_cloudinary_url(post.public_id, width=200, crop="scale")
 
-    # postオブジェクトと現在の画像URLをテンプレートに渡す
     return render_template('create_update.html', 
                            post=post, 
                            title='記事編集', 
@@ -485,7 +481,7 @@ def update(post_id):
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
 def delete(post_id):
-    """記事削除処理 (変更なし)"""
+    """記事削除処理"""
     post = db.session.get(Post, post_id)
     
     target_redirect = 'dashboard'
@@ -497,10 +493,8 @@ def delete(post_id):
     if current_user.is_admin and post.user_id != current_user.id:
         target_redirect = 'admin'
 
-    # Cloudinaryが利用可能であれば画像を削除
     if post.public_id and CLOUDINARY_AVAILABLE:
         try:
-            # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
             cloudinary.uploader.destroy(post.public_id)
         except Exception as e:
             print(f"Cloudinary delete error: {e}", file=sys.stderr)
@@ -513,7 +507,7 @@ def delete(post_id):
 
 
 # -----------------------------------------------
-# 管理者機能関連のルーティング (変更なし)
+# 管理者機能関連のルーティング
 # -----------------------------------------------
 
 @app.route('/admin')
@@ -585,15 +579,13 @@ def toggle_admin(user_id):
 @app.route("/db_reset", methods=["GET", "POST"])
 def db_reset():
     """データベーステーブルのリセット（開発用）"""
-    # POSTリクエストまたは ?confirm=yes パラメータで実行を許可
     if request.method == 'POST' or request.args.get('confirm') == 'yes':
         try:
             with app.app_context():
                 db.session.close()
-                db.drop_all() # 全テーブルを削除
-                db.create_all() # 最新のモデル定義で再作成
+                db.drop_all() 
+                db.create_all() 
                 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
-                    # PostgreSQLではマイグレーション履歴テーブルもクリア
                     db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
                     db.session.commit()
                 flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
@@ -603,7 +595,6 @@ def db_reset():
             print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
             flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
             return redirect(url_for('index'))
-    # 実行が許可されていない場合は警告メッセージを表示
     flash("データベースリセットを実行するには、POSTリクエストまたはURLに ?confirm=yes をつけてください。", 'danger')
     return redirect(url_for('index'))
 
@@ -625,20 +616,17 @@ def not_found_error(error):
 def forbidden_error(error):
     """403エラーハンドラ (権限なし)"""
     flash('アクセス権限がありません。', 'danger')
-    # 警告はフラッシュメッセージで表示し、error_page.htmlへは飛ばさず、indexへリダイレクト
     return redirect(url_for('index'))
     
 @app.errorhandler(500)
 def internal_error(error):
     """500エラーハンドラ (内部サーバーエラー)"""
-    db.session.rollback() # データベース操作中のエラーの場合はロールバック
+    db.session.rollback() 
     return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
 
 
 if __name__ == '__main__':
-    # ローカル開発環境でのみ実行
     with app.app_context():
-        # ローカルでのみテーブル作成を試みる
         try:
             db.create_all()
         except Exception as e:
