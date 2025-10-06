@@ -1,6 +1,6 @@
 import os
 import sys # sysのインポートを追加
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, flash, redirect, url_for, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -118,6 +118,40 @@ class Post(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 # --- ユーザーローダー ---
+
+# -------------------------------------------------------------------
+# !!! 危険: データベースのテーブルを強制的にリセットするエンドポイント !!!
+# -------------------------------------------------------------------
+@app.route('/db_reset')
+def db_reset():
+    """
+    アプリケーションコンテキスト内でテーブルを削除し、再作成する。
+    本番環境での緊急時のみ使用。実行後はすぐに削除すること。
+    """
+    try:
+        with app.app_context():
+            # 既存のテーブルを強制的に削除
+            db.drop_all()
+            
+            # 最新のスキーマでテーブルを再作成
+            db.create_all()
+            
+            # Flask-Migrateのメタデータテーブルも再作成（使用している場合）
+            # if 'migrate' in globals():
+            #     from flask_migrate import stamp
+            #     stamp()
+                
+            db.session.commit()
+            
+            flash('データベーステーブルが完全にリセットされ、最新のスキーマで再作成されました。', 'success')
+            print("Database reset and tables recreated.", file=sys.stderr)
+            return redirect(url_for('index'))
+            
+    except Exception as e:
+        flash(f'データベースリセット中にエラーが発生しました: {e}', 'danger')
+        print(f"Error during db_reset: {e}", file=sys.stderr)
+        return redirect(url_for('index'))
+# -------------------------------------------------------------------
 
 @login_manager.user_loader
 def load_user(user_id):
