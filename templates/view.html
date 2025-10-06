@@ -25,7 +25,7 @@
         {% if post.public_id %}
             <!-- Cloudinaryに public_id が存在する場合、画像を表示 -->
             <!-- 幅768pxで自動的なクロップと品質最適化を設定 -->
-            <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=768, crop='limit', quality='auto', fetch_format='auto')[0] }}" 
+            <img src="{{ get_cloudinary_url(post.public_id, width=768, crop='limit', quality='auto', fetch_format='auto')[0] }}" 
                  alt="{{ post.title }}の画像" 
                  class="w-full h-auto object-cover max-h-96 rounded-xl shadow-lg border border-gray-200">
         {% else %}
