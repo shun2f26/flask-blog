@@ -15,16 +15,20 @@
             font-family: 'Inter', sans-serif;
             background-color: #f7f9fc;
         }
+        /* フラッシュメッセージの固定配置とトランジション */
         .flash-message {
             position: fixed;
             top: 20px;
             right: 20px;
             z-index: 1000;
             opacity: 1;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out; /* transformを追加して動きを滑らかに */
+            transform: translateX(0);
         }
+        /* フェードアウト時のスタイル */
         .fade-out {
             opacity: 0;
+            transform: translateX(20px); /* 右に少し移動させながら消す */
         }
     </style>
 </head>
@@ -51,14 +55,14 @@
                 <div class="flex items-center">
                     {% if current_user.is_authenticated %}
                         <span class="text-gray-600 text-sm mr-4 hidden sm:inline">ようこそ, <strong>{{ current_user.username }}</strong> さん!</span>
-                        <a href="{{ url_for('logout') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700">
+                        <a href="{{ url_for('logout') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out">
                             <i class="fas fa-sign-out-alt mr-1"></i>ログアウト
                         </a>
                     {% else %}
-                        <a href="{{ url_for('login') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                        <a href="{{ url_for('login') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
                             ログイン
                         </a>
-                        <a href="{{ url_for('signup') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                        <a href="{{ url_for('signup') }}" class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out">
                             <i class="fas fa-user-plus mr-1"></i>サインアップ
                         </a>
                     {% endif %}
@@ -68,18 +72,25 @@
     </nav>
 
     <!-- Flash Messages Container -->
-    <div id="flash-container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
+    <!-- メッセージはJSで位置を処理するため、ラッパーは不要 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div id="flash-container">
                 {% for category, message in messages %}
-                    <div class="flash-message bg-{{ category | replace('success', 'green') | replace('danger', 'red') | replace('warning', 'yellow') | replace('info', 'blue') }}-500 text-white p-4 rounded-lg shadow-xl"
+                    {% set color_class = {
+                        'success': 'bg-green-500', 
+                        'danger': 'bg-red-500', 
+                        'warning': 'bg-yellow-500', 
+                        'info': 'bg-blue-500'
+                    }.get(category, 'bg-gray-500') %}
+                    <div class="flash-message {{ color_class }} text-white p-4 rounded-lg shadow-xl min-w-[250px] max-w-sm"
                          data-category="{{ category }}">
                         {{ message | safe }}
                     </div>
                 {% endfor %}
-            {% endif %}
-        {% endwith %}
-    </div>
+            </div>
+        {% endif %}
+    {% endwith %}
 
     <!-- Main Content -->
     <main class="flex-grow">
@@ -91,7 +102,8 @@
         <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
             &copy; 2025 Flask Blog. All rights reserved.
             <div class="mt-1">
-                <a href="{{ url_for('forgot_password') }}" class="text-indigo-600 hover:text-indigo-800">パスワードを忘れた場合</a>
+                <!-- パスワードを忘れた場合へのリンク -->
+                <a href="{{ url_for('forgot_password') }}" class="text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out">パスワードを忘れた場合</a>
             </div>
         </div>
     </footer>
@@ -101,10 +113,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             const messages = document.querySelectorAll('.flash-message');
             messages.forEach(message => {
+                // 4秒後にフェードアウト開始
                 setTimeout(() => {
                     message.classList.add('fade-out');
-                    setTimeout(() => message.remove(), 500);
-                }, 4000); // 4秒後にフェードアウト開始
+                    // フェードアウト完了後、要素をDOMから削除
+                    setTimeout(() => message.remove(), 500); 
+                }, 4000); 
             });
         });
     </script>
