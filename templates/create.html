@@ -7,7 +7,7 @@
 
     <!-- 記事作成フォーム -->
     <!-- enctype="multipart/form-data" を追加してファイルアップロードを可能にする -->
-    <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+    <input type="hidden" form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
 
         <!-- CSRFトークン (セキュリティ対策) -->
         <!-- CSRFトークンを挿入する標準的な方法。単独で呼び出すと隠しフィールドが生成されます。 -->
