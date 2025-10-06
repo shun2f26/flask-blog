@@ -1,56 +1,84 @@
-{% extends 'base.html' %}
-
-{% block title %}記事の更新 (ID: {{ post.id }}){% endblock %}
+{% extends "base.html" %}
+{% block title %}記事の編集: {{ post.title }}{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <h1 class="mb-4">ブログ記事の更新</h1>
-            
-            {# フラッシュメッセージ表示エリア #}
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category if category != 'message' else 'success' }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">記事の編集・更新</h1>
 
-            <form method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label for="title" class="form-label">タイトル</label>
-                    <input type="text" name="title" id="title" class="form-control" placeholder="タイトルを入力" value="{{ post.title }}" required>
-                </div>
-                <div class="mb-3">
-                    <label for="body" class="form-label">内容</label>
-                    <textarea name="body" id="body" rows="8" class="form-control" placeholder="記事を入力" required>{{ post.body }}</textarea>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="current-image" class="form-label d-block">現在の画像</label>
-                    {% if post.img_name %}
-                        <img src="{{ url_for('static', filename='img/' + post.img_name) }}" class="img-fluid rounded mb-2" style="max-height: 200px; object-fit: cover;">
-                        <p class="text-muted small">ファイル名: {{ post.img_name }}</p>
-                    {% else %}
-                        <p class="text-muted">画像は登録されていません。</p>
-                    {% endif %}
-                </div>
-                
-                <div class="mb-3">
-                    <label for="fileupload" class="form-label">新しい画像を選択 (既存の画像が上書きされます)</label>
-                    <input type="file" name="img" id="fileupload" class="form-control" accept="image/*">
-                </div>
-                
-                <div class="d-flex justify-content-between">
-                    <a href="{{ url_for('admin') }}" class="btn btn-secondary">キャンセルして戻る</a>
-                    <button type="submit" class="btn btn-success btn-lg">記事を更新</button> 
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- 記事編集フォーム -->
+    <!-- enctype="multipart/form-data" を追加してファイルアップロードを可能にする -->
+    <form method="POST" action="{{ url_for('update', post_id=post.id) }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+
+        <!-- CSRFトークン (セキュリティ対策) -->
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- タイトル入力欄 -->
+        <div>
+            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+            <input id="title" name="title" type="text" required
+                   class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
+                   placeholder="記事のタイトルを入力してください"
+                   value="{{ request.form.title if request.form.title else post.title }}">
+            <!-- post.title を初期値として表示 -->
+        </div>
+
+        <!-- コンテンツ入力欄 -->
+        <div>
+            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
+            <textarea id="content" name="content" rows="10" required
+                      class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
+                      placeholder="記事の内容を記述してください">{{ request.form.content if request.form.content else post.content }}</textarea>
+            <!-- post.content を初期値として表示 -->
+        </div>
+
+        <!-- 既存の画像プレビューと削除オプション -->
+        <div class="border-t pt-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-2">現在のサムネイル画像</h3>
+            
+            {% if post.image_url %}
+            <div class="mb-4">
+                <img src="{{ post.image_url }}" alt="現在の画像" class="max-w-xs h-auto rounded-lg shadow-md border border-gray-200">
+            </div>
+            
+            <div class="flex items-center mb-4">
+                <input id="delete_image" name="delete_image" type="checkbox" value="1"
+                       class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                <label for="delete_image" class="ml-2 block text-sm font-medium text-red-600">
+                    既存の画像を削除する (チェックを入れると削除されます)
+                </label>
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 mb-4">現在、画像は設定されていません。</p>
+            {% endif %}
+
+            <!-- 新しい画像ファイル入力欄 (上書き用) -->
+            <label for="image" class="text-sm font-medium text-gray-700 block mb-1">新しいサムネイル画像 (オプション)</label>
+            <input id="image" name="image" type="file" accept="image/*"
+                   class="block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <p class="text-xs text-gray-500 mt-1">ファイルをアップロードすると、既存の画像は上書きされます。</p>
+        </div>
+
+        <!-- AIアシスタントボタン -->
+        <div class="border-t pt-4">
+            <p class="text-sm text-gray-500 mb-2">Gemini AIに記事の校正や改善を依頼できます。</p>
+            <button type="submit" name="action" value="ai_assist"
+                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                <i class="fas fa-magic mr-2"></i>AIアシスタントに依頼 (校正/改善)
+            </button>
+        </div>
+
+        <!-- 更新ボタンと戻るボタン -->
+        <div class="flex justify-between items-center pt-4">
+            <a href="{{ url_for('view', post_id=post.id) }}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition duration-150 ease-in-out">
+                <i class="fas fa-arrow-left mr-2"></i>詳細画面に戻る
+            </a>
+            
+            <button type="submit" name="action" value="update"
+                    class="flex justify-center py-3 px-6 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <i class="fas fa-save mr-2"></i>記事を更新する
+            </button>
+        </div>
+    </form>
 </div>
 {% endblock %}
