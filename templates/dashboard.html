@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class="flex justify-between items-center mb-6 border-b pb-2">
+        <h1 class="text-3xl font-bold text-gray-900">
+            {{ current_user.username }} のダッシュボード
+        </h1>
+        <!-- 記事作成ボタン: 'create' ルートは統合テンプレートを使用します -->
+        <a href="{{ url_for('create') }}" class="py-2 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150">
+            <i class="fas fa-plus mr-1"></i> 新規記事作成
+        </a>
+    </div>
+
+    <!-- 記事一覧 -->
+    <div class="space-y-6">
+        {% if posts %}
+            {% for post in posts %}
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <a href="{{ url_for('view', post_id=post.id) }}" class="text-xl font-bold text-gray-900 hover:text-indigo-600 transition">
+                            {{ post.title }}
+                        </a>
+                        <p class="text-sm text-gray-500 mt-1">
+                            公開日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
+                        </p>
+                    </div>
+                    
+                    <div class="flex space-x-3">
+                        <!-- 編集リンクの確認・修正: 統合された 'update' ルートを指します -->
+                        <a href="{{ url_for('update', post_id=post.id) }}" 
+                           class="text-sm font-medium text-blue-600 hover:text-blue-800 transition">
+                            <i class="fas fa-edit mr-1"></i> 編集
+                        </a>
+
+                        <!-- 削除フォーム (スタイルは省略) -->
+                        <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="inline">
+                            <button type="submit" 
+                                    onclick="return confirm('本当にこの記事を削除しますか？');"
+                                    class="text-sm font-medium text-red-600 hover:text-red-800 transition">
+                                <i class="fas fa-trash-alt mr-1"></i> 削除
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center p-10 bg-white rounded-xl shadow-lg">
+                <p class="text-gray-500">まだ記事がありません。<a href="{{ url_for('create') }}" class="text-indigo-600 hover:underline font-medium">最初の記事を作成</a>しましょう！</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
