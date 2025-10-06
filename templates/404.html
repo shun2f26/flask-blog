@@ -2,16 +2,24 @@
 {% block title %}404 Not Found{% endblock %}
 
 {% block content %}
-<div class="flex flex-col items-center justify-center text-center py-20">
-    <p class="text-9xl font-extrabold text-indigo-600 tracking-widest">404</p>
-    <div class="bg-gray-800 px-2 text-sm rounded rotate-12 absolute text-white">
-        ページが見つかりません
+<div class="flex flex-col items-center justify-center text-center py-20 min-h-[70vh]">
+    <div class="relative">
+        <p class="text-9xl font-extrabold text-indigo-600 tracking-widest opacity-90">404</p>
+        <div class="absolute inset-0 flex items-center justify-center">
+             <div class="bg-gray-800 px-3 py-1 text-base rounded-lg rotate-[-10deg] shadow-lg text-white font-semibold">
+                ページが見つかりません
+            </div>
+        </div>
     </div>
-    <h1 class="mt-8 text-2xl font-bold text-gray-800 sm:text-4xl">お探しのページが見つかりませんでした。</h1>
-    <p class="mt-4 text-gray-600">URLが正しいかご確認ください。または、ホームに戻ってください。</p>
+    
+    <h1 class="mt-12 text-3xl font-bold text-gray-800 sm:text-4xl">お探しのページが見つかりませんでした。</h1>
+    <p class="mt-4 text-gray-600 max-w-lg">
+        入力したURLが正しいかご確認ください。このエラーは、リンク切れ、またはページが削除された場合に発生します。
+    </p>
 
-    <a href="{{ url_for('index') }}" class="mt-8 inline-block px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg shadow-md hover:bg-indigo-700 transition">
-        ホームに戻る
+    <a href="{{ url_for('index') }}" 
+       class="mt-10 inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out transform hover:scale-[1.05]">
+        <i class="fas fa-home mr-2"></i> ホームに戻る
     </a>
 </div>
 {% endblock %}
