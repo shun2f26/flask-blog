@@ -1,56 +1,64 @@
-{% extends "base.html" %}
-{% block title %}ログイン{% endblock %}
+<!-- login.html - base.htmlを継承し、コンテンツブロックのみを定義 -->
+{% extends 'base.html' %}
+
+{% block title %}ログイン - My Flask Blog{% endblock %}
 
 {% block content %}
-<div class="flex justify-center items-center pt-8 pb-12">
-    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl">
-        <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-6">ログイン</h2>
-        <p class="text-center text-gray-500 mb-8">ブログ管理画面へアクセスします。</p>
-        
-        <!-- CSRFトークンを非表示フィールドとして追加し、トークン付きのURLにPOSTします -->
-        <form method="POST" action="{{ url_for('reset_password', token=token) }}" class="space-y-6">
-            <!-- 修正: トークン値を非表示のinputフィールドとして渡します -->
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> 
+<!-- flex-grow とアイテム中央揃えのクラスを、contentブロックの直下に移動 -->
+<!-- bodyタグはbase.htmlで開かれているため、ここでは不要（削除） -->
 
-            <div>
-                <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名</label>
-                <input id="username" name="username" type="text" required autofocus
-                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="ユーザー名を入力">
-            </div>
+    <!-- フラッシュメッセージはbase.html側で表示されるため、このテンプレートからは削除 -->
+    <!-- ただし、login.htmlがbase.htmlから独立したデザインを要求しているため、一時的に残します。
+         ここでは、base.htmlのフラッシュメッセージ表示部分と重複しないように、form周辺のdivを修正します。 -->
+    
+    <div class="flex-grow flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-6">アカウントにログイン</h2>
             
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-700">パスワード</label>
-                <input id="password" name="password" type="password" required
-                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="パスワードを入力">
-            </div>
-            
-            <div class="flex items-center justify-between">
-                <div class="text-sm">
-                    <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                        パスワードを忘れた場合
-                    </a>
+            <!-- 修正: actionを 'login' ルートに変更 -->
+            <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
+                
+                <!-- CSRFトークンの挿入: base.htmlがWTFを初期化している前提で、ヘルパー関数を使用 -->
+                {{ csrf_token() }}
+                
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名 (メールの代わり)</label>
+                    <div class="mt-1">
+                        <!-- name属性は myblog.py で使用する名前と一致させる (username) -->
+                        <input id="username" name="username" type="text" required autofocus
+                               class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
                 </div>
-            </div>
-            
-            <div>
-                <button type="submit"
-                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                    <!-- Font Awesome アイコンを使用 -->
-                    <i class="fas fa-sign-in-alt mr-2"></i>ログイン
-                </button>
-            </div>
-        </form>
-        
-        <div class="mt-6 text-center">
-            <p class="text-sm text-gray-600">
-                アカウントをお持ちでないですか？
-                <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                    新規ユーザー登録はこちら
-                </a>
-            </p>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">パスワード</label>
+                    <div class="mt-1">
+                        <!-- name属性は myblog.py で使用する名前と一致させる (password) -->
+                        <input id="password" name="password" type="password" required 
+                               class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="text-sm">
+                        <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                            パスワードをお忘れですか？
+                        </a>
+                    </div>
+                    <!-- 新規登録リンク -->
+                    <div class="text-sm">
+                        <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                            新規登録はこちら
+                        </a>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                        ログイン
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
-</div>
 {% endblock %}
