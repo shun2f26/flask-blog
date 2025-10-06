@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{# post変数が存在するかどうかで、新規作成（post is None）か編集（post is not None）かを判定する #}
+{% set is_edit = post is not none %}
+
+{% block title %}{{ '記事の編集' if is_edit else '新規記事作成' }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6 border-b pb-2">
+        {{ '記事の編集' if is_edit else '新規記事作成' }}
+    </h1>
+
+    <!-- フォームアクションを動的に切り替える -->
+    <form method="POST" 
+          action="{{ url_for('update', post_id=post.id) if is_edit else url_for('create') }}" 
+          enctype="multipart/form-data" 
+          class="bg-white p-6 rounded-lg shadow-xl">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="mb-4">
+            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+            {# フォームの初期値設定: 編集時のみ post.title を使用 #}
+            {{ form.title(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm", 
+                          value=post.title if is_edit else '') }}
+            {% for error in form.title.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ error }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="mb-6">
+            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">本文</label>
+            {# contentフィールドは、フォームに obj=post を渡すことで自動的に値がセットされるため、通常は value 指定は不要ですが、WTFormsのTextAreaFieldのレンダリングを優先します #}
+            {{ form.content(class="mt-1 block w-full px-3 py-2 h-64 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-none") }}
+            {% for error in form.content.errors %}
+                <p class="text-xs text-red-500 mt-1">{{ error }}</p>
+            {% endfor %}
+        </div>
+        
+        <!-- 画像管理セクション -->
+        <div class="mb-6 border p-4 rounded-lg bg-gray-50">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">画像管理</h3>
+            
+            <!-- 編集モードかつ現在の画像がある場合のみ表示 -->
+            {% if is_edit and current_image_url %}
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-700">現在の画像:</p>
+                    <img src="{{ current_image_url }}" alt="現在の画像" class="mt-2 w-48 h-auto rounded-md shadow">
+                </div>
+                
+                <div class="flex items-center mb-4">
+                    <input id="delete_image" name="delete_image" type="checkbox" class="h-4 w-4 text-red-600 border-gray-300 rounded">
+                    <label for="delete_image" class="ml-2 block text-sm text-red-600 font-medium">現在の画像を削除する</label>
+                </div>
+            {% endif %}
+
+            <label for="image_upload" class="block text-sm font-medium text-gray-700 mb-1">
+                {% if is_edit %}画像をアップロード/変更{% else %}画像をアップロード（オプション）{% endif %}
+            </label>
+            <input type="file" name="image" id="image_upload" accept="image/*" class="block w-full text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-indigo-50 file:text-indigo-700
+                hover:file:bg-indigo-100
+                mt-1">
+            <p class="text-xs text-gray-500 mt-2">
+                {% if is_edit %}
+                    新しい画像をアップロードすると、現在の画像は上書きされます。
+                {% else %}
+                    記事に含める画像をアップロードできます。
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="flex justify-between items-center mt-8">
+            <a href="{{ url_for('dashboard') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
+                <i class="fas fa-arrow-left mr-1"></i> ダッシュボードに戻る
+            </a>
+            
+            {{ form.submit(class="py-2 px-6 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-200 cursor-pointer",
+                           value=('更新' if is_edit else '投稿')) }}
+        </div>
+    </form>
+</div>
+{% endblock %}
