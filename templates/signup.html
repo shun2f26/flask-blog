@@ -7,9 +7,10 @@
         <h2 class="text-3xl font-extrabold text-gray-900 text-center mb-6">新規ユーザー登録</h2>
         <p class="text-center text-gray-500 mb-8">ブログを始めるためのアカウントを作成します。</p>
 
-        <!-- CSRFトークンを追加 -->
-        <form method="POST" action="{{ url_for('signup') }}" class="space-y-6">
-            {{ csrf_token() }}
+        <!-- CSRFトークンを非表示フィールドとして追加し、トークン付きのURLにPOSTします -->
+        <form method="POST" action="{{ url_for('reset_password', token=token) }}" class="space-y-6">
+            <!-- 修正: トークン値を非表示のinputフィールドとして渡します -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div>
                 <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名</label>
