@@ -1,13 +1,14 @@
 import os
 import sys
-from functools import wraps # デコレータのためにインポート
+from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, aliased
+from sqlalchemy import func, select 
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
 
@@ -113,11 +114,6 @@ class User(UserMixin, db.Model):
         """入力されたパスワードとハッシュを比較する"""
         return bcrypt.check_password_hash(self.password_hash, password)
     
-    # Flask-LoginのUserMixinのプロパティはそのまま使用
-    # @property
-    # def is_admin(self):
-    #     return self.is_admin # is_adminカラムがあるため不要
-
     def __repr__(self):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
 
@@ -173,10 +169,13 @@ class PostForm(FlaskForm):
     submit = SubmitField('投稿')
 
 class RequestResetForm(FlaskForm):
+    """パスワードリセット要求用のフォームクラス"""
+    # ユーザー名を入力してもらい、そのユーザーが存在するか確認する
     username = StringField('ユーザー名', validators=[DataRequired()])
     submit = SubmitField('リセットリンクを送信')
 
 class ResetPasswordForm(FlaskForm):
+    """パスワードリセット（新しいパスワード設定）用のフォームクラス"""
     password = PasswordField('新しいパスワード', validators=[DataRequired()])
     confirm_password = PasswordField('パスワード（確認用）', validators=[DataRequired(), EqualTo('password', message='パスワードが一致しません')])
     submit = SubmitField('パスワードをリセット')
@@ -207,51 +206,55 @@ def admin_required(f):
 @app.route("/")
 @app.route("/index")
 def index():
-    """ブログ記事一覧ページ"""
+    """ブログ記事一覧ページ (全ユーザーの最新記事)"""
     posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
     return render_template('index.html', title='ホーム', posts=posts)
 
 
-@app.route("/db_reset", methods=["GET", "POST"])
-def db_reset():
-    """データベーステーブルのリセット（開発用）"""
-    # 実際はadmin_requiredを適用すべきだが、開発用にGETでもPOSTでも動作するように残す
-    if request.method == 'POST' or request.args.get('confirm') == 'yes':
-        try:
-            with app.app_context():
-                # データベース接続をクローズ
-                db.session.close()
+# -----------------------------------------------
+# 公開ブログ閲覧ページ (変更なし)
+# -----------------------------------------------
 
-                # テーブルをドロップし、再作成
-                db.drop_all()
-                db.create_all()
-                
-                # Alembicバージョンテーブルもあれば削除（PostgreSQLのクリーンアップ）
-                if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
-                    db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
-                    db.session.commit()
-                
-                flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
-                return redirect(url_for('index'))
+@app.route("/blog/<username>")
+def user_blog(username):
+    """特定のユーザーの公開ブログページ"""
+    target_user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none()
+    
+    if not target_user:
+        flash(f'ユーザー "{username}" は見つかりませんでした。', 'danger')
+        return redirect(url_for('index'))
+        
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=target_user.id)
+        .order_by(Post.create_at.desc())
+    ).scalars().all()
+    
+    return render_template('user_blog.html', 
+                           title=f'{username} のブログ', 
+                           target_user=target_user, 
+                           posts=posts)
+                           
+@app.route('/view/<int:post_id>')
+def view(post_id):
+    """個別の記事を表示するページ"""
+    post = db.session.get(Post, post_id)
+    if not post:
+        abort(404)
+        
+    return render_template('view.html', post=post, title=post.title)
 
-        except Exception as e:
-            db.session.rollback()
-            print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
-            flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
-            return redirect(url_for('index'))
 
-    # リセット確認画面はテンプレートにないため、一時的にメッセージを出す
-    flash("データベースリセットを実行するには、POSTリクエストまたはURLに ?confirm=yes をつけてください。", 'danger')
-    return redirect(url_for('index'))
-
+# -----------------------------------------------
+# 認証関連のルーティング
+# -----------------------------------------------
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """ログインページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
-    # LoginFormインスタンスを作成
     form = LoginForm()
 
     if form.validate_on_submit():
@@ -264,7 +267,7 @@ def login():
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash(f'ログインに成功しました！ようこそ、{user.username}さん。', 'success')
-            return redirect(next_page or url_for('index'))
+            return redirect(next_page or url_for('dashboard'))
         else:
             flash('ユーザー名またはパスワードが正しくありません。', 'danger')
 
@@ -275,20 +278,17 @@ def login():
 def signup():
     """新規ユーザー登録ページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
-    # RegistrationFormインスタンスを作成
     form = RegistrationForm()
 
     if form.validate_on_submit():
-        # validate_username() で重複チェックは既にされている
         username = form.username.data
         password = form.password.data
 
         new_user = User(username=username)
         new_user.set_password(password)
         
-        # ユーザーがDBに誰もいない場合、最初のユーザーを管理者にする
         is_first_user = db.session.execute(db.select(User).limit(1)).scalar_one_or_none() is None
 
         if is_first_user:
@@ -312,23 +312,79 @@ def logout():
     logout_user()
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
+    
+# -----------------------------------------------
+# パスワードリセット関連 (ダミー実装)
+# -----------------------------------------------
 
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    """パスワードリセット要求ページ (forgot_password.htmlをレンダリング)"""
+    # 実際にはここでメールアドレスを受け取り、リセットトークンを発行する
+    form = RequestResetForm()
+    
+    if form.validate_on_submit():
+        # ダミー処理：ユーザー名を確認した体でメッセージを表示
+        flash(f'ユーザー名 "{form.username.data}" にリセットリンクを送信しました。(※ダミー)', 'info')
+        return redirect(url_for('login'))
+        
+    return render_template('forgot_password.html', title='パスワードを忘れた場合', form=form)
+
+
+@app.route('/reset_password/<path:token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """パスワードリセット実行ページ (reset_password.htmlをレンダリング)"""
+    # 実際にはここでトークンを検証し、パスワードを更新する
+    form = ResetPasswordForm()
+    
+    if form.validate_on_submit():
+        # ダミー処理：パスワードを更新した体でメッセージを表示
+        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。(※ダミー)', 'success')
+        return redirect(url_for('login'))
+    
+    # トークン情報 (デバッグ用)
+    print(f"Received reset token: {token}", file=sys.stderr)
+    
+    return render_template('reset_password.html', title='パスワードリセット', form=form)
+
+
+# -----------------------------------------------
+# ユーザー専用管理画面 (変更なし)
+# -----------------------------------------------
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    """ログインユーザー専用の記事管理画面"""
+    # ログインユーザーの記事のみを取得
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=current_user.id)
+        .order_by(Post.create_at.desc())
+    ).scalars().all()
+    
+    return render_template('dashboard.html', 
+                           title=f'{current_user.username} のダッシュボード', 
+                           posts=posts)
+
+
+# -----------------------------------------------
+# 記事作成・編集・削除 (変更なし)
+# -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事投稿ページ (WTFormsに準拠)"""
+    """新規記事投稿ページ (投稿後、dashboardへリダイレクト)"""
     form = PostForm()
     
     if form.validate_on_submit():
         title = form.title.data
         content = form.content.data
         
-        # 💡 画像アップロードロジックはWTFormsとは別に処理（file fieldがPostFormにないため）
         image_file = request.files.get('image')
         public_id = None
 
-        # Cloudinaryに画像をアップロード
         if image_file and image_file.filename != '' and 'cloudinary' in sys.modules:
             try:
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
@@ -336,9 +392,8 @@ def create():
                 flash('画像付きで記事が正常に投稿されました。', 'success') 
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                return render_template('create.html', title='新規投稿', form=form) # エラーの場合再表示
+                return render_template('create.html', title='新規投稿', form=form)
 
-        # データベースに記事を保存
         new_post = Post(title=title,
                         content=content,
                         user_id=current_user.id,
@@ -347,41 +402,23 @@ def create():
         db.session.add(new_post)
         db.session.commit()
         flash('新しい記事が正常に投稿されました。', 'success')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
     return render_template('create.html', title='新規投稿', form=form)
 
 
-# 記事詳細
-@app.route('/post/<int:post_id>')
-def view(post_id):
-    """記事詳細ページ"""
-    post = db.session.get(Post, post_id)
-    if not post:
-        return render_template('404.html', title="404 記事が見つかりません"), 404
-
-    # 画像URLを生成 (Cloudinaryが設定されている場合)
-    image_url = None
-    if post.public_id and 'cloudinary' in sys.modules:
-        # width, height, cropなどのパラメータを調整
-        image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=800, crop="limit")[0]
-
-    return render_template('view.html', post=post, image_url=image_url, title=post.title)
-
-
-# 記事編集
-@app.route('/edit/<int:post_id>', methods=['GET', 'POST'])
+@app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事編集ページ (WTFormsに準拠)"""
+    """記事編集ページ (update.htmlを使用)"""
     post = db.session.get(Post, post_id)
     
-    # 記事が存在しない、または編集権限がない場合は403 Forbidden
-    if not post or post.user_id != current_user.id:
+    # 権限チェック: 自分の記事または管理者
+    if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('編集権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
 
-    form = PostForm(obj=post) # 既存の記事データでフォームを初期化
+    form = PostForm(obj=post)
 
     if form.validate_on_submit():
         post.title = form.title.data
@@ -390,7 +427,7 @@ def update(post_id):
         image_file = request.files.get('image')
         delete_image = request.form.get('delete_image')
 
-        # 画像削除処理
+        # 画像削除・アップロード処理 (省略)
         if delete_image == 'on' and post.public_id and 'cloudinary' in sys.modules:
             try:
                 cloudinary.uploader.destroy(post.public_id)
@@ -399,13 +436,9 @@ def update(post_id):
             except Exception as e:
                 flash(f'画像の削除中にエラーが発生しました: {e}', 'danger')
 
-        # 新規画像アップロード処理
         if image_file and image_file.filename != '' and 'cloudinary' in sys.modules:
             try:
-                # 古い画像があれば削除
-                if post.public_id:
-                    cloudinary.uploader.destroy(post.public_id)
-
+                if post.public_id: cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
                 flash('新しい画像が正常にアップロードされました。', 'success')
@@ -414,70 +447,94 @@ def update(post_id):
         
         db.session.commit()
         flash('記事が正常に更新されました。', 'success')
-        return redirect(url_for('view', post_id=post.id))
+        
+        if current_user.is_admin and post.user_id != current_user.id:
+             return redirect(url_for('admin'))
+        else:
+             return redirect(url_for('dashboard'))
     
-    # GETリクエスト時の画像URL
     current_image_url = None
     if post.public_id and 'cloudinary' in sys.modules:
         current_image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=200, crop="scale")[0]
 
+    # update.html をレンダリング
     return render_template('update.html', post=post, title='記事編集', form=form, current_image_url=current_image_url)
 
 
-# 記事削除
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
 def delete(post_id):
-    """記事削除処理"""
+    """記事削除処理 (変更なし)"""
     post = db.session.get(Post, post_id)
+    
+    target_redirect = 'dashboard'
 
-    if not post or post.user_id != current_user.id:
+    if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('削除権限がありません、または記事が見つかりません。', 'danger')
-        abort(403) # 403 Forbidden
+        abort(403)
+        
+    if current_user.is_admin and post.user_id != current_user.id:
+        target_redirect = 'admin'
 
-    # Cloudinaryから画像を削除
     if post.public_id and 'cloudinary' in sys.modules:
         try:
             cloudinary.uploader.destroy(post.public_id)
         except Exception as e:
             print(f"Cloudinary delete error: {e}", file=sys.stderr)
 
-    # データベースから記事を削除
     db.session.delete(post)
     db.session.commit()
     flash('記事が正常に削除されました。', 'success')
-    return redirect(url_for('index'))
+    
+    return redirect(url_for(target_redirect))
 
 
 # -----------------------------------------------
-# 管理者機能関連のルーティング
+# 管理者機能関連のルーティング (変更なし)
 # -----------------------------------------------
 
-# 管理者ダッシュボード
 @app.route('/admin')
 @login_required
 @admin_required
 def admin():
-    """管理者ダッシュボード: 全ユーザー管理"""
-    # 全てのユーザーを取得
-    users = db.session.execute(
-        db.select(User).order_by(User.created_at.desc())
-    ).scalars().all()
-    
-    # admin.htmlはsession['user_id']を参照しているため、current_user.idを明示的に渡す
-    # ただし、テンプレート内でcurrent_userが使えるため、self_user_idとして渡す
-    return render_template('admin.html', 
-                           users=users, 
-                           title='ユーザー管理', 
-                           session={'user_id': current_user.id}) # テンプレートの既存コードを考慮
+    """管理者ダッシュボード: 全ユーザー管理と記事数の取得"""
+    post_count_sq = db.session.query(
+        Post.user_id,
+        func.count(Post.id).label('post_count')
+    ).group_by(Post.user_id).subquery()
 
-# 管理者権限のトグル
+    users_with_count_stmt = db.select(
+        User,
+        post_count_sq.c.post_count
+    ).outerjoin(
+        post_count_sq,
+        User.id == post_count_sq.c.user_id
+    ).order_by(User.created_at.desc())
+    
+    users_data = db.session.execute(users_with_count_stmt).all()
+    
+    users = []
+    for user_obj, post_count in users_data:
+        user_posts = db.session.execute(
+            db.select(Post).filter_by(user_id=user_obj.id).order_by(Post.create_at.desc())
+        ).scalars().all()
+
+        users.append({
+            'user': user_obj,
+            'post_count': post_count or 0,
+            'posts': user_posts
+        })
+        
+    return render_template('admin.html', 
+                           users=users,
+                           title='管理者ダッシュボード')
+
+
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
 def toggle_admin(user_id):
     """指定したユーザーの管理者権限をトグルする"""
-    # 自分自身のステータスは変更できない
     if user_id == current_user.id:
         flash('自分自身の管理者ステータスを変更することはできません。', 'danger')
         return redirect(url_for('admin'))
@@ -487,7 +544,6 @@ def toggle_admin(user_id):
         flash('ユーザーが見つかりませんでした。', 'danger')
         return redirect(url_for('admin'))
         
-    # トグル処理
     user.is_admin = not user.is_admin
     db.session.commit()
 
@@ -497,31 +553,42 @@ def toggle_admin(user_id):
         flash(f'ユーザー "{user.username}" の管理者権限を解除しました。', 'info')
 
     return redirect(url_for('admin'))
-
-
+    
+    
+# -----------------------------------------------
+# その他ユーティリティ (エラーハンドリングを含む)
 # -----------------------------------------------
 
+@app.route("/db_reset", methods=["GET", "POST"])
+def db_reset():
+    """データベーステーブルのリセット（開発用）"""
+    if request.method == 'POST' or request.args.get('confirm') == 'yes':
+        try:
+            with app.app_context():
+                db.session.close()
+                db.drop_all()
+                db.create_all()
+                if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+                    db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+                    db.session.commit()
+                flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
+                return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
+            flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
+            return redirect(url_for('index'))
+    flash("データベースリセットを実行するには、POSTリクエストまたはURLに ?confirm=yes をつけてください。", 'danger')
+    return redirect(url_for('index'))
 
-# アカウント設定 (未実装)
+
 @app.route('/account', methods=['GET', 'POST'])
 @login_required
 def account():
-    flash("アカウント設定ページは現在未実装です。", 'info')
-    return redirect(url_for('index')) # adminではなくindexにリダイレクト
+    # account.html をレンダリング
+    return render_template('account.html', title='アカウント設定') 
 
-# パスワードリセット (未実装)
-@app.route('/forgot_password', methods=['GET', 'POST'])
-def forgot_password():
-    flash("パスワードリセット機能は現在未実装です。", 'info')
-    return redirect(url_for('login'))
-
-@app.route('/reset_password/<path:token>', methods=['GET', 'POST'])
-def reset_password(token):
-    flash("パスワードリセット機能は現在未実装です。", 'info')
-    return redirect(url_for('login'))
-
-
-# --- エラーハンドリング ---
+# カスタムエラーハンドラはエラーテンプレートをレンダリングするように変更
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -532,7 +599,14 @@ def not_found_error(error):
 def forbidden_error(error):
     """403エラーハンドラ (権限なし)"""
     flash('アクセス権限がありません。', 'danger')
+    # 警告はフラッシュメッセージで表示し、error_page.htmlへは飛ばさず、indexへリダイレクト
     return redirect(url_for('index'))
+    
+@app.errorhandler(500)
+def internal_error(error):
+    """500エラーハンドラ (内部サーバーエラー)"""
+    db.session.rollback() # データベース操作中のエラーの場合はロールバック
+    return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
 
 
 if __name__ == '__main__':
