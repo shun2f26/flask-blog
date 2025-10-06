@@ -369,13 +369,14 @@ def dashboard():
 
 
 # -----------------------------------------------
-# 記事作成・編集・削除 (変更なし)
+# 記事作成・編集・削除 (統合されたルーティング)
 # -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事投稿ページ (投稿後、dashboardへリダイレクト)"""
+    """新規記事投稿ページ (統合テンプレートを使用)"""
+    post = Post(title='', content='') # ダミーオブジェクト
     form = PostForm()
     
     if form.validate_on_submit():
@@ -392,7 +393,7 @@ def create():
                 flash('画像付きで記事が正常に投稿されました。', 'success') 
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                return render_template('create.html', title='新規投稿', form=form)
+                return render_template('create_update.html', title='新規投稿', form=form, post=post)
 
         new_post = Post(title=title,
                         content=content,
@@ -404,13 +405,14 @@ def create():
         flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('create.html', title='新規投稿', form=form)
+    # post=None を渡すことで「新規作成」モードであることをテンプレートに伝える
+    return render_template('create_update.html', title='新規投稿', form=form, post=None)
 
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事編集ページ (update.htmlを使用)"""
+    """記事編集ページ (統合テンプレートを使用)"""
     post = db.session.get(Post, post_id)
     
     # 権限チェック: 自分の記事または管理者
@@ -455,10 +457,15 @@ def update(post_id):
     
     current_image_url = None
     if post.public_id and 'cloudinary' in sys.modules:
+        # 編集時のみ、現在の画像URLを生成
         current_image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=200, crop="scale")[0]
 
-    # update.html をレンダリング
-    return render_template('update.html', post=post, title='記事編集', form=form, current_image_url=current_image_url)
+    # postオブジェクトと現在の画像URLをテンプレートに渡す
+    return render_template('create_update.html', 
+                           post=post, 
+                           title='記事編集', 
+                           form=form, 
+                           current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
