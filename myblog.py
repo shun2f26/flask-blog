@@ -175,9 +175,6 @@ def db_reset():
 
     # リセット確認画面の表示
     return render_template("db_reset_confirm.html")
-    else:
-        # 本番環境ではリセットをブロック
-        return "データベースリセットは本番環境では許可されていません。", 403
 
 
 @app.route('/')
