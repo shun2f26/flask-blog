@@ -152,8 +152,7 @@ def generate_content_with_llm(prompt):
 def db_init():
     """データベースのテーブルを作成する"""
     try:
-        # すべてのテーブルを作成
-        db.create_all()
+        with app.app_context():
         flash('データベーステーブルが初期化され、正常に作成されました。', 'success')
         return redirect(url_for('index'))
     except Exception as e:
