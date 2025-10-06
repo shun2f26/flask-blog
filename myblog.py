@@ -1,9 +1,10 @@
 import os
-import sys
+import sys # sysのインポートを追加
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
+from flask_wtf.csrf import CSRFProtect # CSRFProtectのインポートを追加
 from flask_migrate import Migrate
 from sqlalchemy.orm import relationship
 from sqlalchemy_utils import database_exists, create_database
@@ -15,16 +16,10 @@ from io import BytesIO
 import cloudinary
 import cloudinary.uploader
 import cloudinary.utils
-from flask_wtf.csrf import CSRFProtect # <-- CSRF対策のためのインポート
 
 # Cloudinaryの設定 (環境変数から取得)
-# 環境変数がない場合は警告を出す
-cloudinary_cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
-if not cloudinary_cloud_name:
-    print("Warning: CLOUDINARY_CLOUD_NAME is not set.", file=sys.stderr)
-
 cloudinary.config( 
-  cloud_name = cloudinary_cloud_name, 
+  cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'), 
   api_key = os.environ.get('CLOUDINARY_API_KEY'), 
   api_secret = os.environ.get('CLOUDINARY_API_SECRET'),
   secure = True
@@ -34,8 +29,7 @@ cloudinary.config(
 app = Flask(__name__) 
 
 # --- アプリ設定 ---
-# CSRF保護、セッション管理に必須のSECRET_KEY
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key_change_me') 
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key') 
 
 # Heroku / Render 互換性のためのURL修正ロジック
 # 必須: postgres:// を postgresql:// に変換し、SQLiteフォールバックを設定
@@ -46,20 +40,23 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 
-# --- SQLAlchemy/Migrate の遅延初期化 (Lazy Init) ---
+# --- SQLAlchemy/Migrate / WTF の遅延初期化 (Lazy Init) ---
+# インスタンスを先に作成
 db = SQLAlchemy() 
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 migrate = Migrate() 
-csrf = CSRFProtect(app) # <-- Flask-WTFによるCSRF保護を有効化
+csrf = CSRFProtect() # CSRFProtectインスタンスを作成
 
 # 設定が完了した後、アプリケーションにバインド
 db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
+csrf.init_app(app) # CSRF保護をアプリにバインド
 
-# Gunicorn起動時のタイムアウトと500エラー対策のため、migrateの初期化は通常省略
-# migrate.init_app(app, db) 
+# !!! CRITICAL FIX: Gunicorn起動時のタイムアウトと500エラー対策のため、
+# Migrateの初期化は意図的に省略しています。
+# migrate.init_app(app, db) # <-- コメントアウト
 
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインが必要です。'
@@ -67,15 +64,17 @@ login_manager.login_message_category = 'info'
 
 
 # -------------------------------------------------------------------
-# Render Free Tier 対策: アプリ起動時にテーブル作成を試みる (エラー対策)
+# Render Free Tier 対策: アプリ起動時にテーブル作成を試みる
 # -------------------------------------------------------------------
+# Gunicornがアプリをロードする際に実行されます。これが500エラーの主な対策です。
 try:
     with app.app_context():
         # テーブルが存在しなければ作成する。存在してもエラーにならないよう試みる
         db.create_all()
         print("Database tables ensured to be created.", file=sys.stderr)
 except Exception as e:
-    # 起動時のDB接続エラーをキャッチし、アプリケーションの起動自体は続行させる（500エラー対策）
+    # テーブルが既に存在するエラーや、その他の起動時エラーをキャッチし、
+    # アプリケーションの起動自体は続行させる（500エラー対策）
     print(f"Error during initial db.create_all(): {e}", file=sys.stderr)
     
 # -------------------------------------------------------------------
@@ -95,7 +94,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     posts = relationship('Post', backref='author', lazy='dynamic')
     
-    # パスワードリセットトークン用 (UndefinedColumnエラー対策のため必須)
+    # パスワードリセットトークン用 (UndefinedColumnエラーを解消するカラム)
     reset_token = db.Column(db.String(256), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
 
@@ -126,45 +125,30 @@ def load_user(user_id):
 # --- ルーティング ---
 
 # -------------------------------------------------------------------
-# !!! 危険: データベースのテーブルを強制的にリセットするエンドポイント !!!
-# スキーマ変更後のUndefinedColumnエラー対策として一時的に使用。
-# 実行後はセキュリティのため、必ずこの関数を削除し、再デプロイしてください。
+# !!! 緊急デバッグ用エンドポイント (セキュリティのため、解決後削除推奨) !!!
+# データベーススキーマエラー (UndefinedColumn) 解消のために追加
 # -------------------------------------------------------------------
 @app.route('/db_reset')
 def db_reset():
-    """
-    アプリケーションコンテキスト内でテーブルを削除し、再作成する。
-    本番環境での緊急時のみ使用。
-    """
-    if os.environ.get('FLASK_ENV') != 'production':
-        # production環境での誤実行を防ぐための簡易チェック
-        pass
-    
-    try:
-        with app.app_context():
-            # 既存のテーブルを強制的に削除
+    if os.environ.get('FLASK_ENV') != 'production' or os.environ.get('SECRET_KEY') == 'my_default_secret_key':
+        try:
             db.drop_all()
-            
-            # 最新のスキーマでテーブルを再作成
             db.create_all()
-            
-            db.session.commit()
-            
-            flash('データベーステーブルが完全にリセットされ、最新のスキーマで再作成されました。', 'success')
-            print("Database reset and tables recreated successfully.", file=sys.stderr)
+            flash('データベースが正常にリセットされました。テーブルが再作成されました。', 'success')
             return redirect(url_for('index'))
-            
-    except Exception as e:
-        flash(f'データベースリセット中にエラーが発生しました: {e}', 'danger')
-        print(f"Critical Error during db_reset: {e}", file=sys.stderr)
-        return redirect(url_for('index'))
+        except Exception as e:
+            flash(f'データベースのリセット中にエラーが発生しました: {e}', 'danger')
+            return f"Error resetting database: {e}", 500
+    else:
+        # 本番環境での誤動作を防ぐために、403を返す
+        return "データベースリセットは本番環境では許可されていません。", 403
 # -------------------------------------------------------------------
-
 
 @app.route('/')
 def index():
     """ブログ記事一覧ページ"""
     posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
+    # templates/index.html を使用します
     return render_template('index.html', posts=posts)
 
 # 記事詳細
@@ -173,8 +157,10 @@ def view(post_id):
     """記事詳細ページ"""
     post = db.session.get(Post, post_id)
     if not post:
+        # templates/404.html を使用します
         return render_template('404.html', title="404 記事が見つかりません"), 404
     
+    # templates/view.html を使用します
     return render_template('view.html', post=post, cloudinary=cloudinary)
 
 # 新規投稿
@@ -202,9 +188,6 @@ def create():
                 flash('画像が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                # ログ出力
-                print(f"Cloudinary upload error: {e}", file=sys.stderr)
-
 
         # データベースに記事を保存
         new_post = Post(title=title, 
@@ -217,7 +200,7 @@ def create():
         flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('index'))
 
-    return render_template('create.html')
+    return render_template('create.html') # create.htmlテンプレートが必要です
 
 # 記事編集
 @app.route('/edit/<int:post_id>', methods=['GET', 'POST'])
@@ -238,7 +221,7 @@ def update(post_id):
 
         if not post.title or not post.content:
             flash('タイトルと本文を入力してください。', 'warning')
-            return render_template('update.html', post=post)
+            return render_template('update.html', post=post) # update.htmlテンプレートが必要です
 
         # 画像削除処理
         if delete_image == 'on' and post.public_id:
@@ -248,13 +231,11 @@ def update(post_id):
                 flash('画像を削除しました。', 'success')
             except Exception as e:
                 flash(f'画像の削除中にエラーが発生しました: {e}', 'danger')
-                print(f"Cloudinary delete error: {e}", file=sys.stderr)
         
         # 新規画像アップロード処理
         if image_file and image_file.filename != '':
             try:
                 if post.public_id:
-                    # 古い画像を削除
                     cloudinary.uploader.destroy(post.public_id)
                 
                 upload_result = cloudinary.uploader.upload(image_file, 
@@ -264,14 +245,12 @@ def update(post_id):
                 flash('新しい画像が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                print(f"Cloudinary upload error: {e}", file=sys.stderr)
-
 
         db.session.commit()
         flash('記事が正常に更新されました。', 'success')
         return redirect(url_for('view', post_id=post.id))
 
-    return render_template('update.html', post=post)
+    return render_template('update.html', post=post) # update.htmlテンプレートが必要です
 
 # 記事削除
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -289,7 +268,7 @@ def delete(post_id):
         try:
             cloudinary.uploader.destroy(post.public_id)
         except Exception as e:
-            print(f"Cloudinary delete error during deletion: {e}", file=sys.stderr)
+            print(f"Cloudinary delete error: {e}", file=sys.stderr)
 
     # データベースから記事を削除
     db.session.delete(post)
@@ -317,7 +296,7 @@ def login():
         else:
             flash('ユーザー名またはパスワードが正しくありません。', 'danger')
     
-    return render_template('login.html')
+    return render_template('login.html') # login.htmlテンプレートを使用
 
 # サインアップ
 @app.route('/signup', methods=['GET', 'POST'])
@@ -348,7 +327,7 @@ def signup():
             flash('登録が完了しました。ログインしてください。', 'success')
             return redirect(url_for('login'))
 
-    return render_template('signup.html')
+    return render_template('signup.html') # signup.htmlテンプレートが必要です
 
 # ログアウト
 @app.route('/logout')
@@ -367,7 +346,7 @@ def admin():
     posts = db.session.execute(
         db.select(Post).filter_by(user_id=current_user.id).order_by(Post.create_at.desc())
     ).scalars().all()
-    return render_template('admin.html', posts=posts)
+    return render_template('admin.html', posts=posts) # admin.htmlテンプレートが必要です
 
 # アカウント設定
 @app.route('/account', methods=['GET', 'POST'])
@@ -375,6 +354,7 @@ def admin():
 def account():
     """アカウント設定（ユーザー名/パスワード変更）"""
     user = current_user
+    # templates/account.html を使用します
 
     if request.method == 'POST':
         new_username = request.form.get('username')
@@ -423,6 +403,7 @@ def account():
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     """パスワードリセット要求ページ"""
+    # templates/forgot_password.html を使用します
     if request.method == 'POST':
         username = request.form.get('username')
         user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none()
@@ -430,16 +411,17 @@ def forgot_password():
         flash('パスワードリセット用のリンクが送信されました。', 'info')
         
         if user:
-            # secretsモジュールで安全なトークンを生成
             token = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').rstrip('=')
             user.reset_token = token
             user.reset_token_expires = now() + timedelta(minutes=30)
             db.session.commit()
             
-            # 開発/デバッグ環境向けのコンソール出力
+            # 開発環境向けのコンソール出力
             print(f"--- DUMMY PASSWORD RESET LINK ---", file=sys.stderr)
             print(f"User: {user.username}", file=sys.stderr)
-            print(f"Link: {url_for('reset_password', token=token, _external=True)}", file=sys.stderr)
+            # Renderのホスト名を取得するためにrequest.host_urlを使用
+            reset_url = url_for('reset_password', token=token, _external=True)
+            print(f"Link: {reset_url}", file=sys.stderr)
             print(f"-----------------------------------", file=sys.stderr)
 
     return render_template('forgot_password.html')
@@ -448,6 +430,7 @@ def forgot_password():
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     """新しいパスワード設定ページ"""
+    # templates/reset_password.html を使用します
     user = db.session.execute(db.select(User).filter_by(reset_token=token)).scalar_one_or_none()
 
     if not user or user.reset_token_expires < now():
@@ -456,7 +439,7 @@ def reset_password(token):
 
     if request.method == 'POST':
         password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+        confirm_password = request.form.get('password_confirm') # フォームのname属性に合わせる
 
         if password != confirm_password:
             flash('パスワードが一致しません。', 'danger')
@@ -478,17 +461,9 @@ def reset_password(token):
 @app.errorhandler(404)
 def not_found_error(error):
     """404エラーハンドラ"""
-    return render_template('404.html', title="404 Not Found"), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    """500エラーハンドラ"""
-    # データベースセッションをロールバックし、クリーンな状態に戻す
-    db.session.rollback()
-    # ログ出力（Renderログで確認可能）
-    print(f"An unexpected 500 error occurred: {error}", file=sys.stderr)
-    return render_template('500.html', title="500 Internal Server Error"), 500
+    # templates/404.html を使用します
+    return render_template('404.html'), 404
 
 if __name__ == '__main__':
-    # ローカル開発環境用
+    # ローカル開発環境でのみ実行
     app.run(debug=True)
