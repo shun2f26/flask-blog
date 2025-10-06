@@ -7,7 +7,7 @@
 
     <!-- 記事作成フォーム -->
     <!-- enctype="multipart/form-data" を追加してファイルアップロードを可能にする -->
-    <form method="POST" action="{{ url_for('create', token=token) }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+    <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data" class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
 
         <!-- CSRFトークン (セキュリティ対策) -->
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
