@@ -178,6 +178,12 @@ class ResetPasswordForm(FlaskForm):
 
 # --- ユーザーローダー ---
 
+@app.context_processor
+def inject_now():
+    """Jinja2テンプレートにdatetime.datetime.now()関数を 'now' として提供する。"""
+    # テンプレート内で {{ now().year }} のように呼び出すと、現在の年が取得可能になる
+    return {'now': datetime.now}
+
 @login_manager.user_loader
 def load_user(user_id):
     """Flask-LoginがセッションからユーザーIDをロードするためのコールバック"""
