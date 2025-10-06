@@ -1,85 +1,99 @@
-{% extends 'base.html' %}
-
-{# post変数が存在するかどうかで、新規作成（post is None）か編集（post is not None）かを判定する #}
-{% set is_edit = post is not none %}
-
-{% block title %}{{ '記事の編集' if is_edit else '新規記事作成' }}{% endblock %}
+{% extends "layout.html" %}
+{% block title %}{{ '記事編集' if post else '新規記事作成' }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <h1 class="text-3xl font-bold text-gray-900 mb-6 border-b pb-2">
-        {{ '記事の編集' if is_edit else '新規記事作成' }}
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
+        {{ '記事編集' if post else '新規記事作成' }}
     </h1>
 
-    <!-- フォームアクションを動的に切り替える -->
-    <form method="POST" 
-          action="{{ url_for('update', post_id=post.id) if is_edit else url_for('create') }}" 
+    <!-- 記事作成/編集フォーム -->
+    <form method="POST" action="{{ url_for('update', post_id=post.id) if post else url_for('create') }}" 
           enctype="multipart/form-data" 
-          class="bg-white p-6 rounded-lg shadow-xl">
+          class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+
+        <!-- CSRFトークン -->
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <div class="mb-4">
+        <!-- タイトル入力欄 -->
+        <div>
             <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
-            {# フォームの初期値設定: 編集時のみ post.title を使用 #}
-            {{ form.title(class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm", 
-                          value=post.title if is_edit else '') }}
-            {% for error in form.title.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ error }}</p>
-            {% endfor %}
+            <input id="title" name="title" type="text" required
+                   class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
+                   placeholder="記事のタイトルを入力してください"
+                   value="{{ post.title if post else (request.form.get('title') or '') }}">
         </div>
 
-        <div class="mb-6">
-            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">本文</label>
-            {# contentフィールドは、フォームに obj=post を渡すことで自動的に値がセットされるため、通常は value 指定は不要ですが、WTFormsのTextAreaFieldのレンダリングを優先します #}
-            {{ form.content(class="mt-1 block w-full px-3 py-2 h-64 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-none") }}
-            {% for error in form.content.errors %}
-                <p class="text-xs text-red-500 mt-1">{{ error }}</p>
-            {% endfor %}
+        <!-- コンテンツ入力欄 -->
+        <div>
+            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
+            <textarea id="content" name="content" rows="10" required
+                      class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
+                      placeholder="記事の内容を記述してください">{{ post.content if post else (request.form.get('content') or '') }}</textarea>
         </div>
         
-        <!-- 画像管理セクション -->
-        <div class="mb-6 border p-4 rounded-lg bg-gray-50">
-            <h3 class="text-lg font-semibold text-gray-700 mb-3">画像管理</h3>
-            
-            <!-- 編集モードかつ現在の画像がある場合のみ表示 -->
-            {% if is_edit and current_image_url %}
-                <div class="mb-4">
-                    <p class="text-sm font-medium text-gray-700">現在の画像:</p>
-                    <img src="{{ current_image_url }}" alt="現在の画像" class="mt-2 w-48 h-auto rounded-md shadow">
-                </div>
+        <!-- ======================================================= -->
+        <!-- 既存画像プレビューと削除チェックボックス (編集時のみ、かつ画像URLがある場合) -->
+        <!-- current_image_urlがNoneの場合、cloudinaryが未定義でもエラーにならない -->
+        {% if post and current_image_url %}
+        <div class="border-t pt-6">
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">現在のサムネイル画像</h3>
+            <div class="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <img src="{{ current_image_url }}" alt="現在の画像" class="w-24 h-24 object-cover rounded-md shadow-md">
                 
-                <div class="flex items-center mb-4">
-                    <input id="delete_image" name="delete_image" type="checkbox" class="h-4 w-4 text-red-600 border-gray-300 rounded">
-                    <label for="delete_image" class="ml-2 block text-sm text-red-600 font-medium">現在の画像を削除する</label>
+                <div class="flex-1">
+                    <p class="text-sm text-gray-600 mb-2">画像を変更しない場合はこのままにしてください。</p>
+                    <div class="flex items-center">
+                        <input id="delete_image" name="delete_image" type="checkbox" value="1"
+                               class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded">
+                        <label for="delete_image" class="ml-2 block text-sm font-medium text-red-600">
+                            この画像を削除する (削除後、新しい画像をアップロードできます)
+                        </label>
+                    </div>
                 </div>
-            {% endif %}
+            </div>
+            <!-- 公開IDを保持するための隠しフィールド -->
+            <input type="hidden" name="public_id" value="{{ post.public_id }}">
+        </div>
+        {% endif %}
+        <!-- ======================================================= -->
 
-            <label for="image_upload" class="block text-sm font-medium text-gray-700 mb-1">
-                {% if is_edit %}画像をアップロード/変更{% else %}画像をアップロード（オプション）{% endif %}
+        <!-- 新しい画像ファイル入力欄 -->
+        <div class="border-t pt-6">
+            <label for="image" class="text-sm font-medium text-gray-700">
+                {% if post and current_image_url %}画像を変更 / 新しい画像をアップロード{% else %}サムネイル画像{% endif %}
             </label>
-            <input type="file" name="image" id="image_upload" accept="image/*" class="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-indigo-50 file:text-indigo-700
-                hover:file:bg-indigo-100
-                mt-1">
-            <p class="text-xs text-gray-500 mt-2">
-                {% if is_edit %}
-                    新しい画像をアップロードすると、現在の画像は上書きされます。
-                {% else %}
-                    記事に含める画像をアップロードできます。
-                {% endif %}
-            </p>
+            <input id="image" name="image" type="file" accept="image/*"
+                   class="mt-2 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
         </div>
 
-        <div class="flex justify-between items-center mt-8">
-            <a href="{{ url_for('dashboard') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700 transition">
-                <i class="fas fa-arrow-left mr-1"></i> ダッシュボードに戻る
-            </a>
-            
-            {{ form.submit(class="py-2 px-6 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-200 cursor-pointer",
-                           value=('更新' if is_edit else '投稿')) }}
+        <!-- 下書きチェックボックス (新規作成時も編集時も利用可能) -->
+        <div class="flex items-center">
+            <input id="is_draft" name="is_draft" type="checkbox" value="1"
+                   {% if post and post.is_draft %}checked{% endif %}
+                   class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
+            <label for="is_draft" class="ml-2 block text-sm font-medium text-gray-700">
+                下書きとして保存する (チェックがない場合、公開されます)
+            </label>
+        </div>
+
+        <!-- AIアシスタントボタン -->
+        <div class="border-t pt-4">
+            <p class="text-sm text-gray-500 mb-2">Gemini AIに記事の校正や改善を依頼できます。</p>
+            <button type="submit" name="action" value="ai_assist"
+                    formaction="{{ url_for('ai_assist') }}"
+                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> AIアシスタントに依頼 (校正/改善)
+            </button>
+        </div>
+
+        <!-- 投稿/更新ボタン -->
+        <div>
+            <button type="submit" name="action" value="save"
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <i data-lucide="{{ 'save' if post else 'paper-plane' }}" class="w-5 h-5 mr-2"></i> 
+                {{ '記事を更新する' if post else '記事を投稿する' }}
+            </button>
         </div>
     </form>
 </div>
