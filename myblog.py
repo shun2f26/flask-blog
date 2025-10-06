@@ -129,31 +129,52 @@ def load_user(user_id):
 
 # --- ルーティング ---
 
-# 緊急デバッグ用エンドポイント: データベースの強制リセット (ガード復元済み)
-@app.route('/db_reset')
+@app.route("/db_reset", methods=["GET", "POST"])
 def db_reset():
-    # データベースリセットのガードを復元します。
-    if os.environ.get('FLASK_ENV') != 'production' or os.environ.get('SECRET_KEY') == 'my_default_secret_key':
+    # 🚨 修正ポイント: 本番環境でのガードを有効化
+    # 環境変数が設定されていない（ローカル）か、開発環境でのみ実行を許可
+    if os.environ.get('FLASK_ENV') == 'production' or os.environ.get('SECRET_KEY') == 'my_default_secret_key_needs_a_random_value':
+        flash("データベースリセットは本番環境では許可されていません。", 'danger')
+        return redirect(url_for('index')) # ホームに戻す
+
+    # 警告: 全てのテーブルを強制削除し、再作成します。PostgreSQLでは不可逆な操作です。
+    if request.method == 'POST':
+        # ... (POSTメソッド内のリセット処理は変更なし) ...
         try:
-            with app.app_context():
-                # 既存のテーブルを強制的に削除
-                # 'user'テーブルは予約語のため、PostgreSQLではダブルクォートが必要
-                # 両対応のためtry-exceptで対応
-                try:
-                    db.session.execute(db.text('DROP TABLE IF EXISTS "user" CASCADE;'))
-                except Exception:
-                    db.session.execute(db.text('DROP TABLE IF EXISTS user CASCADE;'))
-                db.session.execute(db.text('DROP TABLE IF EXISTS post CASCADE;'))
-                db.session.commit()
+            # データベース接続がPostgreSQLの場合
+            if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+                # ユーザーテーブルとポストテーブルを削除 (CASCADEで関連データも削除)
+                # 実行前にセッションを閉じる必要がある場合があります
+                db.session.close()
+                db.engine.execute("DROP TABLE IF EXISTS post CASCADE;")
+                db.engine.execute("DROP TABLE IF EXISTS user CASCADE;")
                 
-                # 最新のスキーマでテーブルを再作成
+                # テーブル再作成
                 db.create_all()
-                flash('データベースが正常にリセットされました。最新のテーブル定義で再作成されました。', 'success')
-                # 成功したらトップページにリダイレクト
+                db.session.commit()
+                flash("PostgreSQLのテーブルが正常に削除・再作成されました。サインアップをお試しください。", 'success')
                 return redirect(url_for('index'))
+            
+            # データベース接続がSQLiteの場合
+            elif app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+                # SQLiteでは単純にドロップと再作成
+                db.drop_all()
+                db.create_all()
+                db.session.commit()
+                flash("SQLiteのテーブルが正常に削除・再作成されました。サインアップをお試しください。", 'success')
+                return redirect(url_for('index'))
+            
+            else:
+                flash("サポートされていないデータベースです。", 'danger')
+                return redirect(url_for('index'))
+
         except Exception as e:
-            flash(f'データベースのリセット中にエラーが発生しました: {e}', 'danger')
-            return f"Error resetting database: {e}", 500
+            db.session.rollback()
+            flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
+            return redirect(url_for('index'))
+
+    # リセット確認画面の表示
+    return render_template("db_reset_confirm.html")
     else:
         # 本番環境ではリセットをブロック
         return "データベースリセットは本番環境では許可されていません。", 403
