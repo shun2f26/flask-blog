@@ -24,7 +24,7 @@
         </ul>
         
         <p class="text-gray-800 mt-4">
-            このリセットは、テーブル構造の不一致（例: `user_reset_token` カラムがないことによるサインアップエラー）を解消するために**一度だけ**必要です。
+            このリセットは、テーブル構造の不一致（例: <code class="bg-gray-200 p-1 rounded">user_reset_token</code> カラムがないことによるサインアップエラー）を解消するために**一度だけ**必要です。
         </p>
     </div>
 
@@ -32,6 +32,9 @@
     
     <!-- リセット実行フォーム -->
     <form method="POST" action="{{ url_for('db_reset') }}" class="flex justify-center space-x-4">
+        
+        <!-- 💡 修正箇所: CSRFトークンを埋め込むための隠しフィールド -->
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         
         <!-- リセットボタン (危険な操作のため目立つ赤色) -->
         <button type="submit" class="px-8 py-3 text-lg font-bold text-white bg-red-600 rounded-lg shadow-md hover:bg-red-700 transition duration-150 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300">
