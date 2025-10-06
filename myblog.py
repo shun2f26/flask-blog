@@ -17,24 +17,32 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError
 
-# Cloudinaryは今回は未使用のためコメントアウト/省略 (環境変数が設定されていれば動作)
-# 🚨 警告: 実際のデプロイではCLOUDINARY_*環境変数を設定してください
+# Cloudinary設定と依存性チェック
+CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+
+CLOUDINARY_AVAILABLE = False
 try:
-    import cloudinary
-    import cloudinary.uploader
-    import cloudinary.utils
-    cloudinary.config(
-        cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-        api_key=os.environ.get('CLOUDINARY_API_KEY'),
-        api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
-        secure=True
-    )
+    if CLOUD_NAME and API_KEY and API_SECRET:
+        import cloudinary
+        import cloudinary.uploader
+        import cloudinary.utils
+        cloudinary.config(
+            cloud_name=CLOUD_NAME,
+            api_key=API_KEY,
+            api_secret=API_SECRET,
+            secure=True
+        )
+        CLOUDINARY_AVAILABLE = True
+        print("Cloudinary config successful.", file=sys.stderr)
+    else:
+        print("Cloudinary environment variables (CLOUD_NAME, API_KEY, API_SECRET) are not fully set. Image features disabled.", file=sys.stderr)
 except ImportError:
-    print("Cloudinaryがインストールされていないか、設定がスキップされました。", file=sys.stderr)
+    print("Cloudinary package not installed. Image features disabled.", file=sys.stderr)
 except Exception as e:
-    print(f"Cloudinary config error (set CLOUDINARY_* env vars): {e}", file=sys.stderr)
-
-
+    print(f"Cloudinary configuration failed: {e}. Image features disabled.", file=sys.stderr)
+    
 # Flaskアプリのインスタンス作成
 app = Flask(__name__)
 
@@ -71,15 +79,6 @@ migrate.init_app(app, db) # Migrateの初期化
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインが必要です。'
 login_manager.login_message_category = 'info'
-
-
-# -------------------------------------------------------------------
-# データベース初期化
-# -------------------------------------------------------------------
-# @app.before_request ブロックを削除し、Render環境での競合を避けます。
-# テーブル作成はローカル実行時(if __name__ == '__main__':)または
-# /db_reset ルート、または render-build.sh にて行われます。
-# -------------------------------------------------------------------
 
 
 # --- タイムゾーン設定 (日本時間) ---
@@ -132,8 +131,8 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                            validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                           validators=[DataRequired(message='ユーザー名は必須です。'),
+                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                               validators=[DataRequired(message='パスワードは必須です。'),
@@ -244,7 +243,13 @@ def view(post_id):
     if not post:
         abort(404)
         
-    return render_template('view.html', post=post, title=post.title)
+    # Cloudinaryが利用可能であれば、記事の画像URLを生成して渡す（ビューテンプレート側で直接呼び出される場合があるため、念のため）
+    image_url = None
+    if post.public_id and CLOUDINARY_AVAILABLE:
+         # cloudinary.utils は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
+        image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=800, crop="scale")[0]
+        
+    return render_template('view.html', post=post, title=post.title, image_url=image_url)
 
 
 # -----------------------------------------------
@@ -388,27 +393,30 @@ def create():
         image_file = request.files.get('image')
         public_id = None
 
-        if image_file and image_file.filename != '' and 'cloudinary' in sys.modules:
+        # Cloudinaryが利用可能で、かつ画像ファイルがアップロードされた場合
+        if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
+                # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 public_id = upload_result.get('public_id')
                 flash('画像付きで記事が正常に投稿されました。', 'success') 
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 return render_template('create_update.html', title='新規投稿', form=form, post=post)
-
+        
         new_post = Post(title=title,
-                         content=content,
-                         user_id=current_user.id,
-                         public_id=public_id,
-                         create_at=now())
+                        content=content,
+                        user_id=current_user.id,
+                        public_id=public_id,
+                        create_at=now())
         db.session.add(new_post)
         db.session.commit()
         flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('dashboard'))
 
     # post=None を渡すことで「新規作成」モードであることをテンプレートに伝える
-    return render_template('create_update.html', title='新規投稿', form=form, post=None)
+    # current_image_url は None のままテンプレートに渡される
+    return render_template('create_update.html', title='新規投稿', form=form, post=None, current_image_url=None)
 
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
@@ -431,17 +439,20 @@ def update(post_id):
         image_file = request.files.get('image')
         delete_image = request.form.get('delete_image')
 
-        # 画像削除・アップロード処理 (省略)
-        if delete_image == 'on' and post.public_id and 'cloudinary' in sys.modules:
+        # 画像削除処理
+        if delete_image == 'on' and post.public_id and CLOUDINARY_AVAILABLE:
             try:
+                # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
                 cloudinary.uploader.destroy(post.public_id)
                 post.public_id = None
                 flash('画像を削除しました。', 'success')
             except Exception as e:
                 flash(f'画像の削除中にエラーが発生しました: {e}', 'danger')
 
-        if image_file and image_file.filename != '' and 'cloudinary' in sys.modules:
+        # 新規画像アップロード処理
+        if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
+                # 既存の画像があれば削除し、新しい画像をアップロードする
                 if post.public_id: cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
@@ -457,9 +468,10 @@ def update(post_id):
         else:
               return redirect(url_for('dashboard'))
     
+    # 編集時のみ、現在の画像URLを生成 (ここが最も重要な修正点)
     current_image_url = None
-    if post.public_id and 'cloudinary' in sys.modules:
-        # 編集時のみ、現在の画像URLを生成
+    if post.public_id and CLOUDINARY_AVAILABLE:
+        # CLOUDINARY_AVAILABLE が True の場合のみ、cloudinary.utils を呼び出すため安全
         current_image_url = cloudinary.utils.cloudinary_url(post.public_id, fetch_format="auto", quality="auto", width=200, crop="scale")[0]
 
     # postオブジェクトと現在の画像URLをテンプレートに渡す
@@ -485,8 +497,10 @@ def delete(post_id):
     if current_user.is_admin and post.user_id != current_user.id:
         target_redirect = 'admin'
 
-    if post.public_id and 'cloudinary' in sys.modules:
+    # Cloudinaryが利用可能であれば画像を削除
+    if post.public_id and CLOUDINARY_AVAILABLE:
         try:
+            # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
             cloudinary.uploader.destroy(post.public_id)
         except Exception as e:
             print(f"Cloudinary delete error: {e}", file=sys.stderr)
