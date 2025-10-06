@@ -19,7 +19,7 @@
             <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
                 
                 <!-- CSRFトークンの挿入: base.htmlがWTFを初期化している前提で、ヘルパー関数を使用 -->
-                {{ csrf_token() }}
+                {{ form.hidden_tag() }}
                 
                 <div>
                     <label for="username" class="block text-sm font-medium text-gray-700">ユーザー名 (メールの代わり)</label>
