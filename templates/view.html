@@ -8,13 +8,13 @@
         <h1 class="text-4xl font-extrabold text-gray-900 mb-2">{{ post.title }}</h1>
         
         <!-- 記事メタ情報 -->
-        <div class="text-sm text-gray-500 flex justify-between items-center">
-            <span>
-                <i class="fas fa-user-circle mr-1"></i> 
+        <div class="text-sm text-gray-500 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center space-y-1 sm:space-y-0">
+            <span class="flex items-center">
+                <i class="fas fa-user-circle mr-2 text-indigo-500"></i>
                 投稿者: {{ post.author.username }}
             </span>
-            <span>
-                <i class="fas fa-calendar-alt mr-1"></i> 
+            <span class="flex items-center">
+                <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i>
                 投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
             </span>
         </div>
@@ -27,18 +27,19 @@
             <!-- 幅768pxで自動的なクロップと品質最適化を設定 -->
             <img src="{{ cloudinary.utils.cloudinary_url(post.public_id, width=768, crop='limit', quality='auto', fetch_format='auto')[0] }}" 
                  alt="{{ post.title }}の画像" 
-                 class="w-full h-auto object-cover rounded-xl shadow-lg border border-gray-200">
+                 class="w-full h-auto object-cover max-h-96 rounded-xl shadow-lg border border-gray-200">
         {% else %}
             <!-- 画像がない場合、プレースホルダーを表示 -->
-            <div class="w-full h-96 bg-gray-200 rounded-xl flex items-center justify-center text-gray-600 text-2xl font-bold border border-dashed border-gray-400">
-                No Image
+            <div class="w-full h-64 sm:h-96 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-2xl font-bold border border-dashed border-gray-300">
+                <i class="fas fa-image mr-2"></i> No Image Available
             </div>
         {% endif %}
     </div>
 
     <!-- 記事本文 -->
+    <!-- proseクラスを使用することで、自動的に見出しや段落が美しいデザインになる -->
     <div class="prose prose-lg max-w-none text-gray-700 leading-relaxed mb-10 pb-5 border-b">
-        <p>{{ post.content | safe }}</p>
+        {{ post.content | safe }}
     </div>
 
     <!-- 編集・削除ボタン (自分の記事の場合のみ表示) -->
@@ -47,7 +48,7 @@
             <a href="{{ url_for('update', post_id=post.id) }}" class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out">
                 <i class="fas fa-edit mr-2"></i> 編集
             </a>
-            <!-- 削除フォーム (確認ダイアログ付き) -->
+            <!-- 削除フォーム (非推奨のJS alert/confirmを使用しているため、将来的にはカスタムモーダルに置き換えることを推奨) -->
             <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" onsubmit="return confirm('本当にこの記事を削除しますか？\nこの操作は元に戻せません。');">
                 <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out">
                     <i class="fas fa-trash-alt mr-2"></i> 削除
@@ -58,7 +59,7 @@
 
     <!-- 戻るボタン -->
     <div class="mt-8">
-        <a href="{{ url_for('index') }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out">
+        <a href="{{ url_for('index') }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out font-medium">
             <i class="fas fa-arrow-left mr-2"></i> ホームに戻る
         </a>
     </div>
