@@ -1,69 +1,61 @@
 #!/usr/bin/env bash
 
-# アプリケーションに必要なライブラリをインストール
+# アプリケーションの依存関係をインストール
 pip install -r requirements.txt
 
-echo "--- Running database initialization (Forcing Schema Reset) ---"
+# --- データベースのリセットと初期化 ---
+# 警告: 本番環境では注意して使用してください。
+# FlaskのUserモデルのテーブル名はPostgreSQL予約語を避けるため 'users' に変更されています。
 
-python -c "
+echo "=> データベースのリセットを開始..."
+# 環境変数からデータベースURLを取得
+DB_URL=$DATABASE_URL
+
+if [ -z "$DB_URL" ]; then
+    echo "環境変数 DATABASE_URL が設定されていません。スキップします。"
+else
+    # PostgreSQL接続情報から認証情報を抽出
+    python3 -c "
 import os
-import sys
-from myblog import app, db # myblogからappとdbをインポート
+import sqlalchemy as sa
+from sqlalchemy.exc import SQLAlchemyError
 
-# PostgreSQLのテーブル名を直接指定して削除を試みる
-TABLES_TO_DROP = ['user', 'post']
+db_url = os.environ.get('DATABASE_URL')
+if not db_url:
+    print('データベースURLがありません。')
+    exit()
 
-print('Starting Flask context...', file=sys.stderr)
+# RenderのPostgreSQL URI互換性のための置換
+db_url = db_url.replace('postgres://', 'postgresql://')
 
 try:
-    with app.app_context():
-        # データベースURIを取得
-        uri = app.config['SQLALCHEMY_DATABASE_URI']
-        if not uri:
-            print('CRITICAL ERROR: DATABASE_URL is missing.', file=sys.stderr)
-            sys.exit(1)
-            
-        print(f'Attempting to connect to: {uri}', file=sys.stderr)
-        
-        # ----------------------------------------------------
-        # 1. 強制的に全テーブルを削除（CASCADE使用）
-        # ----------------------------------------------------
-        engine = db.engine
-        
-        print('Forcing table drop via raw SQL...', file=sys.stderr)
-        conn = engine.connect()
-        # 既存の接続を強制終了する（Renderでは不要な場合が多いが念のため）
-        # conn.execute(text('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();'))
-        
-        # テーブルが存在すればDROP TABLEを実行
-        for table_name in TABLES_TO_DROP:
-            try:
-                # CASCADE句を付けてテーブルを削除。外部キー制約も同時に削除される
-                conn.execute(db.text(f'DROP TABLE IF EXISTS {table_name} CASCADE;'))
-                print(f'Dropped table: {table_name}', file=sys.stderr)
-            except Exception as e:
-                print(f'Warning: Could not drop table {table_name}: {e}', file=sys.stderr)
+    engine = sa.create_engine(db_url)
+    connection = engine.connect()
 
-        conn.commit()
-        conn.close()
-        
-        # ----------------------------------------------------
-        # 2. 最新のスキーマでテーブルを作成
-        # ----------------------------------------------------
-        print('Creating all tables with latest schema (256 length)...', file=sys.stderr)
-        db.create_all()
-        print('Database tables created successfully!', file=sys.stderr)
+    print('接続を試行しています : ' + db_url.split('@')[0] + '@' + db_url.split('@')[1].split('/')[0] + '...')
 
-except Exception as e:
-    # データベースへの接続やテーブル作成の失敗は致命的エラー
-    print(f'CRITICAL ERROR during DB initialization: {e}', file=sys.stderr)
-    sys.exit(1)
+    # 生のSQL経由でテーブルを強制的に削除
+    print('生のSQL経由でテーブルを強制的に削除しています...')
+    # 修正点: 'user' ではなく 'users' を削除対象にする
+    connection.execute(sa.text('DROP TABLE IF EXISTS users CASCADE;'))
+    connection.execute(sa.text('DROP TABLE IF EXISTS post CASCADE;'))
+    connection.commit()
+    print('テーブル (users, post) の削除完了。')
+    connection.close()
+    
+    # 既存のテーブルを削除後、新しいテーブルを作成
+    print('テーブルを作成します...')
+    import myblog
+    with myblog.app.app_context():
+        # db.create_all() を実行し、myblog.pyで定義されたテーブル（users, post）を作成
+        myblog.db.create_all()
+    print('データベーステーブルの作成が完了しました。')
+
+except SQLAlchemyError as e:
+    print(f'警告: データベース操作中にエラーが発生しました: {e}')
+    print('データベースのマイグレーションを手動で行うか、Renderの環境設定を確認してください。')
+
 "
-
-# Pythonスクリプトの実行が失敗したかどうかをチェック
-if [ $? -ne 0 ]; then
-    echo "--- Database initialization FAILED ---"
-    exit 1
 fi
 
-echo "--- Database initialization finished ---"
+echo "=> ビルド完了"
