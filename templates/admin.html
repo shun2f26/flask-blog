@@ -1,79 +1,92 @@
-{% extends 'base.html' %}
-{% block title %}{{ title }}{% endblock %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <h1 class="text-3xl font-bold text-red-700 mb-6 border-b pb-2">
-        <i class="fas fa-user-shield mr-2"></i> 管理者ダッシュボード
-    </h1>
+<div class="max-w-6xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 mb-6">
+        <h1 class="text-3xl font-extrabold text-gray-900">管理者ダッシュボード</h1>
+        <div class="flex space-x-3 mt-4 md:mt-0">
+            <!-- 🚨 追加済み: アカウント設定へのリンク -->
+            <a href="{{ url_for('account') }}" class="bg-blue-500 text-white hover:bg-blue-600 px-4 py-2 rounded-lg font-medium shadow-md transition duration-150">
+                マイアカウント設定
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg font-medium shadow-md transition duration-150">
+                自分の記事へ戻る
+            </a>
+        </div>
+    </div>
 
-    <p class="text-gray-600 mb-8">システム内の全ユーザーと記事を管理します。</p>
+    <h2 class="text-xl font-semibold text-gray-700 mb-4">全ユーザー管理と記事一覧</h2>
 
-    <!-- ユーザー一覧 -->
-    <div class="space-y-8">
-        {% for user_data in users %}
-        {% set user = user_data.user %}
-        <div class="bg-white p-6 rounded-xl shadow-xl border border-gray-200">
-            <div class="flex justify-between items-center pb-3 border-b mb-4">
-                <h2 class="text-2xl font-semibold text-gray-800">
-                    <i class="fas fa-user-circle mr-2"></i> {{ user.username }} 
-                    {% if user.is_admin %}
-                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            管理者
-                        </span>
-                    {% endif %}
-                </h2>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-600">記事数: {{ user_data.post_count }}</span>
-                    
-                    {% if user.id != current_user.id %}
-                    <!-- 管理者権限のトグル機能 -->
-                    <form method="POST" action="{{ url_for('toggle_admin', user_id=user.id) }}" class="inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" 
-                                class="py-1 px-3 text-xs font-medium rounded-full 
-                                {% if user.is_admin %} bg-yellow-500 text-white hover:bg-yellow-600
-                                {% else %} bg-indigo-100 text-indigo-700 hover:bg-indigo-200
-                                {% endif %} transition duration-150">
-                            {{ '管理者権限を解除' if user.is_admin else '管理者に設定' }}
-                        </button>
-                    </form>
+    {% if users %}
+        <div class="space-y-8">
+            {% for user_data in users %}
+                {% set user = user_data.user %}
+                <div class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+                    <!-- ユーザー情報ヘッダー -->
+                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+                        <div>
+                            <span class="text-2xl font-bold text-gray-800">
+                                {{ user.username }}
+                                {% if user.is_admin %}
+                                    <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">管理者</span>
+                                {% endif %}
+                            </span>
+                            <p class="text-sm text-gray-500">登録日時: {{ user.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
+                            <p class="text-sm text-gray-500">記事数: <span class="font-semibold text-gray-700">{{ user_data.post_count }}</span></p>
+                        </div>
+                        
+                        <!-- 管理者権限トグルボタン -->
+                        {% if user.id != current_user.id %}
+                        <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-sm font-medium py-2 px-4 rounded-lg transition duration-150
+                                {% if user.is_admin %}
+                                    bg-yellow-500 hover:bg-yellow-600 text-white
+                                {% else %}
+                                    bg-green-500 hover:bg-green-600 text-white
+                                {% endif %}">
+                                {% if user.is_admin %}
+                                    権限を解除
+                                {% else %}
+                                    管理者に昇格
+                                {% endif %}
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+
+                    <!-- ユーザーの記事一覧 -->
+                    {% if user_data.posts %}
+                        <h3 class="text-lg font-medium text-gray-700 mb-3">投稿記事 ({{ user_data.post_count }} 件)</h3>
+                        <div class="space-y-3">
+                            {% for post in user_data.posts %}
+                                <div class="flex justify-between items-center bg-white p-3 border border-gray-100 rounded-lg">
+                                    <a href="{{ url_for('view', post_id=post.id) }}" class="text-base font-medium text-blue-600 hover:text-blue-800 truncate max-w-xs md:max-w-md">
+                                        {{ post.title }}
+                                    </a>
+                                    <div class="flex space-x-2 text-sm">
+                                        <span class="text-gray-500">{{ post.create_at.strftime('%Y/%m/%d') }}</span>
+                                        <!-- 管理者として編集・削除を実行できるリンク -->
+                                        <a href="{{ url_for('update', post_id=post.id) }}" class="text-green-500 hover:text-green-700">編集</a>
+                                        <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" onsubmit="return confirm('警告: 管理者としてこの記事を削除します。本当に削除しますか？')">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button type="submit" class="text-red-500 hover:text-red-700">削除</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-gray-500 text-sm">この記事の投稿はありません。</p>
                     {% endif %}
                 </div>
-            </div>
-
-            <h3 class="text-lg font-medium text-gray-700 mb-3">投稿一覧 ({{ user_data.post_count }}件)</h3>
-            <div class="space-y-3 pl-4">
-                {% if user_data.posts %}
-                    {% for post in user_data.posts %}
-                    <div class="flex justify-between items-center text-sm p-2 border-l-4 border-gray-100 hover:bg-gray-50 rounded">
-                        <a href="{{ url_for('view', post_id=post.id) }}" class="text-gray-700 hover:text-indigo-600 truncate mr-4">
-                            {{ post.title }}
-                        </a>
-                        <div class="flex space-x-3 flex-shrink-0">
-                            <!-- 編集リンク: 統合された 'update' ルートを指します -->
-                            <a href="{{ url_for('update', post_id=post.id) }}" 
-                               class="text-blue-600 hover:text-blue-800 transition">
-                                <i class="fas fa-edit mr-1"></i> 編集
-                            </a>
-                            <!-- 削除フォーム -->
-                            <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="inline">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" 
-                                        onclick="return confirm('本当にこの記事を削除しますか？');"
-                                        class="text-red-600 hover:text-red-800 transition">
-                                    <i class="fas fa-trash-alt mr-1"></i> 削除
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-sm text-gray-500">このユーザーはまだ記事を投稿していません。</p>
-                {% endif %}
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
+    {% else %}
+        <div class="text-center p-10 bg-gray-100 rounded-lg border border-dashed border-gray-300">
+            <p class="text-gray-500">ユーザーがまだ誰も登録されていません。</p>
+        </div>
+    {% endif %}
+
 </div>
-{% endblock %}
+{% endblock content %}
