@@ -193,16 +193,16 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                            validators=[DataRequired(message='ユーザー名は必須です。'),
-                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                           validators=[DataRequired(message='ユーザー名は必須です。'),
+                                       Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                              validators=[DataRequired(message='パスワードは必須です。'),
-                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                             validators=[DataRequired(message='パスワードは必須です。'),
+                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                      validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                  EqualTo('password', message='パスワードが一致しません。')])
+                                     validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                 EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -300,9 +300,9 @@ def user_blog(username):
     ).scalars().all()
 
     return render_template('user_blog.html',
-                            title=f'{username} のブログ',
-                            target_user=target_user,
-                            posts=posts)
+                           title=f'{username} のブログ',
+                           target_user=target_user,
+                           posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -483,9 +483,14 @@ def create():
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary upload error: {e}", file=sys.stderr)
         
-        if not public_id:
-             # 画像のアップロードが試みられなかった、またはアップロードに失敗した場合
+        if not public_id and image_file and image_file.filename != '':
+             # 画像のアップロードが試みられたが失敗した場合
+             # flashメッセージはすでにtry...exceptブロック内で処理されている
+             pass
+        elif not public_id:
+             # 画像のアップロードが試みられなかった場合、または画像なしで投稿成功
              flash('新しい記事が正常に投稿されました。', 'success')
+
 
         new_post = Post(title=title,
                         content=content,
@@ -533,6 +538,7 @@ def update(post_id):
 
         # 2. 新規画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
+            # 既存の画像を削除
             if post.public_id: 
                 delete_cloudinary_image(post.public_id)
 
@@ -561,10 +567,10 @@ def update(post_id):
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
-                            post=post,
-                            title='記事編集',
-                            form=form,
-                            current_image_url=current_image_url)
+                           post=post,
+                           title='記事編集',
+                           form=form,
+                           current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -623,7 +629,9 @@ def admin():
         users_data = db.session.execute(users_with_count_stmt).all()
 
         users = []
-        for user_obj, post_count in users_data:<br>            users.append({
+        for user_obj, post_count in users_data:
+            # 修正箇所: HTMLタグと全角スペースを削除し、正しいインデントを適用
+            users.append({
                 'user': user_obj,
                 'post_count': post_count or 0,
             })
@@ -644,10 +652,10 @@ def admin():
 
 
     return render_template('admin.html',
-                            users=users, # 管理者のみ使用
-                            posts=posts, # ログインユーザーの記事一覧として使用
-                            is_admin_view=current_user.is_admin, # テンプレートで出し分け用
-                            title=title)
+                           users=users, # 管理者のみ使用
+                           posts=posts, # ログインユーザーの記事一覧として使用
+                           is_admin_view=current_user.is_admin, # テンプレートで出し分け用
+                           title=title)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
