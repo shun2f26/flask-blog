@@ -137,6 +137,9 @@ def date_format_filter(value, format_string='%Y年%m月%d日 %H:%M'):
     日付/時刻オブジェクトを指定された形式の文字列にフォーマットするフィルター。
     JST (UTC+9) に対応。
     """
+    if value is None:
+        return "日付なし"
+        
     # タイムゾーン情報がない場合は、アプリケーションのデフォルト（JST）と見なす
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         # DBに保存されたDateTimeオブジェクトには通常tzinfoがないため、JSTとして扱う
@@ -174,6 +177,7 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
+        
 class Post(db.Model):
     """記事モデル"""
     __tablename__ = 'posts'
@@ -181,11 +185,13 @@ class Post(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     public_id = db.Column(db.String(100), nullable=True) # Cloudinary Public ID
-    create_at = db.Column(db.DateTime, nullable=False, default=now)
+    # 修正: create_at を created_at に変更し、Userモデルと統一
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
 
     def __repr__(self):
-        return f"Post('{self.title}', '{self.create_at}')"
+        # 修正: self.create_at を self.created_at に変更
+        return f"Post('{self.title}', '{self.created_at}')"
 
 
 # --- フォーム定義 ---
@@ -193,12 +199,12 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                            validators=[DataRequired(message='ユーザー名は必須です。'),
+                           validators=[DataRequired(message='ユーザー名は必須です。'),
                                          Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                              validators=[DataRequired(message='パスワードは必須です。'),
-                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                             validators=[DataRequired(message='パスワードは必須です。'),
+                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
                                      validators=[DataRequired(message='パスワード確認は必須です。'),
@@ -276,7 +282,8 @@ def admin_required(f):
 @app.route("/index")
 def index():
     """ブログ記事一覧ページ (全ユーザーの最新記事)"""
-    posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
+    # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+    posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
     return render_template('index.html', title='ホーム', posts=posts)
 
 
@@ -293,16 +300,17 @@ def user_blog(username):
         flash(f'ユーザー "{username}" は見つかりませんでした。', 'danger')
         return redirect(url_for('index'))
 
+    # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=target_user.id)
-        .order_by(Post.create_at.desc())
+        .order_by(Post.created_at.desc())
     ).scalars().all()
 
     return render_template('user_blog.html',
-                            title=f'{username} のブログ',
-                            target_user=target_user,
-                            posts=posts)
+                           title=f'{username} のブログ',
+                           target_user=target_user,
+                           posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -484,19 +492,20 @@ def create():
                 print(f"Cloudinary upload error: {e}", file=sys.stderr)
             
         if not public_id and image_file and image_file.filename != '':
-             # 画像のアップロードが試みられたが失敗した場合
-             # flashメッセージはすでにtry...exceptブロック内で処理されている
-             pass
+              # 画像のアップロードが試みられたが失敗した場合
+              # flashメッセージはすでにtry...exceptブロック内で処理されている
+              pass
         elif not public_id:
-             # 画像のアップロードが試みられなかった場合、または画像なしで投稿成功
-             flash('新しい記事が正常に投稿されました。', 'success')
+              # 画像のアップロードが試みられなかった場合、または画像なしで投稿成功
+              flash('新しい記事が正常に投稿されました。', 'success')
 
 
         new_post = Post(title=title,
                              content=content,
                              user_id=current_user.id,
                              public_id=public_id,
-                             create_at=now())
+                             # 修正: create_at を created_at に変更
+                             created_at=now())
         db.session.add(new_post)
         db.session.commit()
         
@@ -549,6 +558,7 @@ def update(post_id):
                     resource_type="image"
                 )
                 post.public_id = upload_result.get('public_id')
+            
                 flash('新しい画像が正常にアップロードされました。', 'success')
                 image_action_performed = True
             except Exception as e:
@@ -567,10 +577,10 @@ def update(post_id):
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
-                            post=post,
-                            title='記事編集',
-                            form=form,
-                            current_image_url=current_image_url)
+                           post=post,
+                           title='記事編集',
+                           form=form,
+                           current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -636,25 +646,27 @@ def admin():
             })
             
         # 管理者は全記事も取得
-        posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
+        # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+        posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
         title = '管理者ダッシュボード'
         
     else:
         # 一般ユーザー: 自分の記事のみ取得
+        # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
         posts = db.session.execute(
             db.select(Post)
             .filter_by(user_id=current_user.id)
-            .order_by(Post.create_at.desc())
+            .order_by(Post.created_at.desc())
         ).scalars().all()
         
         title = f'{current_user.username} のコンテンツ管理'
 
 
     return render_template('admin.html',
-                            users=users, # 管理者のみ使用
-                            posts=posts, # ログインユーザーの記事一覧として使用
-                            is_admin_view=current_user.is_admin, # テンプレートで出し分け用
-                            title=title)
+                           users=users, # 管理者のみ使用
+                           posts=posts, # ログインユーザーの記事一覧として使用
+                           is_admin_view=current_user.is_admin, # テンプレートで出し分け用
+                           title=title)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
