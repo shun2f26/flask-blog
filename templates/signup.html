@@ -1,111 +1,51 @@
 {% extends "base.html" %}
 
-{% block title %}新規登録 (サインアップ){% endblock %}
-
 {% block content %}
-<!-- Tailwind CSS (CDNを利用想定) -->
-<script src="https://cdn.tailwindcss.com"></script>
-<!-- Font Awesome (アイコン用) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-    /* Interフォントを適用 */
-    body {
-        font-family: "Inter", sans-serif;
-    }
-</style>
-
-<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl border border-gray-100">
-        
-        <div class="text-center">
-            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
-                アカウントを作成
-            </h2>
-            <p class="mt-2 text-sm text-gray-600">
-                アカウントをお持ちの場合は、
-                <!-- ログインページへのリンク -->
-                <a href="{{ url_for('login') }}" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
-                    こちらからログイン
-                </a>
-            </p>
-        </div>
-
-        <!-- フォーム -->
-        <!-- アクションはサーバーサイドの '/signup' エンドポイントを想定。成功時に '/login' へリダイレクトされます。 -->
-        <form class="mt-8 space-y-6" action="{{ url_for('signup') }}" method="POST">
-            
-            <!-- CSRFトークンやメッセージ表示ロジックはテンプレートエンジン(例: Jinja)の記述をそのまま残します -->
-            <!-- {{ form.csrf_token }} -->
-
-            <!-- 全体エラーメッセージ/成功メッセージ -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                    <div class="p-3 mb-4 text-sm text-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-700 bg-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-100 rounded-lg" role="alert">
-                        {{ message }}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg p-4">
+                <h2 class="text-center mb-4 text-success">サインアップ</h2>
+                <form method="POST" action="{{ url_for('signup') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-group mb-3">
+                        <!-- 🚨 修正: form.email を form.username に変更し、ラベルも「ユーザー名」に -->
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control", placeholder="ユーザー名を入力", required=True) }}
+                        {% for error in form.username.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+                    
+                    <div class="form-group mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control", placeholder="パスワードを入力", required=True) }}
+                        {% for error in form.password.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
 
-            <!-- 入力フィールドグループ -->
-            <div class="rounded-md shadow-sm space-y-4">
-                <!-- ユーザー名 -->
-                <div>
-                    <label for="username" class="sr-only">ユーザー名</label>
-                    <input id="username" name="username" type="text" autocomplete="username" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="ユーザー名 (例: taro_yamada)"
-                           value="{{ form.username.data if form.username.data }}">
-                    {% if form.username.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.username.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
-                </div>
-                
+                    <div class="form-group mb-4">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control", placeholder="パスワードを再入力", required=True) }}
+                        {% for error in form.confirm_password.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-success btn-lg") }}
+                    </div>
+                </form>
 
-                <!-- パスワード -->
-                <div>
-                    <label for="password" class="sr-only">パスワード</label>
-                    <input id="password" name="password" type="password" autocomplete="new-password" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="パスワード">
-                    {% if form.password.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.password.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
-                </div>
-                
-                <!-- パスワード確認 -->
-                <div>
-                    <label for="confirm_password" class="sr-only">パスワード確認</label>
-                    <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="パスワードを再入力">
-                    {% if form.confirm_password.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.confirm_password.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
+                <div class="text-center mt-3">
+                    <small>
+                        既にアカウントをお持ちですか？ <a href="{{ url_for('login') }}">ログイン</a>
+                    </small>
                 </div>
             </div>
-
-            <!-- 利用規約・プライバシーポリシーへの言及 -->
-            <p class="text-xs text-gray-500 pt-2 text-center">
-                登録することで、
-                <a href="{{ url_for('terms') }}" class="font-medium text-indigo-600 hover:text-indigo-500 underline" target="_blank">利用規約</a>
-                と
-                <a href="{{ url_for('privacy') }}" class="font-medium text-indigo-600 hover:text-indigo-500 underline" target="_blank">プライバシーポリシー</a>
-                に同意したものとみなされます。
-            </p>
-
-            <!-- サインアップボタン -->
-            <div>
-                <button type="submit"
-                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 shadow-lg mt-6">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-user-plus h-5 w-5 text-indigo-300 group-hover:text-indigo-200"></i>
-                    </span>
-                    新規登録
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 {% endblock %}
