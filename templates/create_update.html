@@ -1,100 +1,129 @@
-{% extends "layout.html" %}
-{% block title %}{{ '記事編集' if post else '新規記事作成' }}{% endblock %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>記事編集 (モック)</title>
+    <!-- Tailwind CSS CDNの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDNの読み込み -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* グローバル設定：フォントとボックスサイズ */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* 薄いグレーの背景 */
+        }
+    </style>
+</head>
+<body>
+    <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- タイトル -->
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
+            記事編集 (既存記事の編集をシミュレーション)
+        </h1>
 
-{% block content %}
-<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-    <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
-        {{ '記事編集' if post else '新規記事作成' }}
-    </h1>
+        <!-- 記事作成/編集フォーム (アクションはダミー) -->
+        <!-- 
+            オリジナルでは: method="POST" action="{{ url_for('update', post_id=post.id) }}" enctype="multipart/form-data" 
+        -->
+        <form method="POST" action="#"
+              enctype="multipart/form-data" 
+              class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
 
-    <!-- 記事作成/編集フォーム -->
-    <form method="POST" action="{{ url_for('update', post_id=post.id) if post else url_for('create') }}" 
-          enctype="multipart/form-data" 
-          class="space-y-6 bg-white p-8 rounded-xl shadow-lg">
+            <!-- CSRFトークン (ダミー) -->
+            <input type="hidden" name="csrf_token" value="mock_csrf_token_12345">
 
-        <!-- CSRFトークン -->
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <!-- タイトル入力欄 -->
+            <div>
+                <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+                <input id="title" name="title" type="text" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
+                       placeholder="記事のタイトルを入力してください"
+                       value="編集中の素晴らしい記事のタイトル">
+            </div>
 
-        <!-- タイトル入力欄 -->
-        <div>
-            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
-            <input id="title" name="title" type="text" required
-                   class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg"
-                   placeholder="記事のタイトルを入力してください"
-                   value="{{ post.title if post else (request.form.get('title') or '') }}">
-        </div>
-
-        <!-- コンテンツ入力欄 -->
-        <div>
-            <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
-            <textarea id="content" name="content" rows="10" required
-                      class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
-                      placeholder="記事の内容を記述してください">{{ post.content if post else (request.form.get('content') or '') }}</textarea>
-        </div>
-        
-        <!-- ======================================================= -->
-        <!-- 既存画像プレビューと削除チェックボックス (編集時のみ、かつ画像URLがある場合) -->
-        <!-- current_image_urlがNoneの場合、cloudinaryが未定義でもエラーにならない -->
-        {% if post and current_image_url %}
-        <div class="border-t pt-6">
-            <h3 class="text-lg font-semibold text-gray-700 mb-3">現在のサムネイル画像</h3>
-            <div class="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <img src="{{ current_image_url }}" alt="現在の画像" class="w-24 h-24 object-cover rounded-md shadow-md">
-                
-                <div class="flex-1">
-                    <p class="text-sm text-gray-600 mb-2">画像を変更しない場合はこのままにしてください。</p>
-                    <div class="flex items-center">
-                        <input id="delete_image" name="delete_image" type="checkbox" value="1"
-                               class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded">
-                        <label for="delete_image" class="ml-2 block text-sm font-medium text-red-600">
-                            この画像を削除する (削除後、新しい画像をアップロードできます)
-                        </label>
+            <!-- コンテンツ入力欄 -->
+            <div>
+                <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ</label>
+                <textarea id="content" name="content" rows="10" required
+                          class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-base"
+                          placeholder="記事の内容を記述してください">
+これは現在編集中の記事の本文です。
+AIアシスタント機能を使って、さらに文章を洗練させることができます。
+</textarea>
+            </div>
+            
+            <!-- 既存画像プレビューと削除チェックボックス (編集時のみの表示をシミュレーション) -->
+            <div class="border-t pt-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3">現在のサムネイル画像</h3>
+                <div class="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <!-- ダミー画像URL (高解像度プレースホルダー) -->
+                    <img src="https://placehold.co/100x100/1e293b/f1f5f9?text=Current+Image" alt="現在の画像" class="w-24 h-24 object-cover rounded-md shadow-md flex-shrink-0">
+                    
+                    <div class="flex-1 w-full">
+                        <p class="text-sm text-gray-600 mb-2">画像を変更しない場合はこのままにしてください。</p>
+                        <div class="flex items-center">
+                            <input id="delete_image" name="delete_image" type="checkbox" value="1"
+                                   class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded">
+                            <label for="delete_image" class="ml-2 block text-sm font-medium text-red-600 cursor-pointer">
+                                この画像を削除する (削除後、新しい画像をアップロードできます)
+                            </label>
+                        </div>
                     </div>
                 </div>
+                <!-- 公開IDを保持するための隠しフィールド -->
+                <input type="hidden" name="public_id" value="mock/public/id/123">
             </div>
-            <!-- 公開IDを保持するための隠しフィールド -->
-            <input type="hidden" name="public_id" value="{{ post.public_id }}">
-        </div>
-        {% endif %}
-        <!-- ======================================================= -->
 
-        <!-- 新しい画像ファイル入力欄 -->
-        <div class="border-t pt-6">
-            <label for="image" class="text-sm font-medium text-gray-700">
-                {% if post and current_image_url %}画像を変更 / 新しい画像をアップロード{% else %}サムネイル画像{% endif %}
-            </label>
-            <input id="image" name="image" type="file" accept="image/*"
-                   class="mt-2 block text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-        </div>
+            <!-- 新しい画像ファイル入力欄 -->
+            <div class="border-t pt-6">
+                <label for="image" class="text-sm font-medium text-gray-700">
+                    画像を変更 / 新しい画像をアップロード
+                </label>
+                <input id="image" name="image" type="file" accept="image/*"
+                       class="mt-2 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 p-2 
+                              file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
+                              file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            </div>
 
-        <!-- 下書きチェックボックス (新規作成時も編集時も利用可能) -->
-        <div class="flex items-center">
-            <input id="is_draft" name="is_draft" type="checkbox" value="1"
-                   {% if post and post.is_draft %}checked{% endif %}
-                   class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
-            <label for="is_draft" class="ml-2 block text-sm font-medium text-gray-700">
-                下書きとして保存する (チェックがない場合、公開されます)
-            </label>
-        </div>
+            <!-- 下書きチェックボックス -->
+            <div class="flex items-center">
+                <input id="is_draft" name="is_draft" type="checkbox" value="1"
+                       checked <!-- 編集中の記事としてチェック済みに設定 -->
+                       class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
+                <label for="is_draft" class="ml-2 block text-sm font-medium text-gray-700 cursor-pointer">
+                    下書きとして保存する (チェックがない場合、公開されます)
+                </label>
+            </div>
 
-        <!-- AIアシスタントボタン -->
-        <div class="border-t pt-4">
-            <p class="text-sm text-gray-500 mb-2">Gemini AIに記事の校正や改善を依頼できます。</p>
-            <button type="submit" name="action" value="ai_assist"
-                    formaction="{{ url_for('ai_assist') }}"
-                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
-                <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> AIアシスタントに依頼 (校正/改善)
-            </button>
-        </div>
+            <!-- AIアシスタントボタン -->
+            <div class="border-t pt-4">
+                <p class="text-sm text-gray-500 mb-2">Gemini AIに記事の校正や改善を依頼できます。</p>
+                <button type="submit" name="action" value="ai_assist"
+                        formaction="#ai_assist_route"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                    <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> AIアシスタントに依頼 (校正/改善)
+                </button>
+            </div>
 
-        <!-- 投稿/更新ボタン -->
-        <div>
-            <button type="submit" name="action" value="save"
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i data-lucide="{{ 'save' if post else 'paper-plane' }}" class="w-5 h-5 mr-2"></i> 
-                {{ '記事を更新する' if post else '記事を投稿する' }}
-            </button>
-        </div>
-    </form>
-</div>
-{% endblock %}
+            <!-- 投稿/更新ボタン -->
+            <div>
+                <button type="submit" name="action" value="save"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    <i data-lucide="save" class="w-5 h-5 mr-2"></i> 
+                    記事を更新する
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Lucide Iconsの実行 -->
+    <script>
+        // ページロード後にLucideアイコンをレンダリング
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
