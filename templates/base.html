@@ -1,82 +1,142 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flask Blog - {% block title %}{% endblock %}</title>
-<!-- Tailwind CSS CDN -->
-<script src="https://cdn.tailwindcss.com"></script>
-<!-- Font Awesome for Icons (修正済み: 正しいCDNリンク) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-/* カスタムスタイル */
-body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
-.flash-message { animation: fadeinout 4s forwards; }
-@keyframes fadeinout {
-0%, 100% { opacity: 0; }
-10%, 90% { opacity: 1; }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Flask Blog - {% block title %}{% endblock %}</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwindの設定を拡張（オプション）
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#4f46e5', // Indigo-600
+                        success: '#10b981', // Emerald-500
+                        danger: '#ef4444', // Red-500
+                        info: '#3b82f6', // Blue-500
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        /* カスタムスタイル: フラッシュメッセージのアニメーションと基本フォント */
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f7f9fb; }
+        
+        .flash-container {
+            /* 画面上部中央に固定 */
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .flash-message {
+            animation: slideinout 7s forwards;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes slideinout {
+            0% { opacity: 0; transform: translateY(-50px); }
+            5% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-50px); }
+        }
+    </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
 <!-- ナビゲーションバー -->
-<nav class="bg-white shadow-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <!-- ロゴ/サイト名 -->
-            <div class="flex items-center">
-                <a href="{{ url_for('index') }}" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
-                    My Flask Blog
-                </a>
-            </div>
-            <!-- ナビゲーションリンク -->
-            <div class="flex items-center space-x-4">
-                <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
-                
-                {% if current_user.is_authenticated %}
-                    {% if current_user.is_admin %}
-                        <a href="{{ url_for('admin') }}" class="text-red-600 hover:text-red-800 font-medium transition duration-150">管理者</a>
-                    {% endif %}
-                    <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ダッシュボード</a>
-                    <a href="{{ url_for('logout') }}" class="py-1 px-3 border border-red-400 text-red-600 hover:bg-red-50 rounded-lg transition duration-150">ログアウト</a>
-                {% else %}
-                    <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ログイン</a>
-                    <a href="{{ url_for('signup') }}" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+<nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <!-- ロゴ/サイト名 -->
+            <div class="flex items-center">
+                <a href="{{ url_for('index') }}" class="flex-shrink-0 text-2xl font-black text-primary hover:text-indigo-700 transition duration-150">
+                    <i class="fa-solid fa-feather-pointed mr-2"></i>My Flask Blog
+                </a>
+            </div>
+            <!-- ナビゲーションリンク -->
+            <div class="flex items-center space-x-4">
+                <a href="{{ url_for('index') }}" class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
+                    <i class="fa-solid fa-house mr-1 text-sm"></i>ホーム
+                </a>
+                
+                {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin') }}" class="flex items-center text-red-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
+                            <i class="fa-solid fa-user-gear mr-1 text-sm"></i>管理者
+                        </a>
+                    {% endif %}
+                    <a href="{{ url_for('dashboard') }}" class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
+                        <i class="fa-solid fa-table-columns mr-1 text-sm"></i>ダッシュボード
+                    </a>
+                    <!-- ログアウトボタンをより目立たせる -->
+                    <a href="{{ url_for('logout') }}" class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md">
+                        <i class="fa-solid fa-right-from-bracket mr-1 text-sm"></i>ログアウト
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
+                        <i class="fa-solid fa-right-to-bracket mr-1 text-sm"></i>ログイン
+                    </a>
+                    <!-- サインアップボタンをプライマリカラーで強調 -->
+                    <a href="{{ url_for('signup') }}" class="py-2 px-4 bg-primary text-white rounded-full hover:bg-indigo-700 transition duration-150 shadow-lg">
+                        <i class="fa-solid fa-user-plus mr-1 text-sm"></i>サインアップ
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </nav>
 
-<!-- フラッシュメッセージエリア -->
-<div class="fixed top-16 left-0 right-0 z-50">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-            <div class="flash-message p-3 text-center text-white 
-                {% if category == 'success' %}bg-green-500
-                {% elif category == 'danger' %}bg-red-500
-                {% elif category == 'info' %}bg-blue-500
-                {% else %}bg-gray-500
-                {% endif %}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+<!-- フラッシュメッセージエリア (モダンなフローティングスタイル) -->
+<div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <!-- カテゴリに応じて色分けされたメッセージボックス -->
+            <div class="flash-message p-4 mt-2 rounded-xl text-white font-semibold flex justify-between items-center transition duration-500
+                {% if category == 'success' %}bg-success
+                {% elif category == 'danger' %}bg-danger
+                {% elif category == 'info' %}bg-info
+                {% else %}bg-gray-500
+                {% endif %}"
+                onclick="this.style.display='none';" role="alert">
+                <span>{{ message }}</span>
+                <!-- 閉じるボタン (クリックで非表示) -->
+                <button type="button" class="ml-4 text-white hover:text-gray-100 opacity-90 transition" aria-label="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 </div>
 
 <!-- メインコンテンツ -->
 <main class="flex-grow">
-    {% block content %}{% endblock %}
+    {% block content %}{% endblock %}
 </main>
 
 <!-- フッター -->
-<footer class="bg-gray-800 text-white p-4 mt-auto">
-    <div class="max-w-7xl mx-auto text-center text-sm">
-        &copy; {{ now().year }} Flask Blog Project. All rights reserved.
-    </div>
+<footer class="bg-gray-800 text-gray-300 p-6 mt-auto border-t border-gray-700">
+    <div class="max-w-7xl mx-auto text-center text-sm">
+        <p>&copy; {{ now().year }} **My Flask Blog Project**. All rights reserved.</p>
+        <p class="mt-1">Powered by Flask and Tailwind CSS.</p>
+    </div>
 </footer>
 
 </body>
