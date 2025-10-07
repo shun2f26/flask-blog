@@ -36,7 +36,7 @@
                 
                 <div class="flex justify-between items-center text-sm text-gray-500">
                     <span><i class="fas fa-user mr-1"></i> {{ post.author.username | default('名無し') }}</span>
-                    <span><i class="fas fa-calendar-alt mr-1"></i> {{ post.created_at | date_format }}</span>
+                    <span><i class="fas fa-calendar-alt mr-1"></i> {{ post.created_at | date('%Y-%m-%d') }}</span>
                 </div>
             </div>
         </div>
