@@ -3,98 +3,123 @@
 {% block title %}管理者ダッシュボード{% endblock %}
 
 {% block content %}
+
 <script src="https://cdn.tailwindcss.com"></script>
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
-    body { font-family: "Inter", sans-serif; }
+body { font-family: "Inter", sans-serif; }
 </style>
 
 <div class="min-h-screen bg-gray-100 p-4 sm:p-8">
-    <div class="max-w-6xl mx-auto">
-        <!-- ヘッダー -->
-        <header class="mb-8 p-6 bg-white shadow-xl rounded-xl">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                <h1 class="text-3xl font-extrabold text-gray-900 mb-2 sm:mb-0">
-                    <i class="fas fa-tachometer-alt text-indigo-500 mr-3"></i>
-                    管理ダッシュボード
-                </h1>
-                <a href="{{ url_for('logout') }}" 
-                   class="flex items-center text-sm font-medium text-red-500 hover:text-red-700 transition duration-150 p-2 rounded-lg hover:bg-red-50">
-                    <i class="fas fa-sign-out-alt mr-2"></i>
-                    ログアウト
+<div class="max-w-6xl mx-auto">
+<!-- ヘッダー -->
+<header class="mb-8 p-6 bg-white shadow-xl rounded-xl">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+<h1 class="text-3xl font-extrabold text-gray-900 mb-2 sm:mb-0">
+<i class="fas fa-tachometer-alt text-indigo-500 mr-3"></i>
+管理ダッシュボード
+</h1>
+<a href="{{ url_for('logout') }}"
+class="flex items-center text-sm font-medium text-red-500 hover:text-red-700 transition duration-150 p-2 rounded-lg hover:bg-red-50">
+<i class="fas fa-sign-out-alt mr-2"></i>
+ログアウト
+</a>
+</div>
+<p class="text-gray-500 mt-2">コンテンツとアカウントを管理します。</p>
+</header>
+
+    <!-- メインナビゲーションカード -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- 1. 新規作成 (Create) -->
+        <a href="{{ url_for('create') }}" 
+           class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-indigo-500">
+            <div class="flex items-center justify-start">
+                <div class="p-3 bg-indigo-100 rounded-full">
+                    <i class="fas fa-plus-circle text-2xl text-indigo-600"></i>
+                </div>
+                <div class="ml-4">
+                    <h2 class="text-xl font-bold text-gray-800">新規コンテンツ作成</h2>
+                    <p class="text-sm text-gray-500 mt-1">新しい記事やデータを投稿します。</p>
+                </div>
+            </div>
+        </a>
+
+        <!-- 2. 記事編集・削除 (Update/Delete) - 記事一覧へのリンクとして使用 -->
+        <a href="#recent-posts-list" 
+           class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-teal-500">
+            <div class="flex items-center justify-start">
+                <div class="p-3 bg-teal-100 rounded-full">
+                    <i class="fas fa-edit text-2xl text-teal-600"></i>
+                </div>
+                <div class="ml-4">
+                    <h2 class="text-xl font-bold text-gray-800">記事の編集・削除</h2>
+                    <p class="text-sm text-gray-500 mt-1">既存のコンテンツを管理・修正します。</p>
+                </div>
+            </div>
+        </a>
+
+        <!-- 3. アカウント情報変更・削除 (Account) -->
+        <a href="{{ url_for('account') }}" 
+           class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-purple-500">
+            <div class="flex items-center justify-start">
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <i class="fas fa-user-cog text-2xl text-purple-600"></i>
+                </div>
+                <div class="ml-4">
+                    <h2 class="text-xl font-bold text-gray-800">アカウント設定</h2>
+                    <p class="text-sm text-gray-500 mt-1">プロフィールやパスワードを変更します。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- 最新の投稿一覧エリア -->
+    <div id="recent-posts-list" class="mt-8 p-6 bg-white shadow-lg rounded-xl">
+        <h3 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+            <i class="fas fa-history mr-2 text-indigo-500"></i>
+            最新の投稿 ({{ posts|length if posts is not none else 0 }} 件)
+        </h3>
+        
+        {% if posts %}
+            <ul class="divide-y divide-gray-200">
+                {% for post in posts %}
+                    <li class="py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:bg-gray-50 transition duration-150 rounded-md px-2 -mx-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center w-full sm:w-2/3 mb-2 sm:mb-0">
+                            <span class="font-medium text-gray-800 truncate mr-4">{{ post.title }}</span>
+                            {# データベースとモデル修正済みのため、created_at を安全に参照できます #}
+                            <span class="text-xs text-gray-500 mt-1 sm:mt-0">
+                                <i class="far fa-clock mr-1"></i>
+                                投稿日時: {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else '日時不明' }}
+                            </span>
+                        </div>
+                        <div class="flex space-x-3">
+                            <a href="{{ url_for('update', post_id=post.id) }}" 
+                               class="text-teal-600 hover:text-teal-800 text-sm font-semibold transition duration-150 p-1 rounded-md hover:bg-teal-50">
+                                <i class="fas fa-pencil-alt mr-1"></i> 編集
+                            </a>
+                            <a href="{{ url_for('delete', post_id=post.id) }}" 
+                               class="text-red-600 hover:text-red-800 text-sm font-semibold transition duration-150 p-1 rounded-md hover:bg-red-50"
+                               onclick="return confirm('本当に「{{ post.title }}」を削除しますか？')">
+                                <i class="fas fa-trash-alt mr-1"></i> 削除
+                            </a>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="text-center p-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                <i class="fas fa-inbox text-4xl text-gray-400 mb-3"></i>
+                <p class="text-gray-600">まだ投稿がありません。新しい記事を作成しましょう！</p>
+                <a href="{{ url_for('create') }}" class="mt-4 inline-block px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md">
+                    新規作成ページへ
                 </a>
             </div>
-            <p class="text-gray-500 mt-2">コンテンツとアカウントを管理します。</p>
-        </header>
-
-        <!-- メインナビゲーションカード -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <!-- 1. 新規作成 (Create) -->
-            <a href="{{ url_for('create') }}" 
-               class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-indigo-500">
-                <div class="flex items-center justify-start">
-                    <div class="p-3 bg-indigo-100 rounded-full">
-                        <i class="fas fa-plus-circle text-2xl text-indigo-600"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h2 class="text-xl font-bold text-gray-800">新規コンテンツ作成</h2>
-                        <p class="text-sm text-gray-500 mt-1">新しい記事やデータを投稿します。</p>
-                    </div>
-                </div>
-            </a>
-
-            <!-- 2. 記事編集・削除 (Update/Delete) - エラー解消のため、post.idを使用しないリンクに変更 -->
-            <!-- 既存の投稿の編集は、通常、投稿リストページに移動してから行います。 -->
-            <!-- 暫定的に、投稿一覧ページ（仮に 'list_posts' とします。存在しない場合は 'create' などに仮リンク）へのリンクに修正します。 -->
-            <!-- あるいは、リンクを外して情報カードとして残します。今回は、リンクを外してエラーを解消します。 -->
-            <div class="admin-card bg-white p-6 rounded-xl shadow-lg border-t-4 border-teal-500">
-                <a href="{{ url_for('create') }}" 
-                   class="block hover:shadow-lg transition duration-300 transform hover:scale-[1.01]">
-                    <div class="flex items-center justify-start">
-                        <div class="p-3 bg-teal-100 rounded-full">
-                            <i class="fas fa-edit text-2xl text-teal-600"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h2 class="text-xl font-bold text-gray-800">記事の編集・削除 (投稿一覧へ)</h2>
-                            <p class="text-sm text-gray-500 mt-1">既存のコンテンツを管理・修正します。</p>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <!-- 3. アカウント情報変更・削除 (Account) -->
-            <a href="{{ url_for('account') }}" 
-               class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-purple-500">
-                <div class="flex items-center justify-start">
-                    <div class="p-3 bg-purple-100 rounded-full">
-                        <i class="fas fa-user-cog text-2xl text-purple-600"></i>
-                    </div>
-                    <div class="ml-4">
-                        <h2 class="text-xl font-bold text-gray-800">アカウント設定</h2>
-                        <p class="text-sm text-gray-500 mt-1">プロフィールやパスワードを変更します。</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <!-- アクティビティログなどのエリア (省略) -->
-        <div class="mt-8 p-6 bg-white shadow-lg rounded-xl">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">最新のアクティビティ</h3>
-            <p class="text-gray-500">（サーバーサイドのデータ処理により、最新の操作履歴などがここに表示されます。）</p>
-        </div>
-
-        <!-- 補足: 記事一覧をダッシュボードに表示する場合の例 (エラー回避のためコメントアウト) -->
-        <!-- {% if posts %}
-            <h3 class="text-xl font-semibold text-gray-700 mt-8 mb-4">最近の投稿</h3>
-            {% for post in posts %}
-                <div class="bg-white p-4 mb-3 rounded-lg shadow flex justify-between items-center">
-                    <span>{{ post.title }}</span>
-                    <a href="{{ url_for('update', post_id=post.id) }}" class="text-teal-500 hover:text-teal-700">編集</a>
-                </div>
-            {% endfor %}
-        {% endif %} -->
+        {% endif %}
 
     </div>
+</div>
+
 </div>
 {% endblock %}
