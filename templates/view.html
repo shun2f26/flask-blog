@@ -9,52 +9,65 @@
 <!-- 投稿カード (Post Content Area) -->
 <article class="bg-white shadow-xl rounded-xl p-8 md:p-10">
 
-        <!-- 投稿ヘッダー (タイトルとメタ情報) -->
-        <div class="border-b pb-6 mb-6">
-            
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-snug mb-4">
-                {{ post.title }}
-            </h1>
-            
-            <!-- メタ情報 -->
-            <div class="text-sm text-gray-500 flex flex-wrap items-center space-x-3 sm:space-x-4">
-                
-                <!-- 作成者 -->
-                <p class="flex items-center">
-                    <i class="fas fa-user-circle mr-1 text-gray-400"></i>
-                    作成者: <span class="font-semibold text-gray-700 ml-1">{{ post.author.username }}</span>
-                </p>
-                
-                <!-- 作成日 -->
-                <p class="flex items-center">
-                    <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
-                    <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | dateformat }}</time>
-                </p>
-                
-                <!-- カテゴリ -->
-                {% if post.category %}
-                <span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 mt-2 md:mt-0">
-                    {{ post.category }}
-                </span>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- 投稿画像 -->
-        {% if post.image_url %}
-        <figure class="mb-8">
-            <img src="{{ post.image_url }}" alt="{{ post.title }}" 
-                 class="w-full h-auto max-h-96 object-cover rounded-xl shadow-lg border border-gray-100">
-        </figure>
-        {% endif %}
-
-        <!-- 投稿本文 -->
-        <div class="prose prose-lg max-w-none text-gray-800 break-words">
-            <!-- 本文の表示。改行を保持するため whitespace-pre-wrap を適用 -->
-            <div class="whitespace-pre-wrap">{{ post.body }}</div>
-        </div>
+    <!-- 投稿ヘッダー (タイトルとメタ情報) -->
+    <div class="border-b pb-6 mb-6">
         
-    </article>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-snug mb-4">
+            {{ post.title }}
+        </h1>
+        
+        <!-- メタ情報 -->
+        <div class="text-sm text-gray-500 flex flex-wrap items-center space-x-3 sm:space-x-4">
+            
+            <!-- 作成者 -->
+            <p class="flex items-center">
+                <i class="fas fa-user-circle mr-1 text-gray-400"></i>
+                作成者: <span class="font-semibold text-gray-700 ml-1">{{ post.author.username }}</span>
+            </p>
+            
+            <!-- 作成日 (datetimeformat に修正) -->
+            <p class="flex items-center">
+                <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
+                <!-- dateformat を datetimeformat に修正 -->
+                <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat }}</time>
+            </p>
+            
+            <!-- カテゴリ (post.category はモデルに存在しないため削除またはコメントアウト) -->
+            <!--
+            {% if post.category %}
+            <span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 mt-2 md:mt-0">
+                {{ post.category }}
+            </span>
+            {% endif %}
+            -->
+        </div>
+    </div>
+
+    <!-- 投稿画像 (Cloudinary表示ロジックを実装) -->
+    {% if post.public_id and CLOUDINARY_AVAILABLE %}
+    <figure class="mb-8">
+        <!-- get_cloudinary_url を使用して画像URLを生成 -->
+        {% set img_url = get_cloudinary_url(post.public_id, width=800, crop='limit', fetch_format='auto', quality='auto') %}
+        <img 
+            src="{{ img_url }}" 
+            alt="{{ post.title }}" 
+            class="w-full h-auto max-h-[500px] object-cover rounded-xl shadow-lg border border-gray-100">
+    </figure>
+    {% elif post.public_id %}
+    <!-- Cloudinary設定がない場合でも画像IDがあればメッセージを表示 -->
+    <div class="mb-8 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-lg" role="alert">
+        <p class="font-bold">画像表示エラー</p>
+        <p>Cloudinaryの設定が完了していないため、画像を読み込めませんでした。</p>
+    </div>
+    {% endif %}
+
+    <!-- 投稿本文 -->
+    <div class="prose prose-lg max-w-none text-gray-800 break-words">
+        <!-- post.body を post.content に修正 -->
+        <div class="whitespace-pre-wrap">{{ post.content }}</div>
+    </div>
+    
+</article>
     
 </div>
 
