@@ -1,56 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}ホーム{% endblock %}
-
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <div class="flex justify-between items-center mb-8">
-        <h2 class="text-4xl font-extrabold text-gray-900">最新の投稿</h2>
-        {% if current_user.is_authenticated %}
-        <a href="{{ url_for('create') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150 flex items-center">
-            <i class="fas fa-plus mr-2"></i> 新規投稿
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- 投稿リストのコンテナ -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- Jinja2で投稿をループ処理する想定 -->
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <h1 class="text-3xl font-bold mb-6 text-gray-800">最新の投稿</h1>
+    <div class="space-y-8">
         {% for post in posts %}
-        <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 overflow-hidden">
-            <!-- Cloudinary/S3からの画像URLを想定 -->
-            <a href="{{ url_for('view', post_id=post.id) }}">
-                {% if post.image_url %}
-                <img src="{{ post.image_url }}" alt="{{ post.title }}" class="w-full h-48 object-cover">
-                {% else %}
-                <div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">画像なし</div>
-                {% endif %}
-            </a>
+        <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col md:flex-row gap-6">
             
-            <div class="p-6">
-                <p class="text-sm font-semibold text-indigo-600 mb-2">{{ post.category | default('未分類') }}</p>
-                <h3 class="text-2xl font-bold text-gray-900 mb-3 hover:text-indigo-600 transition duration-150">
-                    <a href="{{ url_for('view', post_id=post.id) }}">{{ post.title }}</a>
-                </h3>
-                <p class="text-gray-600 text-base mb-4 line-clamp-3">{{ post.body | truncate(100) }}</p>
+            <!-- 画像表示エリア -->
+            <div class="md:w-1/3 flex-shrink-0">
+                {% if post.public_id %}
+                    <!-- Cloudinaryから画像を読み込み -->
+                    {% set img_url = get_cloudinary_url(post.public_id, width=400, height=250, crop='fill', gravity='auto') %}
+                    <img 
+                        src="{{ img_url }}" 
+                        alt="{{ post.title }} の画像" 
+                        class="w-full h-auto rounded-lg object-cover shadow-md"
+                        style="aspect-ratio: 16 / 10;"
+                    >
+                {% else %}
+                    <!-- 画像がない場合のプレースホルダー -->
+                    <div class="bg-gray-200 rounded-lg w-full h-full flex items-center justify-center text-gray-500 text-lg shadow-inner" style="aspect-ratio: 16 / 10;">
+                        画像なし
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- 記事情報エリア -->
+            <div class="md:w-2/3">
+                <h2 class="text-2xl font-semibold text-indigo-600 mb-2">
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800">
+                        {{ post.title }}
+                    </a>
+                </h2>
                 
-                <div class="flex justify-between items-center text-sm text-gray-500">
-                    <span><i class="fas fa-user mr-1"></i> {{ post.author.username | default('名無し') }}</span>
+                <p class="text-sm text-gray-500 mb-4 flex items-center space-x-4">
                     <span><i class="fas fa-calendar-alt mr-1"></i> {{ post.created_at | datetimeformat('%Y-%m-%d') }}</span>
+                    {% if post.author %}
+                    <span><i class="fas fa-user mr-1"></i> <a href="{{ url_for('user_blog', username=post.author.username) }}" class="hover:underline">{{ post.author.username }}</a></span>
+                    {% endif %}
+                </p>
+                
+                <p class="text-gray-700 leading-relaxed mb-4">
+                    {{ post.content | truncate(200, True) }}
+                </p>
+                
+                <div>
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition duration-300">
+                        続きを読む
+                        <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                    </a>
                 </div>
             </div>
         </div>
+        {% else %}
+        <p class="text-gray-600">まだ投稿はありません。</p>
         {% endfor %}
-
-        <!-- 投稿がない場合のシミュレーション -->
-        {% if not posts %}
-        <div class="col-span-full bg-white p-10 rounded-xl shadow-lg text-center">
-            <p class="text-xl text-gray-600">まだ投稿がありません。最初の記事を書いてみましょう！</p>
-            <a href="{{ url_for('create') }}" class="mt-4 inline-block text-indigo-600 hover:text-indigo-800 font-medium">
-                <i class="fas fa-pen-nib mr-1"></i> 新しい投稿を作成
-            </a>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}
