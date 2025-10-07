@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask Blog | {{ title }}</title>
+    <!-- タイトルを動的に設定できるように修正 -->
+    <title>Flask Blog | {% if post %}記事の編集{% else %}新規投稿{% endif %}</title> 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
@@ -29,6 +32,7 @@
                         {% if current_user.is_admin %}
                             <a href="{{ url_for('admin') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">管理者</a>
                         {% endif %}
+                        <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ダッシュボード</a>
                         <a href="{{ url_for('create') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150">新規投稿</a>
                         <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium">ログアウト</a>
                     {% else %}
@@ -53,14 +57,94 @@
         {% endwith %}
     </div>
 
-    <!-- Main Content Block -->
+    <!-- Main Content Block: 記事作成/編集フォームをここに配置 -->
     <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
-        {% block content %}{% endblock %}
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-2xl">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
+                {% if post %}記事の編集{% else %}新規記事作成{% endif %}
+            </h1>
+
+            <!-- フォームの追加: postがある場合は更新、ない場合は作成として扱う -->
+            <form method="POST" enctype="multipart/form-data" action="{{ url_for('update', post_id=post.id) if post else url_for('create') }}">
+                
+                <!-- 🚨 CSRFトークンを非表示フィールドとして追加 (必須) -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <!-- タイトル -->
+                <div class="mb-5">
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル</label>
+                    <input type="text" id="title" name="title" required
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                           value="{{ post.title if post else '' }}">
+                    <!-- フィールドエラー表示のシミュレーション -->
+                    {% if form_errors and 'title' in form_errors %}
+                        <p class="text-red-500 text-xs mt-1">{{ form_errors.title[0] }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 概要 (サマリー) -->
+                <div class="mb-5">
+                    <label for="summary" class="block text-sm font-medium text-gray-700 mb-1">記事の概要 (オプション)</label>
+                    <input type="text" id="summary" name="summary"
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500"
+                           value="{{ post.summary if post else '' }}">
+                </div>
+
+                <!-- 内容 -->
+                <div class="mb-5">
+                    <label for="content" class="block text-sm font-medium text-gray-700 mb-1">内容</label>
+                    <textarea id="content" name="content" rows="15" required
+                              class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500 resize-y"
+                    >{{ post.content if post else '' }}</textarea>
+                    <!-- フィールドエラー表示のシミュレーション -->
+                    {% if form_errors and 'content' in form_errors %}
+                        <p class="text-red-500 text-xs mt-1">{{ form_errors.content[0] }}</p>
+                    {% endif %}
+                </div>
+                
+                <!-- 画像アップロードと削除オプション -->
+                <div class="mb-6 p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                    <label for="image_file" class="block text-sm font-medium text-gray-700 mb-2">カバー画像 (オプション)</label>
+                    <input type="file" id="image_file" name="image_file" accept="image/*"
+                           class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-600 hover:file:bg-red-100">
+
+                    <!-- 編集時のみ: 現在の画像と削除オプションを表示 -->
+                    {% if post and post.image_url %}
+                        <p class="text-sm text-gray-500 mt-3">現在の画像:</p>
+                        <div class="mt-2 flex items-center space-x-4">
+                            <!-- 画像URLが有効でない可能性を考慮したフォールバック -->
+                            <img src="{{ post.image_url }}" 
+                                 alt="現在の画像" 
+                                 class="w-24 h-16 object-cover rounded-lg shadow-md"
+                                 onerror="this.onerror=null; this.src='https://placehold.co/96x64/E5E7EB/A1A1AA?text=Current+Image';">
+                            <label class="flex items-center space-x-2 text-sm text-gray-600">
+                                <input type="checkbox" name="delete_image" class="rounded border-gray-300 text-red-600 shadow-sm focus:ring-red-500">
+                                <span>現在の画像を削除</span>
+                            </label>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- 送信ボタン -->
+                <div class="flex justify-end space-x-4">
+                    <a href="{{ url_for('dashboard') }}" class="py-3 px-6 bg-gray-200 text-gray-700 font-semibold rounded-lg shadow-md hover:bg-gray-300 transition duration-150">キャンセル</a>
+                    <button type="submit" class="py-3 px-6 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 transition duration-150 transform hover:scale-[1.01]">
+                        {% if post %}
+                            <i class="fas fa-save mr-2"></i> 記事を更新
+                        {% else %}
+                            <i class="fas fa-paper-plane mr-2"></i> 記事を投稿
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+
+        </div>
     </main>
 
     <!-- Footer -->
     <footer class="bg-gray-800 text-white py-4 mt-auto">
         <div class="container mx-auto text-center text-sm">
+            <!-- Jinja: {{ now().year }} を使用しているためそのまま残します -->
             &copy; {{ now().year }} Flask Blog App. All Rights Reserved.
         </div>
     </footer>
