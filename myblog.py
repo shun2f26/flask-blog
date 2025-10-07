@@ -173,8 +173,7 @@ class User(UserMixin, db.Model):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
-
+        return f"User('{self.username}', '{self.id}', admin={self.is_admin})"<br>
 class Post(db.Model):
     """記事モデル"""
     __tablename__ = 'posts'
@@ -600,7 +599,7 @@ def delete(post_id):
 @login_required
 def admin():
     """
-    全ログインユーザーのためのコンテンツ管理ビュー。
+    全ログインユーザーのためのコンテンツ管理ビュー。（エンドポイント名: admin）
     管理者は全ユーザーのリストと全記事を見る。一般ユーザーは自分の記事のみ見る。
     """
     
@@ -624,8 +623,7 @@ def admin():
         users_data = db.session.execute(users_with_count_stmt).all()
 
         users = []
-        for user_obj, post_count in users_data:
-            users.append({
+        for user_obj, post_count in users_data:<br>            users.append({
                 'user': user_obj,
                 'post_count': post_count or 0,
             })
@@ -681,9 +679,9 @@ def toggle_admin(user_id):
 # その他ユーティリティ (エラーハンドリングを含む)
 # -----------------------------------------------
 
-# 新しい /db_clear ルート
+# エンドポイント名を 'db_clear' から 'db_clear_data' に変更
 @app.route("/db_clear", methods=["GET"])
-def db_clear():
+def db_clear_data():
     """データベースの全テーブルを削除し、再作成する（確認なし）"""
     try:
         with app.app_context():
@@ -730,7 +728,7 @@ def db_reset():
                     db.session.commit()
                     
                 db.create_all()
-                
+                    
                 flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
                 return redirect(url_for('index'))
         except Exception as e:
