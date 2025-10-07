@@ -193,12 +193,12 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                           validators=[DataRequired(message='ユーザー名は必須です。'),
-                                       Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                            validators=[DataRequired(message='ユーザー名は必須です。'),
+                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                             validators=[DataRequired(message='パスワードは必須です。'),
-                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                              validators=[DataRequired(message='パスワードは必須です。'),
+                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
                                      validators=[DataRequired(message='パスワード確認は必須です。'),
@@ -493,10 +493,10 @@ def create():
 
 
         new_post = Post(title=title,
-                        content=content,
-                        user_id=current_user.id,
-                        public_id=public_id,
-                        create_at=now())
+                         content=content,
+                         user_id=current_user.id,
+                         public_id=public_id,
+                         create_at=now())
         db.session.add(new_post)
         db.session.commit()
         
@@ -630,7 +630,6 @@ def admin():
 
         users = []
         for user_obj, post_count in users_data:
-            # 修正箇所: HTMLタグと全角スペースを削除し、正しいインデントを適用
             users.append({
                 'user': user_obj,
                 'post_count': post_count or 0,
@@ -719,33 +718,31 @@ def db_clear_data():
         return redirect(url_for('index'))
 
 
-@app.route("/db_reset", methods=["GET", "POST"])
+# 修正: methods=["POST"] に変更し、内部のメソッドチェックとGETでの実行ロジックを削除しました。
+@app.route("/db_reset", methods=["POST"])
 def db_reset():
-    """データベーステーブルのリセット（開発/テスト用） - 既存のロジックは保持"""
+    """データベーステーブルのリセット（開発/テスト用）。POSTリクエストでのみ実行可能。"""
     # プロダクション環境では注意が必要
-    if request.method == 'POST' or request.args.get('confirm') == 'yes':
-        try:
-            with app.app_context():
-                # **注意: db_clear と同じロジックをよりシンプルに実行**
-                db.session.close()
-                db.drop_all()
+    try:
+        with app.app_context():
+            # **注意: db_clear と同じロジックをよりシンプルに実行**
+            db.session.close()
+            db.drop_all()
+            
+            if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+                # PostgreSQLでalembic_versionテーブルの削除が必要になる場合がある
+                db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+                db.session.commit()
                 
-                if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
-                    # PostgreSQLでalembic_versionテーブルの削除が必要になる場合がある
-                    db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
-                    db.session.commit()
-                    
-                db.create_all()
-                    
-                flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
-                return redirect(url_for('index'))
-        except Exception as e:
-            db.session.rollback()
-            print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
-            flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
+            db.create_all()
+                
+            flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
             return redirect(url_for('index'))
-    flash("データベースリセットを実行するには、POSTリクエストまたはURLに ?confirm=yes をつけてください。", 'danger')
-    return redirect(url_for('index'))
+    except Exception as e:
+        db.session.rollback()
+        print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
+        flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
+        return redirect(url_for('index'))
 
 
 @app.route('/account', methods=['GET', 'POST'])
