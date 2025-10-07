@@ -46,7 +46,7 @@
         }
         .file-input-custom:hover::-webkit-file-upload-button,
         .file-input-custom:hover::file-selector-button {
-            background-color: #fecaca; /* red-200 */
+            background-color: fecaca; /* red-200 */
         }
     </style>
 </head>
@@ -56,22 +56,22 @@
         <div class="container mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <div class="flex-shrink-0">
-                    <a href="#index" class="text-xl font-bold text-gray-800 hover:text-red-600 transition duration-150">
+                    <a href="{{ url_for('index') }}" class="text-xl font-bold text-gray-800 hover:text-red-600 transition duration-150">
                         My Flask Blog
                     </a>
                 </div>
                 <!-- 認証済みユーザーのシミュレーション -->
                 <div class="flex items-center space-x-4">
                     <!-- 管理者リンク (モック) -->
-                    <a href="#admin" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                    <a href="{{ url_for('admin') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
                         <i data-lucide="shield" class="w-4 h-4 mr-1"></i> 管理者
                     </a>
                     <!-- 新規投稿 (自分自身へのリンク) -->
-                    <a href="#create" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150 flex items-center shadow-md">
+                    <a href="{{ url_for('create') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150 flex items-center shadow-md">
                         <i data-lucide="plus-circle" class="w-4 h-4 mr-1"></i> 新規投稿
                     </a>
                     <!-- ログアウト -->
-                    <a href="#logout" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
+                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
                         <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> ログアウト
                     </a>
                 </div>
@@ -135,7 +135,7 @@
                 <!-- フォームアクションボタン -->
                 <div class="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
                     <!-- 戻るボタン -->
-                    <a href="#index" id="cancel-link" class="inline-flex justify-center items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                    <a href="{{ url_for('index') }}" id="cancel-link" class="inline-flex justify-center items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
                         <i data-lucide="x" class="w-5 h-5 mr-2"></i> キャンセル
                     </a>
                     <!-- 投稿ボタンに変更 -->
