@@ -185,7 +185,7 @@ class PostForm(FlaskForm):
     """記事投稿・編集用のフォームクラス (画像ファイルフィールドを追加)"""
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
-    image = FileField('画像をアップロード (任意)', validators=[
+    image = FileField('画像をアップロード (任意)', validators=[ # <-- ここが 'image'
         FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみをアップロードできます')
     ])
     submit = SubmitField('投稿')
