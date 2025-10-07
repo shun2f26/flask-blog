@@ -44,19 +44,24 @@
                 </div>
             </a>
 
-            <!-- 2. 記事編集・削除 (Update/Delete) -->
-            <a href="{{ url_for('update', post_id=post.id) }}"
-               class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-teal-500">
-                <div class="flex items-center justify-start">
-                    <div class="p-3 bg-teal-100 rounded-full">
-                        <i class="fas fa-edit text-2xl text-teal-600"></i>
+            <!-- 2. 記事編集・削除 (Update/Delete) - エラー解消のため、post.idを使用しないリンクに変更 -->
+            <!-- 既存の投稿の編集は、通常、投稿リストページに移動してから行います。 -->
+            <!-- 暫定的に、投稿一覧ページ（仮に 'list_posts' とします。存在しない場合は 'create' などに仮リンク）へのリンクに修正します。 -->
+            <!-- あるいは、リンクを外して情報カードとして残します。今回は、リンクを外してエラーを解消します。 -->
+            <div class="admin-card bg-white p-6 rounded-xl shadow-lg border-t-4 border-teal-500">
+                <a href="{{ url_for('create') }}" 
+                   class="block hover:shadow-lg transition duration-300 transform hover:scale-[1.01]">
+                    <div class="flex items-center justify-start">
+                        <div class="p-3 bg-teal-100 rounded-full">
+                            <i class="fas fa-edit text-2xl text-teal-600"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-xl font-bold text-gray-800">記事の編集・削除 (投稿一覧へ)</h2>
+                            <p class="text-sm text-gray-500 mt-1">既存のコンテンツを管理・修正します。</p>
+                        </div>
                     </div>
-                    <div class="ml-4">
-                        <h2 class="text-xl font-bold text-gray-800">記事の編集・削除</h2>
-                        <p class="text-sm text-gray-500 mt-1">既存のコンテンツを管理・修正します。</p>
-                    </div>
-                </div>
-            </a>
+                </a>
+            </div>
 
             <!-- 3. アカウント情報変更・削除 (Account) -->
             <a href="{{ url_for('account') }}" 
@@ -78,6 +83,17 @@
             <h3 class="text-xl font-semibold text-gray-700 mb-4">最新のアクティビティ</h3>
             <p class="text-gray-500">（サーバーサイドのデータ処理により、最新の操作履歴などがここに表示されます。）</p>
         </div>
+
+        <!-- 補足: 記事一覧をダッシュボードに表示する場合の例 (エラー回避のためコメントアウト) -->
+        <!-- {% if posts %}
+            <h3 class="text-xl font-semibold text-gray-700 mt-8 mb-4">最近の投稿</h3>
+            {% for post in posts %}
+                <div class="bg-white p-4 mb-3 rounded-lg shadow flex justify-between items-center">
+                    <span>{{ post.title }}</span>
+                    <a href="{{ url_for('update', post_id=post.id) }}" class="text-teal-500 hover:text-teal-700">編集</a>
+                </div>
+            {% endfor %}
+        {% endif %} -->
 
     </div>
 </div>
