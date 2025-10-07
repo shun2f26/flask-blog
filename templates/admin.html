@@ -45,7 +45,7 @@
             </a>
 
             <!-- 2. 記事編集・削除 (Update/Delete) -->
-            <a href="{{ url_for('update') }}" 
+            <a href="{{ url_for('update', post_id=post.id) }}"
                class="admin-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition duration-300 transform hover:scale-[1.02] border-t-4 border-teal-500">
                 <div class="flex items-center justify-start">
                     <div class="p-3 bg-teal-100 rounded-full">
