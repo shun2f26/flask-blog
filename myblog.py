@@ -471,10 +471,10 @@ def create():
              flash('新しい記事が正常に投稿されました。', 'success')
 
         new_post = Post(title=title,
-                         content=content,
-                         user_id=current_user.id,
-                         public_id=public_id,
-                         create_at=now())
+                        content=content,
+                        user_id=current_user.id,
+                        public_id=public_id,
+                        create_at=now())
         db.session.add(new_post)
         db.session.commit()
         
@@ -663,20 +663,56 @@ def toggle_admin(user_id):
 # その他ユーティリティ (エラーハンドリングを含む)
 # -----------------------------------------------
 
+# 新しい /db_clear ルートを追加
+@app.route("/db_clear", methods=["GET"])
+def db_clear():
+    """データベースの全テーブルを削除し、再作成する（確認なし）"""
+    try:
+        with app.app_context():
+            # セッションを閉じる
+            db.session.close()
+            
+            # 生のSQLを使用してテーブルを強制削除 (PostgreSQLで特に必要)
+            # db.drop_all() を使用する前に、念のため生のSQLで依存関係を考慮して削除
+            # Alembicテーブルの削除も含める
+            db.session.execute(text("DROP TABLE IF EXISTS posts CASCADE;"))
+            db.session.execute(text("DROP TABLE IF EXISTS blog_users CASCADE;"))
+            db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+            
+            db.session.commit() # 削除をコミット
+            
+            # 再度すべてのテーブルを作成
+            db.create_all()
+            
+            flash("データベースの全データが削除され、テーブルが正常に再作成されました。", 'success')
+            print("Database cleared and recreated successfully.")
+            return redirect(url_for('index'))
+    except Exception as e:
+        db.session.rollback()
+        error_message = f"データベースのクリーンアップ中にエラーが発生しました: {e}"
+        print(error_message, file=sys.stderr)
+        flash(error_message, 'danger')
+        return redirect(url_for('index'))
+
+
 @app.route("/db_reset", methods=["GET", "POST"])
 def db_reset():
-    """データベーステーブルのリセット（開発/テスト用）"""
+    """データベーステーブルのリセット（開発/テスト用） - 既存のロジックは保持"""
     # プロダクション環境では注意が必要
     if request.method == 'POST' or request.args.get('confirm') == 'yes':
         try:
             with app.app_context():
+                # **注意: db_clear と同じロジックをよりシンプルに実行**
                 db.session.close()
                 db.drop_all()
-                db.create_all()
+                
                 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
                     # PostgreSQLでalembic_versionテーブルの削除が必要になる場合がある
                     db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
                     db.session.commit()
+                    
+                db.create_all()
+                
                 flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
                 return redirect(url_for('index'))
         except Exception as e:
