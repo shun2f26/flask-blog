@@ -3,127 +3,146 @@
 {% block title %}投稿の編集: {{ post.title }}{% endblock %}
 
 {% block content %}
-<div class="py-10">
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">投稿の編集</h1>
-        <p class="text-sm text-gray-500 mb-6">既存の投稿内容を変更し、更新します。</p>
 
-        <!-- フォームアクションは 'update' エンドポイントに POST で送信されることを想定。投稿IDをURLに含める。 -->
-        <form id="postForm" class="space-y-6" action="{{ url_for('update', post_id=post.id) }}" method="POST" enctype="multipart/form-data">
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+body { font-family: "Inter", sans-serif; }
+</style>
+
+<div class="min-h-screen bg-gray-100 p-4 sm:p-8">
+<div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
+<h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">
+<i class="fas fa-edit text-indigo-500 mr-2"></i> 投稿の編集
+</h1>
+<p class="text-sm text-gray-500 mb-6">既存の投稿内容（「{{ post.title }}」）を変更し、更新します。</p>
+
+    <form id="postForm" class="space-y-6" action="{{ url_for('update', post_id=post.id) }}" method="POST" enctype="multipart/form-data">
+        
+        <!-- 1. CSRFトークンの埋め込み (重要!) -->
+        {% if form %}
+            {{ form.hidden_tag() }}
+        {% endif %}
+        
+        <!-- タイトル入力 -->
+        <div>
+            <label for="title" class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
+            {% if form and form.title.errors %}
+            <ul class="text-red-500 text-sm mb-1 space-y-1">
+                {% for error in form.title.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            <!-- form.title.data があれば優先（バリデーション失敗時）、なければ post.title を使用 -->
+            <input type="text" id="title" name="title" required
+                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
+                    placeholder="魅力的なタイトルを入力してください"
+                    value="{{ form.title.data if form and form.title.data is not none else post.title if post.title is not none else '' }}">
+        </div>
+
+        <!-- 本文入力 -->
+        <div>
+            <label for="body" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
+            {% if form and form.body.errors %}
+            <ul class="text-red-500 text-sm mb-1 space-y-1">
+                {% for error in form.body.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            <textarea id="body" name="body" rows="10" required
+                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
+                        placeholder="投稿の本文を記述してください。">{{ form.body.data if form and form.body.data is not none else post.body if post.body is not none else '' }}</textarea>
+        </div>
+
+        <!-- カテゴリ選択 -->
+        <div>
+            <label for="category" class="block text-lg font-medium text-gray-700 mb-2">カテゴリ (オプション)</label>
+            {% set current_category = form.category.data if form and form.category.data is not none else post.category if post.category is not none else '' %}
             
-            <!-- タイトル入力 -->
-            <div>
-                <label for="title" class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
-                {% if form.title.errors %}
-                <p class="text-red-500 text-sm mb-1">{% for error in form.title.errors %}{{ error }}{% endfor %}</p>
-                {% endif %}
-                <input type="text" id="title" name="title" required
-                       class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                       placeholder="魅力的なタイトルを入力してください"
-                       value="{{ form.title.data if form.title.data else post.title }}">
-            </div>
+            <select id="category" name="category"
+                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base">
+                <option value="" {% if current_category == '' %}selected{% endif %}>カテゴリを選択</option>
+                <option value="Tech" {% if current_category == 'Tech' %}selected{% endif %}>テクノロジー</option>
+                <option value="Life" {% if current_category == 'Life' %}selected{% endif %}>ライフスタイル</option>
+                <option value="Food" {% if current_category == 'Food' %}selected{% endif %}>食べ物</option>
+                <!-- その他のカテゴリがある場合はここに追加 -->
+            </select>
+        </div>
 
-            <!-- 本文入力 -->
-            <div>
-                <label for="body" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-                {% if form.body.errors %}
-                <p class="text-red-500 text-sm mb-1">{% for error in form.body.errors %}{{ error }}{% endfor %}</p>
-                {% endif %}
-                <textarea id="body" name="body" rows="8" required
-                          class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
-                          placeholder="投稿の本文を記述してください。">{{ form.body.data if form.body.data else post.body }}</textarea>
-            </div>
-
-            <!-- カテゴリ選択 (オプション) -->
-             <div>
-                <label for="category" class="block text-lg font-medium text-gray-700 mb-2">カテゴリ (オプション)</label>
-                <!-- post.category の値に応じて option に selected 属性を付与する必要があります -->
-                <select id="category" name="category"
-                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base">
-                    <option value="" {% if not (form.category.data or post.category) %}selected{% endif %}>カテゴリを選択</option>
-                    <option value="Tech" {% if (form.category.data == 'Tech') or (post.category == 'Tech') %}selected{% endif %}>テクノロジー</option>
-                    <option value="Life" {% if (form.category.data == 'Life') or (post.category == 'Life') %}selected{% endif %}>ライフスタイル</option>
-                    <option value="Food" {% if (form.category.data == 'Food') or (post.category == 'Food') %}selected{% endif %}>食べ物</option>
-                    <!-- 実際にはバックエンドからカテゴリリストを渡す想定 -->
-                </select>
-            </div>
-
-            <!-- 画像ファイル入力 (既存の画像表示と新規アップロード) -->
-            <div>
-                <label class="block text-lg font-medium text-gray-700 mb-2">現在の画像</label>
-                <!-- 既存の画像プレビュー -->
-                {% if post.image_url %}
-                <div class="mb-4">
-                    <img id="current-image" src="{{ post.image_url }}" alt="現在の画像" 
-                         class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" 
-                         style="max-height: 200px;">
-                    <p class="text-xs text-gray-500 mt-1">画像をアップロードすると、現在の画像が置き換えられます。</p>
-                </div>
-                {% else %}
-                <p class="text-sm text-gray-500 mb-2">現在、画像は設定されていません。</p>
-                {% endif %}
-
-                <label for="image" class="block text-lg font-medium text-gray-700 mb-2">新しい画像の選択 (オプション)</label>
-                <input type="file" id="image" name="image" accept="image/*"
-                       class="block w-full text-sm text-gray-600
-                              file:mr-4 file:py-2 file:px-4
-                              file:rounded-full file:border-0
-                              file:text-sm file:font-semibold
-                              file:bg-indigo-50 file:text-indigo-700
-                              hover:file:bg-indigo-100 cursor-pointer">
-                
-                <!-- 新しい画像のプレビューエリア -->
-                <div id="image-preview-container" class="mt-4 hidden">
-                    <p class="text-sm font-medium text-gray-500 mb-2">新しい画像のプレビュー:</p>
-                    <img id="image-preview" src="#" alt="New Image Preview" class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" style="max-height: 300px;">
-                </div>
-            </div>
+        <!-- 画像ファイル入力 (既存の画像表示と新規アップロード) -->
+        <div>
+            <label class="block text-lg font-medium text-gray-700 mb-2">現在の画像</label>
             
-            <!-- CSRFトークン (Flask-WTFなどを想定) -->
-            <!-- {{ form.csrf_token }} -->
-
-            <!-- 送信ボタン -->
-            <div class="flex space-x-4">
-                <button type="submit" id="submitButton"
-                        class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
-                    <i class="fas fa-save mr-2"></i> 変更を保存
-                </button>
-                <a href="{{ url_for('view', post_id=post.id) }}"
-                   class="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                    <i class="fas fa-times mr-2"></i> キャンセル
-                </a>
+            {% if post.image_url %}
+            <div id="current-image-container" class="mb-4">
+                <img id="current-image" src="{{ post.image_url }}" alt="現在の画像" 
+                     class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" 
+                     style="max-height: 200px;">
+                <p class="text-xs text-gray-500 mt-1">画像をアップロードすると、現在の画像が置き換えられます。</p>
             </div>
+            {% else %}
+            <p class="text-sm text-gray-500 mb-2">現在、画像は設定されていません。</p>
+            {% endif %}
 
-        </form>
-    </div>
+            <label for="image" class="block text-lg font-medium text-gray-700 mb-2">新しい画像の選択 (オプション)</label>
+            <input type="file" id="image" name="image" accept="image/*"
+                    class="block w-full text-sm text-gray-600
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-indigo-50 file:text-indigo-700
+                            hover:file:bg-indigo-100 cursor-pointer">
+            
+            <!-- 新しい画像のプレビューエリア -->
+            <div id="image-preview-container" class="mt-4 hidden">
+                <p class="text-sm font-medium text-gray-500 mb-2">新しい画像のプレビュー:</p>
+                <img id="image-preview" src="#" alt="New Image Preview" class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" style="max-height: 300px;">
+            </div>
+        </div>
+        
+        <!-- 送信ボタン -->
+        <div class="flex space-x-4 pt-4 border-t border-gray-200">
+            <button type="submit" id="submitButton"
+                    class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <i class="fas fa-save mr-2"></i> 変更を保存
+            </button>
+            <a href="{{ url_for('admin') }}"
+                class="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <i class="fas fa-arrow-left mr-2"></i> ダッシュボードに戻る
+            </a>
+        </div>
+
+    </form>
+</div>
+
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const imageInput = document.getElementById('image');
-        const imagePreview = document.getElementById('image-preview');
-        const imagePreviewContainer = document.getElementById('image-preview-container');
-        const currentImage = document.getElementById('current-image');
+document.addEventListener('DOMContentLoaded', () => {
+const imageInput = document.getElementById('image');
+const imagePreview = document.getElementById('image-preview');
+const imagePreviewContainer = document.getElementById('image-preview-container');
+const currentImageContainer = document.getElementById('current-image-container'); // 既存画像のコンテナ
 
-        // --- 画像プレビュー機能 ---
-        imageInput.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                    imagePreviewContainer.classList.remove('hidden');
-                    // 新規画像が選択された場合、既存の画像を一時的に非表示にする
-                    if(currentImage) currentImage.parentElement.style.display = 'none';
-                }
-                reader.readAsDataURL(file);
-            } else {
-                imagePreview.src = '#';
-                imagePreviewContainer.classList.add('hidden');
-                // 新規画像がキャンセルされた場合、既存の画像を再表示する
-                if(currentImage) currentImage.parentElement.style.display = 'block';
+    // --- 画像プレビュー機能 ---
+    imageInput.addEventListener(&#39;change&#39;, function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                imagePreviewContainer.classList.remove(&#39;hidden&#39;);
+                // 新規画像が選択された場合、既存の画像を非表示にする
+                if(currentImageContainer) currentImageContainer.style.display = &#39;none&#39;;
             }
-        });
+            reader.readAsDataURL(file);
+        } else {
+            imagePreview.src = &#39;#&#39;;
+            imagePreviewContainer.classList.add(&#39;hidden&#39;);
+            // 新規画像がキャンセルされた場合、既存の画像を再表示する
+            if(currentImageContainer) currentImageContainer.style.display = &#39;block&#39;;
+        }
     });
+});
+
 </script>
 {% endblock %}
