@@ -155,16 +155,16 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                           validators=[DataRequired(message='ユーザー名は必須です。'),
-                                       Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                            validators=[DataRequired(message='ユーザー名は必須です。'),
+                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                             validators=[DataRequired(message='パスワードは必須です。'),
-                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                              validators=[DataRequired(message='パスワードは必須です。'),
+                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                     validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                 EqualTo('password', message='パスワードが一致しません。')])
+                                    validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -428,10 +428,10 @@ def create():
                 return render_template('create.html', title='新規投稿', form=form, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
         new_post = Post(title=title,
-                         content=content,
-                         user_id=current_user.id,
-                         public_id=public_id,
-                         create_at=now())
+                        content=content,
+                        user_id=current_user.id,
+                        public_id=public_id,
+                        create_at=now())
         db.session.add(new_post)
         db.session.commit()
         if not public_id:
