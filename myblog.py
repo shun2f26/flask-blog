@@ -25,7 +25,7 @@ from flask_wtf.file import FileField, FileAllowed
 # 環境変数はRenderのEnvironment Variablesで設定されることを想定
 CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
 API_KEY = os.environ.get('CLOUDINARY_API_KEY')
-API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+API_SECRET = os.environ.get('CLOUD_SECRET') # CLOUDINARY_API_SECRETから変更
 
 CLOUDINARY_AVAILABLE = False
 cloudinary = None
@@ -76,6 +76,7 @@ def delete_cloudinary_image(public_id):
     """Cloudinaryから指定された画像を削除する"""
     if CLOUDINARY_AVAILABLE and public_id:
         try:
+            # uploader は CLOUDINARY_AVAILABLE が True のときのみ安全にアクセスされる
             result = cloudinary.uploader.destroy(public_id)
             if result.get('result') == 'ok':
                 print(f"Cloudinary image deleted successfully: {public_id}")
@@ -111,7 +112,6 @@ migrate = Migrate()
 csrf = CSRFProtect()
 
 # シークレットキーはデバッグモード以外では必須です
-# app.secret_key は app.config['SECRET_KEY'] で設定済みのため、これは冗長だが残しておく
 app.secret_key = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_blog') 
 
 db.init_app(app)
@@ -143,7 +143,6 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=now)
     posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
 
-    # トークンによるリセット機能は削除されましたが、DBスキーマを維持するためフィールドは残します
     reset_token = db.Column(db.String(256), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
 
@@ -306,7 +305,8 @@ def view(post_id):
 def login():
     """ログインページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        # ログイン後はコンテンツ管理ページへリダイレクト
+        return redirect(url_for('admin'))
 
     form = LoginForm()
 
@@ -320,7 +320,8 @@ def login():
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash(f'ログインに成功しました！ようこそ、{user.username}さん。', 'success')
-            return redirect(next_page or url_for('dashboard'))
+            # ログイン後はコンテンツ管理ページへリダイレクト
+            return redirect(next_page or url_for('admin'))
         else:
             flash('ユーザー名またはパスワードが正しくありません。', 'danger')
 
@@ -331,7 +332,7 @@ def login():
 def signup():
     """新規ユーザー登録ページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin'))
 
     form = RegistrationForm()
 
@@ -378,8 +379,8 @@ def forgot_password():
     メール送信ロジックは削除されました。
     """
     if current_user.is_authenticated:
-        # ログインしている場合はダッシュボードへ
-        return redirect(url_for('dashboard'))
+        # ログインしている場合はコンテンツ管理ページへ
+        return redirect(url_for('admin'))
 
     form = RequestResetForm()
 
@@ -403,7 +404,6 @@ def forgot_password():
 def reset_password_immediate(user_id):
     """
     ユーザーIDを使用してパスワードを即時リセットするページ（トークン検証をスキップ）。
-    元の reset_password/<path:token> ルートの代替です。
     """
     user = db.session.get(User, user_id)
 
@@ -414,7 +414,7 @@ def reset_password_immediate(user_id):
     # 既にログインしている場合は、そのアカウントのリセットでない限りアクセスを拒否
     if current_user.is_authenticated and current_user.id != user_id:
         flash('別のアカウントのパスワードをリセットすることはできません。', 'danger')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin'))
     
     # リセットフォームを表示する前にログアウトさせる（セキュリティ対策）
     if current_user.is_authenticated:
@@ -425,7 +425,6 @@ def reset_password_immediate(user_id):
     if form.validate_on_submit():
         # パスワードを更新
         user.set_password(form.password.data)
-        # トークンフィールドは使わないが、念のためクリア（既存スキーマ維持のため）
         user.reset_token = None
         user.reset_token_expires = None
         db.session.commit()
@@ -437,32 +436,13 @@ def reset_password_immediate(user_id):
 
 
 # -----------------------------------------------
-# ユーザー専用管理画面
-# -----------------------------------------------
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    """ログインユーザー専用の記事管理画面"""
-    posts = db.session.execute(
-        db.select(Post)
-        .filter_by(user_id=current_user.id)
-        .order_by(Post.create_at.desc())
-    ).scalars().all()
-
-    return render_template('dashboard.html',
-                            title=f'{current_user.username} のダッシュボード',
-                            posts=posts)
-
-
-# -----------------------------------------------
 # 記事作成・編集・削除
 # -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事投稿ページ (create.htmlを使用)"""
+    """新規記事投稿ページ"""
     form = PostForm()
 
     if form.validate_on_submit():
@@ -498,7 +478,7 @@ def create():
         db.session.add(new_post)
         db.session.commit()
         
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin')) # 管理ページへリダイレクト
 
     return render_template('create.html', title='新規投稿', form=form)
 
@@ -506,9 +486,10 @@ def create():
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事編集ページ (update.htmlを使用)"""
+    """記事編集ページ"""
     post = db.session.get(Post, post_id)
 
+    # 記事の作成者、または管理者のみ編集可能
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('編集権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
@@ -519,9 +500,7 @@ def update(post_id):
         post.title = form.title.data
         post.content = form.content.data
 
-        # フォームデータから画像削除のチェックボックスを取得
         delete_image = request.form.get('delete_image') == 'on'
-        # request.files から新しいファイルオブジェクトを取得
         image_file = request.files.get(form.image.name)
         
         image_action_performed = False
@@ -537,13 +516,10 @@ def update(post_id):
 
         # 2. 新規画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
-            
-            # 既存の画像があれば削除（新しい画像をアップロードする場合は置き換え）
             if post.public_id: 
                 delete_cloudinary_image(post.public_id)
 
             try:
-                # 新しい画像をアップロード
                 upload_result = cloudinary.uploader.upload(
                     image_file, 
                     folder=f"flask_blog_images/{current_user.username}",
@@ -555,20 +531,14 @@ def update(post_id):
             except Exception as e:
                 flash(f'新しい画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary upload error: {e}", file=sys.stderr)
-                # アップロード失敗時はpublic_idを更新しない
-
         
         if not image_action_performed:
             flash('記事が正常に更新されました。', 'success')
         
-
         db.session.commit()
         
-        # リダイレクト先を決定
-        if current_user.is_admin and post.user_id != current_user.id:
-            return redirect(url_for('admin'))
-        else:
-            return redirect(url_for('dashboard'))
+        # 常に管理ページへリダイレクト
+        return redirect(url_for('admin'))
 
     # GETリクエストの場合、またはバリデーションエラーの場合
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
@@ -586,14 +556,10 @@ def delete(post_id):
     """記事削除処理"""
     post = db.session.get(Post, post_id)
 
-    target_redirect = 'dashboard'
-
+    # 記事の作成者、または管理者のみ削除可能
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('削除権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
-
-    if current_user.is_admin and post.user_id != current_user.id:
-        target_redirect = 'admin'
 
     # Cloudinaryから画像を削除
     if post.public_id and CLOUDINARY_AVAILABLE:
@@ -604,50 +570,75 @@ def delete(post_id):
     db.session.commit()
     flash('記事が正常に削除されました。', 'success')
 
-    return redirect(url_for(target_redirect))
+    # 常に管理ページへリダイレクト
+    return redirect(url_for('admin'))
 
 
 # -----------------------------------------------
-# 管理者機能関連のルーティング
+# コンテンツ管理・管理者機能関連のルーティング
 # -----------------------------------------------
 
 @app.route('/admin')
 @login_required
-@admin_required
 def admin():
-    """管理者ダッシュボード: 全ユーザー管理と記事数の取得"""
-    post_count_sq = db.session.query(
-        Post.user_id,
-        func.count(Post.id).label('post_count')
-    ).group_by(Post.user_id).subquery()
+    """
+    全ログインユーザーのためのコンテンツ管理ビュー。
+    管理者は全ユーザーのリストと全記事を見る。一般ユーザーは自分の記事のみ見る。
+    """
+    
+    users = None
+    
+    if current_user.is_admin:
+        # 管理者: 全ユーザーのデータと記事数を取得
+        post_count_sq = db.session.query(
+            Post.user_id,
+            func.count(Post.id).label('post_count')
+        ).group_by(Post.user_id).subquery()
 
-    users_with_count_stmt = db.select(
-        User,
-        post_count_sq.c.post_count
-    ).outerjoin(
-        post_count_sq,
-        User.id == post_count_sq.c.user_id
-    ).order_by(User.created_at.desc())
+        users_with_count_stmt = db.select(
+            User,
+            post_count_sq.c.post_count
+        ).outerjoin(
+            post_count_sq,
+            User.id == post_count_sq.c.user_id
+        ).order_by(User.created_at.desc())
 
-    users_data = db.session.execute(users_with_count_stmt).all()
+        users_data = db.session.execute(users_with_count_stmt).all()
 
-    users = []
-    for user_obj, post_count in users_data:
-        users.append({
-            'user': user_obj,
-            'post_count': post_count or 0,
-        })
+        users = []
+        for user_obj, post_count in users_data:
+            users.append({
+                'user': user_obj,
+                'post_count': post_count or 0,
+            })
+            
+        # 管理者は全記事も取得
+        posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
+        title = '管理者ダッシュボード'
+        
+    else:
+        # 一般ユーザー: 自分の記事のみ取得
+        posts = db.session.execute(
+            db.select(Post)
+            .filter_by(user_id=current_user.id)
+            .order_by(Post.create_at.desc())
+        ).scalars().all()
+        
+        title = f'{current_user.username} のコンテンツ管理'
+
 
     return render_template('admin.html',
-                            users=users,
-                            title='管理者ダッシュボード')
+                            users=users, # 管理者のみ使用
+                            posts=posts, # ログインユーザーの記事一覧として使用
+                            is_admin_view=current_user.is_admin, # テンプレートで出し分け用
+                            title=title)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
 def toggle_admin(user_id):
-    """指定したユーザーの管理者権限をトグルする"""
+    """指定したユーザーの管理者権限をトグルする (管理者専用)"""
     if user_id == current_user.id:
         flash('自分自身の管理者ステータスを変更することはできません。', 'danger')
         return redirect(url_for('admin'))
