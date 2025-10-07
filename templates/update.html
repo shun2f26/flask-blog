@@ -42,13 +42,13 @@ body { font-family: "Inter", sans-serif; }
 
         <!-- 本文入力 -->
         <div>
-            <label for="body" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
+            <label for="content" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
             {% if form and form.body.errors %}
             <ul class="text-red-500 text-sm mb-1 space-y-1">
                 {% for error in form.body.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
             </ul>
             {% endif %}
-            <textarea id="body" name="body" rows="10" required
+            <textarea id="content" name="content" rows="10" required
                         class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
                         placeholder="投稿の本文を記述してください。">{{ form.body.data if form and form.body.data is not none else post.body if post.body is not none else '' }}</textarea>
         </div>
