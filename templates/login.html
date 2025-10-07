@@ -1,57 +1,93 @@
-{% extends 'base.html' %}
-{% block title %}{{ title }}{% endblock %}
+{% extends "base.html" %}
+
+{% block title %}ログイン{% endblock %}
 
 {% block content %}
-
-<div class="flex justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
-<div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl border border-gray-100">
-<h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-アカウントにログイン
-</h2>
-<form class="mt-8 space-y-6" method="POST" action="{{ url_for('login') }}">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <!-- ユーザー名 -->
-        <div>
-            {{ form.username.label(class="block text-sm font-medium text-gray-700") }}
-            {{ form.username(class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm", placeholder="ユーザー名") }}
-            {% for error in form.username.errors %}
-                <span class="text-red-500 text-xs">{{ error }}</span>
-            {% endfor %}
-        </div>
-
-        <!-- パスワード -->
-        <div>
-            {{ form.password.label(class="block text-sm font-medium text-gray-700 mt-4") }}
-            {{ form.password(class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm", placeholder="パスワード") }}
-            {% for error in form.password.errors %}
-                <span class="text-red-500 text-xs">{{ error }}</span>
-            {% endfor %}
-        </div>
-
-        <div class="flex items-center justify-between">
-            <!-- ログイン状態を維持 -->
-            <div class="flex items-center">
-                {{ form.remember_me(class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded") }}
-                {{ form.remember_me.label(class="ml-2 block text-sm text-gray-900") }}
-            </div>
-            <!-- パスワードを忘れた場合 -->
-            <div class="text-sm">
-                <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                    パスワードを忘れた場合
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
+    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl border border-gray-100">
+        
+        <div class="text-center">
+            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                アカウントにログイン
+            </h2>
+            <p class="mt-2 text-sm text-gray-600">
+                アカウントをお持ちでない場合は、
+                <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
+                    こちらから新規登録
                 </a>
+            </p>
+        </div>
+
+        <!-- フォーム -->
+        <form class="mt-8 space-y-6" action="{{ url_for('login') }}" method="POST">
+            
+            <!-- CSRFトークン (Flask-WTFなどを想定) -->
+            <!-- {{ form.csrf_token }} -->
+
+            <!-- 全体エラーメッセージ -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="p-3 mb-4 text-sm text-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-700 bg-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-100 rounded-lg" role="alert">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- 入力フィールドグループ -->
+            <div class="rounded-md shadow-sm space-y-4">
+                <!-- メールアドレス -->
+                <div>
+                    <label for="email" class="sr-only">メールアドレス</label>
+                    <input id="email" name="email" type="email" autocomplete="email" required
+                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                           placeholder="メールアドレス"
+                           value="{{ form.email.data if form.email.data }}">
+                    {% if form.email.errors %}
+                    <p class="text-red-500 text-xs mt-1">{% for error in form.email.errors %}{{ error }}{% endfor %}</p>
+                    {% endif %}
+                </div>
+
+                <!-- パスワード -->
+                <div>
+                    <label for="password" class="sr-only">パスワード</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required
+                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                           placeholder="パスワード">
+                    {% if form.password.errors %}
+                    <p class="text-red-500 text-xs mt-1">{% for error in form.password.errors %}{{ error }}{% endfor %}</p>
+                    {% endif %}
+                </div>
             </div>
-        </div>
 
-        <div>
-            {{ form.submit(class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 cursor-pointer") }}
-        </div>
-    </form>
-    <div class="text-center text-sm">
-        アカウントをお持ちでないですか？
-        <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500">サインアップ</a>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <input id="remember_me" name="remember_me" type="checkbox"
+                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="remember_me" class="ml-2 block text-sm text-gray-900">
+                        次回から自動でログイン
+                    </label>
+                </div>
+
+                <div class="text-sm">
+                    <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
+                        パスワードを忘れましたか？
+                    </a>
+                </div>
+            </div>
+
+            <!-- ログインボタン -->
+            <div>
+                <button type="submit"
+                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 shadow-lg mt-6">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <i class="fas fa-sign-in-alt h-5 w-5 text-indigo-300 group-hover:text-indigo-200"></i>
+                    </span>
+                    ログイン
+                </button>
+            </div>
+        </form>
     </div>
-</div>
-
 </div>
 {% endblock %}
