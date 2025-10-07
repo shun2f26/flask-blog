@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flask Blog | 記事を編集</title>
+    <!-- タイトルを新規作成用に変更 -->
+    <title>Flask Blog | 新規記事を作成</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons CDN for modern icons -->
@@ -16,7 +17,6 @@
             background-color: #f4f7f6;
         }
         .container {
-            /* Tailwind's mx-auto utility for centering and fluid width */
             width: 100%;
             margin-right: auto;
             margin-left: auto;
@@ -66,7 +66,7 @@
                     <a href="#admin" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
                         <i data-lucide="shield" class="w-4 h-4 mr-1"></i> 管理者
                     </a>
-                    <!-- 新規投稿 -->
+                    <!-- 新規投稿 (自分自身へのリンク) -->
                     <a href="#create" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150 flex items-center shadow-md">
                         <i data-lucide="plus-circle" class="w-4 h-4 mr-1"></i> 新規投稿
                     </a>
@@ -79,28 +79,30 @@
         </div>
     </nav>
 
-    <!-- Flash Messages (モックの成功メッセージを表示) -->
+    <!-- Flash Messages (モックの通知メッセージを表示) -->
     <div class="container mx-auto px-4 pt-4">
-        <!-- 成功メッセージのモック -->
-        <div class="p-3 mb-4 rounded-lg shadow-md bg-green-100 text-green-800 border border-green-300" role="alert">
-            <span class="font-semibold">通知:</span> 記事を編集しています。変更を保存することを忘れないでください。
+        <!-- 情報メッセージのモック -->
+        <div class="p-3 mb-4 rounded-lg shadow-md bg-blue-100 text-blue-800 border border-blue-300" role="alert">
+            <span class="font-semibold">ヒント:</span> 新しい記事を作成し、公開するにはすべての必須フィールドに入力してください。
         </div>
     </div>
 
-    <!-- Main Content Block - 記事編集フォーム -->
+    <!-- Main Content Block - 記事新規作成フォーム -->
     <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
         <div class="max-w-3xl mx-auto bg-white p-8 md:p-10 rounded-xl shadow-2xl border border-gray-100">
+            <!-- 見出しを新規作成用に変更 -->
             <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-3 flex items-center">
-                <i data-lucide="edit" class="w-7 h-7 mr-3 text-red-600"></i> 記事を編集
+                <i data-lucide="file-plus" class="w-7 h-7 mr-3 text-red-600"></i> 新規記事を作成
             </h1>
             
             <!-- フォームの開始 -->
-            <form id="edit-post-form" action="#update_submit" method="POST" enctype="multipart/form-data">
+            <!-- actionをcreate_submit (新規投稿) に変更 -->
+            <form id="create-post-form" action="#create_submit" method="POST" enctype="multipart/form-data">
                 
                 <!-- タイトルフィールド -->
                 <div class="mb-6">
                     <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル <span class="text-red-500">*</span></label>
-                    <!-- Jinja2: {{ form.title(class="...", value=post.title) }} -->
+                    <!-- 初期値は空にする -->
                     <input type="text" id="title" name="title" required
                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm text-gray-900"
                            placeholder="記事のタイトルを入力してください">
@@ -109,58 +111,38 @@
                 <!-- コンテンツフィールド -->
                 <div class="mb-6">
                     <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ <span class="text-red-500">*</span></label>
-                    <!-- Jinja2: {{ form.content(class=...) }} -->
+                    <!-- 初期値は空にする -->
                     <textarea id="content" name="content" rows="15" required
                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm text-gray-900"
                               placeholder="記事の本文を入力してください（HTMLも利用可能）"></textarea>
                 </div>
 
-                <!-- 画像アップロードとプレビューエリア -->
+                <!-- 画像アップロードエリア (プレビューなし) -->
                 <div class="mb-6 p-4 border border-red-200 rounded-lg bg-red-50">
                     <h3 class="text-lg font-semibold text-red-700 mb-3 flex items-center">
                         <i data-lucide="image" class="w-5 h-5 mr-2"></i> サムネイル画像
                     </h3>
                     
-                    <!-- 現在の画像プレビュー -->
-                    <div id="image-preview-container" class="mb-4">
-                        <p class="text-sm text-gray-600 mb-2">現在の画像:</p>
-                        <div id="current-image" class="w-full h-48 bg-gray-200 rounded-lg overflow-hidden flex items-center justify-center border border-gray-300">
-                            <!-- 画像がここに挿入されます (JSによってロード) -->
-                        </div>
-                    </div>
-                    
                     <!-- 画像アップロードフィールド -->
                     <div class="mb-4">
-                        <label for="image_file" class="block text-sm font-medium text-gray-700 mb-1">新しい画像をアップロード (任意)</label>
-                        <!-- Jinja2: {{ form.image_file(class="...") }} -->
+                        <label for="image_file" class="block text-sm font-medium text-gray-700 mb-1">画像をアップロード (任意)</label>
                         <input type="file" id="image_file" name="image_file" accept="image/*" 
                                class="block w-full text-sm text-gray-500 file-input-custom">
                         <p class="mt-1 text-xs text-gray-500">JPG, PNG, GIF, 最大 5MB。</p>
                     </div>
-
-                    <!-- 画像削除チェックボックス (既存の画像がある場合のみ表示) -->
-                    <div id="delete-image-option" class="flex items-center mt-3 hidden">
-                        <!-- Jinja2: {{ form.delete_image(class="...") }} -->
-                        <input id="delete_image" name="delete_image" type="checkbox"
-                               class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
-                        <label for="delete_image" class="ml-2 block text-sm font-medium text-red-700">現在の画像を削除する</label>
-                    </div>
                 </div>
 
                 <!-- フォームアクションボタン -->
-                <div class="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+                <div class="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
                     <!-- 戻るボタン -->
-                    <a href="#view" id="cancel-link" class="order-2 sm:order-1 inline-flex justify-center items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                    <a href="#index" id="cancel-link" class="inline-flex justify-center items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
                         <i data-lucide="x" class="w-5 h-5 mr-2"></i> キャンセル
                     </a>
-                    <!-- 更新ボタン -->
-                    <button type="submit" class="order-1 sm:order-2 inline-flex justify-center items-center px-6 py-3 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
-                        <i data-lucide="save" class="w-5 h-5 mr-2"></i> 記事を更新
+                    <!-- 投稿ボタンに変更 -->
+                    <button type="submit" class="inline-flex justify-center items-center px-6 py-3 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
+                        <i data-lucide="send" class="w-5 h-5 mr-2"></i> 記事を投稿
                     </button>
-                    <!-- 削除ボタン -->
-                    <button type="button" id="delete-button" class="order-3 inline-flex justify-center items-center px-6 py-3 border border-red-300 shadow-sm text-base font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition duration-150">
-                        <i data-lucide="trash-2" class="w-5 h-5 mr-2"></i> 記事を削除
-                    </button>
+                    <!-- 編集画面特有の「削除ボタン」は削除しました -->
                 </div>
             </form>
         </div>
@@ -177,86 +159,24 @@
         // Lucide Iconsの実行
         lucide.createIcons();
 
-        // モック記事データ (Flaskの 'post' 変数に相当)
-        const mockPost = {
-            id: 123,
-            title: "【重要】Flask Blogの大幅アップデートのお知らせ",
-            content: "これは既存の記事の本文です。ユーザーが編集するために、DBから取得されたコンテンツがこのテキストエリアに事前にロードされます。内容を修正し、下の「記事を更新」ボタンで保存してください。",
-            public_id: 'sample_image_id', // 画像がある場合
-            // public_id: null, // 画像がない場合をシミュレート
-            author_id: 1,
-        };
-
-        const postImagePlaceholder = "https://placehold.co/600x240/b91c1c/ffffff?text=Current+Thumbnail";
-
-        /**
-         * 記事データをフォームにロードし、画像プレビューを設定します。
-         */
-        function loadPostData() {
-            // フォームフィールドへのデータロード
-            document.getElementById('title').value = mockPost.title;
-            document.getElementById('content').value = mockPost.content;
-
-            const currentImageDiv = document.getElementById('current-image');
-            const deleteOptionDiv = document.getElementById('delete-image-option');
-            const cancelLink = document.getElementById('cancel-link');
-
-            // キャンセルボタンのリンクを記事詳細ビューに戻るように設定（モック）
-            cancelLink.href = `#view/${mockPost.id}`;
-
-            if (mockPost.public_id) {
-                // 画像がある場合、プレビューと削除オプションを表示
-                currentImageDiv.innerHTML = `
-                    <img src="${postImagePlaceholder}" 
-                         alt="現在の画像プレビュー" 
-                         class="w-full h-full object-cover">
-                `;
-                deleteOptionDiv.classList.remove('hidden');
-            } else {
-                // 画像がない場合、プレースホルダーを表示
-                currentImageDiv.innerHTML = `
-                    <div class="text-gray-500 text-sm font-medium">現在の画像はありません</div>
-                `;
-                deleteOptionDiv.classList.add('hidden');
-            }
-        }
-
-        /**
-         * 削除ボタンのクリック処理（カスタムモーダルUIの代わりにconfirmで代用）
-         */
-        document.getElementById('delete-button').addEventListener('click', () => {
-            // 🚨 注意: 実際のアプリケーションでは、alert()/confirm()の代わりにカスタムモーダルを使用してください。
-            const isConfirmed = confirm('本当にこの記事を削除しますか？この操作は元に戻せません。');
-            if (isConfirmed) {
-                // ここで削除APIを呼び出す
-                console.log(`記事 ID: ${mockPost.id} を削除リクエストしました。`);
-                alert('記事が削除されました。');
-                // 削除後、トップページなどにリダイレクト（モック）
-                window.location.hash = '#index';
-            }
-        });
-
-        /**
-         * フォーム送信処理（モック）
-         */
-        document.getElementById('edit-post-form').addEventListener('submit', (e) => {
+        // JavaScriptでフォーム送信を処理する（モック）
+        document.getElementById('create-post-form').addEventListener('submit', (e) => {
             e.preventDefault();
             
-            // データの収集と検証（ここでは省略）
-            const newTitle = document.getElementById('title').value;
-            const deleteImage = document.getElementById('delete_image').checked;
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
             
-            console.log('記事更新の処理を開始します...');
-            console.log('新しいタイトル:', newTitle);
-            console.log('画像を削除するか:', deleteImage);
+            console.log('新規記事の作成処理を開始します...');
+            console.log('タイトル:', title);
             
-            // 更新処理後、記事詳細ページにリダイレクト（モック）
-            alert(`記事 ${mockPost.id} が正常に更新されました！`);
-            window.location.hash = `#view/${mockPost.id}`;
+            // 投稿処理後、成功メッセージを表示し、トップページなどにリダイレクト（モック）
+            // 🚨 注意: 実際のアプリケーションでは、alert()の代わりにカスタムモーダルを使用してください。
+            alert(`新しい記事「${title.substring(0, 20)}...」が正常に投稿されました！`);
+            window.location.hash = '#index'; 
+            
+            // 実際のFlaskアプリでは、form.validate_on_submit()後に
+            // redirect(url_for('index')) などが行われます。
         });
-
-        // ページロード時にデータをロード
-        document.addEventListener('DOMContentLoaded', loadPostData);
     </script>
 </body>
 </html>
