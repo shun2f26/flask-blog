@@ -1,12 +1,53 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask Blog - 管理者ダッシュボード</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* カスタムスタイル */
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        /* モーダルの背景を暗く */
+        #deleteModal {
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
 
-{% block content %}
+<!-- ナビゲーションバー (base.htmlのシミュレーション) -->
+<nav class="bg-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <div class="flex items-center">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
+                    My Flask Blog
+                </a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
+                <!-- 認証済みユーザーのリンクをシミュレート -->
+                <a href="#" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- メインコンテンツ -->
+<main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+<!-- ここから {% block content %} の内容 -->
 <div class="max-w-6xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-2xl">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 mb-6">
         <h1 class="text-3xl font-extrabold text-gray-900">管理者ダッシュボード</h1>
         <div class="flex space-x-3 mt-4 md:mt-0">
-            <!-- アカウント設定へのリンク -->
-            <a href="{{ url_for('account') }}" class="bg-blue-500 text-white hover:bg-blue-600 px-4 py-2 rounded-lg font-medium shadow-md transition duration-150">
+            <!-- アカウント設定へのリンク (シミュレーション) -->
+            <a href="#" class="bg-blue-500 text-white hover:bg-blue-600 px-4 py-2 rounded-lg font-medium shadow-md transition duration-150">
                 マイアカウント設定
             </a>
         </div>
@@ -14,120 +55,214 @@
 
     <h2 class="text-xl font-semibold text-gray-700 mb-4">全ユーザー管理と記事一覧</h2>
 
-    {% if users %}
-        <div class="space-y-8">
-            {% for user_data in users %}
-                {% set user = user_data.user %}
-                <div class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
-                    <!-- ユーザー情報ヘッダー -->
-                    <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
-                        <div>
-                            <span class="text-2xl font-bold text-gray-800">
-                                {{ user.username }}
-                                {% if user.is_admin %}
-                                    <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">管理者</span>
-                                {% endif %}
-                            </span>
-                            <p class="text-sm text-gray-500">登録日時: {{ user.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
-                            <p class="text-sm text-gray-500">記事数: <span class="font-semibold text-gray-700">{{ user_data.post_count }}</span></p>
-                        </div>
-                        
-                        <!-- 管理者権限トグルボタン -->
-                        {% if user.id != current_user.id %}
-                        <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="text-sm font-medium py-2 px-4 rounded-lg transition duration-150 shadow-md
-                                {% if user.is_admin %}
-                                    bg-yellow-500 hover:bg-yellow-600 text-white
-                                {% else %}
-                                    bg-green-500 hover:bg-green-600 text-white
-                                {% endif %}">
-                                {% if user.is_admin %}
-                                    権限を解除
-                                {% else %}
-                                    管理者に昇格
-                                {% endif %}
-                            </button>
-                        </form>
+    <!-- Jinja: {% if users %} のシミュレーション -->
+    <div class="space-y-8">
+        <!-- ユーザーデータのループをシミュレーション -->
+        <!-- ユーザー1 (管理者) -->
+        {% set user = {'id': 1, 'username': 'AdminUser', 'is_admin': True, 'created_at': now()} %}
+        {% set current_user = {'id': 1} %}
+        {% set user_data = {'user': user, 'post_count': 3, 'posts': [{'id': 101, 'title': '管理者が書いた記事1', 'create_at': now()}, {'id': 102, 'title': '管理者が書いた記事2', 'create_at': now()}]} %}
+        
+        <div class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+            <!-- ユーザー情報ヘッダー -->
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+                <div>
+                    <span class="text-2xl font-bold text-gray-800">
+                        {{ user.username }}
+                        {% if user.is_admin %}
+                            <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">管理者</span>
                         {% endif %}
-                    </div>
-
-                    <!-- ユーザーの記事一覧 -->
-                    {% if user_data.posts %}
-                        <h3 class="text-lg font-medium text-gray-700 mb-3">投稿記事 ({{ user_data.post_count }} 件)</h3>
-                        <div class="space-y-3">
-                            {% for post in user_data.posts %}
-                                <div class="flex justify-between items-center bg-white p-3 border border-gray-100 rounded-lg">
-                                    <a href="{{ url_for('view', post_id=post.id) }}" class="text-base font-medium text-blue-600 hover:text-blue-800 truncate max-w-xs md:max-w-md">
-                                        {{ post.title }}
-                                    </a>
-                                    <div class="flex space-x-2 text-sm items-center">
-                                        <span class="text-gray-500">{{ post.create_at.strftime('%Y/%m/%d') }}</span>
-                                        <!-- 管理者として編集を実行できるリンク -->
-                                        <a href="{{ url_for('update', post_id=post.id) }}" class="text-green-500 hover:text-green-700">編集</a>
-                                        
-                                        <!-- 🚨 変更: カスタムモーダルをトリガーするボタンに置き換え -->
-                                        <button 
-                                            type="button" 
-                                            data-post-id="{{ post.id }}" 
-                                            data-post-title="{{ post.title }}" 
-                                            data-delete-url="{{ url_for('delete', post_id=post.id) }}" 
-                                            data-csrf-token="{{ csrf_token() }}"
-                                            class="text-red-500 hover:text-red-700 delete-post-btn"
-                                        >
-                                            削除
-                                        </button>
-                                        
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-gray-500 text-sm">この記事の投稿はありません。</p>
-                    {% endif %}
+                    </span>
+                    <p class="text-sm text-gray-500">登録日時: {{ user.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
+                    <p class="text-sm text-gray-500">記事数: <span class="font-semibold text-gray-700">{{ user_data.post_count }}</span></p>
                 </div>
-            {% endfor %}
+                
+                <!-- 管理者権限トグルボタン -->
+                {% if user.id != current_user.id %}
+                <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
+                    <!-- CSRFトークンを非表示フィールドとして挿入 -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-sm font-medium py-2 px-4 rounded-lg transition duration-150 shadow-md
+                        {% if user.is_admin %}
+                            bg-yellow-500 hover:bg-yellow-600 text-white
+                        {% else %}
+                            bg-green-500 hover:bg-green-600 text-white
+                        {% endif %}">
+                        {% if user.is_admin %}
+                            権限を解除
+                        {% else %}
+                            管理者に昇格
+                        {% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- ユーザーの記事一覧 -->
+            {% if user_data.posts %}
+                <h3 class="text-lg font-medium text-gray-700 mb-3">投稿記事 ({{ user_data.post_count }} 件)</h3>
+                <div class="space-y-3">
+                    {% for post in user_data.posts %}
+                        <div class="flex justify-between items-center bg-white p-3 border border-gray-100 rounded-lg">
+                            <a href="#" class="text-base font-medium text-blue-600 hover:text-blue-800 truncate max-w-xs md:max-w-md">
+                                {{ post.title }}
+                            </a>
+                            <div class="flex space-x-2 text-sm items-center">
+                                <span class="text-gray-500">{{ post.create_at.strftime('%Y/%m/%d') }}</span>
+                                <!-- 管理者として編集を実行できるリンク -->
+                                <a href="#" class="text-green-500 hover:text-green-700">編集</a>
+                                
+                                <!-- 削除ボタン: カスタムモーダルをトリガー -->
+                                <button 
+                                    type="button" 
+                                    data-post-id="{{ post.id }}" 
+                                    data-post-title="{{ post.title }}" 
+                                    data-delete-url="/delete/{{ post.id }}" 
+                                    data-csrf-token="DUMMY_CSRF_TOKEN_ADMIN_DELETE_{{ post.id }}"
+                                    class="text-red-500 hover:text-red-700 delete-post-btn"
+                                >
+                                    削除
+                                </button>
+                                
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-gray-500 text-sm">この記事の投稿はありません。</p>
+            {% endif %}
         </div>
-    {% else %}
-        <div class="text-center p-10 bg-gray-100 rounded-lg border border-dashed border-gray-300">
-            <p class="text-gray-500">ユーザーがまだ誰も登録されていません。</p>
+        
+        <!-- ユーザー2 (一般ユーザー) -->
+        {% set user = {'id': 2, 'username': 'GeneralUser', 'is_admin': False, 'created_at': now()} %}
+        {% set user_data = {'user': user, 'post_count': 1, 'posts': [{'id': 201, 'title': '一般ユーザーの短い記事', 'create_at': now()}]} %}
+        
+        <div class="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+            <!-- ユーザー情報ヘッダー -->
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+                <div>
+                    <span class="text-2xl font-bold text-gray-800">
+                        {{ user.username }}
+                        {% if user.is_admin %}
+                            <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">管理者</span>
+                        {% endif %}
+                    </span>
+                    <p class="text-sm text-gray-500">登録日時: {{ user.created_at.strftime('%Y/%m/%d %H:%M') }}</p>
+                    <p class="text-sm text-gray-500">記事数: <span class="font-semibold text-gray-700">{{ user_data.post_count }}</span></p>
+                </div>
+                
+                <!-- 管理者権限トグルボタン -->
+                {% if user.id != current_user.id %}
+                <form action="{{ url_for('toggle_admin', user_id=user.id) }}" method="POST">
+                    <!-- CSRFトークンを非表示フィールドとして挿入 -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-sm font-medium py-2 px-4 rounded-lg transition duration-150 shadow-md
+                        {% if user.is_admin %}
+                            bg-yellow-500 hover:bg-yellow-600 text-white
+                        {% else %}
+                            bg-green-500 hover:bg-green-600 text-white
+                        {% endif %}">
+                        {% if user.is_admin %}
+                            権限を解除
+                        {% else %}
+                            管理者に昇格
+                        {% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- ユーザーの記事一覧 -->
+            {% if user_data.posts %}
+                <h3 class="text-lg font-medium text-gray-700 mb-3">投稿記事 ({{ user_data.post_count }} 件)</h3>
+                <div class="space-y-3">
+                    {% for post in user_data.posts %}
+                        <div class="flex justify-between items-center bg-white p-3 border border-gray-100 rounded-lg">
+                            <a href="#" class="text-base font-medium text-blue-600 hover:text-blue-800 truncate max-w-xs md:max-w-md">
+                                {{ post.title }}
+                            </a>
+                            <div class="flex space-x-2 text-sm items-center">
+                                <span class="text-gray-500">{{ post.create_at.strftime('%Y/%m/%d') }}</span>
+                                <!-- 管理者として編集を実行できるリンク -->
+                                <a href="#" class="text-green-500 hover:text-green-700">編集</a>
+                                
+                                <!-- 削除ボタン: カスタムモーダルをトリガー -->
+                                <button 
+                                    type="button" 
+                                    data-post-id="{{ post.id }}" 
+                                    data-post-title="{{ post.title }}" 
+                                    data-delete-url="/delete/{{ post.id }}" 
+                                    data-csrf-token="DUMMY_CSRF_TOKEN_GENERAL_DELETE_{{ post.id }}"
+                                    class="text-red-500 hover:text-red-700 delete-post-btn"
+                                >
+                                    削除
+                                </button>
+                                
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-gray-500 text-sm">この記事の投稿はありません。</p>
+            {% endif %}
         </div>
-    {% endif %}
+    </div>
+    <!-- {% else %} のシミュレーション -->
 </div>
 
 <!-- 削除確認カスタムモーダル -->
 <div id="deleteModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+    <div class="relative top-20 mx-auto p-5 border w-96 max-w-sm shadow-2xl rounded-xl bg-white transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
         <div class="mt-3 text-center">
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.332 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div class="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-red-100">
+                <i class="fas fa-exclamation-triangle h-6 w-6 text-red-600"></i>
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">記事の削除確認</h3>
-            <div class="mt-2 px-7 py-3">
+            <h3 class="text-xl leading-6 font-bold text-gray-900 mt-4">記事の削除確認</h3>
+            <div class="mt-4 px-7 py-3">
                 <p class="text-sm text-gray-500">
-                    警告: 管理者として以下の記事を削除します。本当に実行しますか？
+                    警告: 管理者として以下の記事を**完全に削除**します。この操作は元に戻せません。本当に実行しますか？
                 </p>
-                <p id="postTitleInModal" class="mt-2 font-bold text-gray-800 truncate"></p>
+                <p id="postTitleInModal" class="mt-3 font-extrabold text-indigo-700 truncate text-base"></p>
             </div>
-            <div class="items-center px-4 py-3">
-                <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-150">
-                    はい、削除します
-                </button>
-                <button id="cancelDeleteBtn" class="mt-3 px-4 py-2 bg-gray-200 text-gray-700 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-150">
-                    キャンセル
-                </button>
+            <div class="items-center px-4 py-3 space-y-3">
                 <!-- 実際の削除フォーム (JSで動的に更新・送信される) -->
                 <form id="deleteForm" method="POST" class="hidden">
+                    <!-- CSRFトークンを保持する非表示フィールド -->
                     <input type="hidden" name="csrf_token" id="modalCsrfToken">
                 </form>
+
+                <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-lg w-full shadow-md hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-500 focus:ring-offset-2 transition duration-150 transform hover:scale-[1.01]">
+                    <i class="fas fa-trash-alt mr-2"></i> はい、削除します
+                </button>
+                <button id="cancelDeleteBtn" class="px-4 py-2 bg-gray-200 text-gray-700 text-base font-medium rounded-lg w-full shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-150">
+                    キャンセル
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
+    // Jinjaのnow()関数をJavaScriptでシミュレート（プレビュー用）
+    function now() {
+        const date = new Date();
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const h = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        return {
+            strftime: (format) => {
+                if (format === '%Y/%m/%d %H:%M') return `${y}/${m}/${d} ${h}:${min}`;
+                if (format === '%Y/%m/%d') return `${y}/${m}/${d}`;
+                return date.toISOString();
+            }
+        };
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('deleteModal');
+        const modalContent = document.getElementById('modal-content');
         const confirmBtn = document.getElementById('confirmDeleteBtn');
         const cancelBtn = document.getElementById('cancelDeleteBtn');
         const postTitleDisplay = document.getElementById('postTitleInModal');
@@ -138,19 +273,26 @@
         function showModal(postTitle, deleteUrl, csrfToken) {
             postTitleDisplay.textContent = postTitle;
             deleteForm.action = deleteUrl;
-            modalCsrfToken.value = csrfToken;
+            modalCsrfToken.value = csrfToken; // CSRFトークンをフォームに設定
+            
             modal.classList.remove('hidden');
+            // アニメーションを適用
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+            }, 10);
         }
 
         // モーダル非表示関数
         function hideModal() {
-            modal.classList.add('hidden');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // アニメーション時間と合わせる
         }
 
         // 削除ボタンのリスナーを設定
         document.querySelectorAll('.delete-post-btn').forEach(button => {
             button.addEventListener('click', (event) => {
-                const postId = event.currentTarget.getAttribute('data-post-id');
                 const postTitle = event.currentTarget.getAttribute('data-post-title');
                 const deleteUrl = event.currentTarget.getAttribute('data-delete-url');
                 const csrfToken = event.currentTarget.getAttribute('data-csrf-token');
@@ -171,9 +313,19 @@
 
         // 「はい、削除します」ボタンの動作
         confirmBtn.addEventListener('click', () => {
-            // フォームを送信
+            // CSRFトークンが設定された非表示フォームを送信
             deleteForm.submit();
         });
     });
 </script>
-{% endblock content %}
+</main>
+
+<!-- フッター (base.htmlのシミュレーション) -->
+<footer class="bg-gray-800 text-white p-4 mt-auto">
+    <div class="max-w-7xl mx-auto text-center text-sm">
+        &copy; 2025 Flask Blog Project. All rights reserved.
+    </div>
+</footer>
+
+</body>
+</html>
