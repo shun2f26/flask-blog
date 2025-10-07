@@ -1,363 +1,107 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- ブロックタイトルを静的に設定 -->
-<title>Flask Blog - 新規投稿作成</title>
-<!-- Tailwind CSS CDN -->
-<script src="https://cdn.tailwindcss.com"></script>
-<!-- Font Awesome for Icons (修正済みCDNリンク) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<!-- Firebase SDK Imports -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+{% extends "base.html" %}
 
-    // Firestoreのログレベルを設定
-    setLogLevel('Debug');
+{% block title %}新規投稿作成{% endblock %}
 
-    // グローバルなFirebaseオブジェクトを定義
-    window.db = null;
-    window.auth = null;
-    window.userId = null;
-    window.appId = null;
+{% block content %}
+<div class="py-10">
+    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">新規投稿の作成</h1>
+        <p class="text-sm text-gray-500 mb-6">タイトル、本文、そして画像をアップロードして新しいコンテンツを作成します。</p>
 
-    const setupFirebase = async () => {
-        try {
-            // グローバル変数から設定を取得
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-            window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-            if (!firebaseConfig) {
-                console.error("Firebase config is missing.");
-                return;
-            }
-
-            const app = initializeApp(firebaseConfig);
-            window.db = getFirestore(app);
-            window.auth = getAuth(app);
-
-            // 認証処理
-            if (authToken) {
-                await signInWithCustomToken(window.auth, authToken);
-            } else {
-                await signInAnonymously(window.auth);
-            }
-
-            onAuthStateChanged(window.auth, (user) => {
-                if (user) {
-                    window.userId = user.uid;
-                    console.log("Firebase Auth Ready. User ID:", window.userId);
-                    // 認証完了後、投稿リストのリアルタイムリスナーを開始
-                    window.startPostListener();
-                } else {
-                    console.log("No user signed in.");
-                }
-            });
-
-        } catch (error) {
-            console.error("Firebase initialization failed:", error);
-            document.getElementById('message-box').innerHTML = `
-                <div class="bg-red-100 text-red-800 p-3 rounded-lg flex items-center">
-                    <i class="fas fa-exclamation-triangle mr-2"></i> データベース接続エラー: ${error.message}
-                </div>
-            `;
-            document.getElementById('message-box').classList.remove('hidden');
-        }
-    };
-
-    // グローバルスコープに関数を公開
-    window.savePostToFirestore = async (title, content) => {
-        if (!window.db || !window.userId) {
-            throw new Error("データベースが初期化されていません。");
-        }
-
-        const postsCollectionRef = collection(window.db, `artifacts/${window.appId}/public/data/blog_posts`);
-        
-        const newPost = {
-            title: title,
-            content: content,
-            userId: window.userId,
-            createdAt: serverTimestamp() // サーバー側でタイムスタンプを生成
-        };
-
-        try {
-            await addDoc(postsCollectionRef, newPost);
-            console.log("Post saved successfully.");
-        } catch (error) {
-            console.error("Error saving post to Firestore:", error);
-            throw new Error("投稿の保存中にエラーが発生しました。");
-        }
-    };
-
-    window.startPostListener = () => {
-        if (!window.db) return;
-
-        const postsCollectionRef = collection(window.db, `artifacts/${window.appId}/public/data/blog_posts`);
-        const q = query(postsCollectionRef); 
-
-        onSnapshot(q, (snapshot) => {
-            let posts = [];
-            snapshot.forEach((doc) => {
-                posts.push({ id: doc.id, ...doc.data() });
-            });
+        <!-- フォームアクションは 'create' エンドポイントに POST で送信されることを想定 -->
+        <form id="postForm" class="space-y-6" action="{{ url_for('create') }}" method="POST" enctype="multipart/form-data">
             
-            // クライアント側で作成日時の降順にソート
-            posts.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+            <!-- タイトル入力 -->
+            <div>
+                <label for="title" class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
+                <!-- フォーム検証でエラーメッセージがある場合を想定 -->
+                {% if form.title.errors %}
+                <p class="text-red-500 text-sm mb-1">{% for error in form.title.errors %}{{ error }}{% endfor %}</p>
+                {% endif %}
+                <input type="text" id="title" name="title" required
+                       class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
+                       placeholder="魅力的なタイトルを入力してください"
+                       value="{{ form.title.data if form.title.data }}">
+            </div>
 
-            window.renderPosts(posts);
-        }, (error) => {
-            console.error("Error fetching posts:", error);
-            document.getElementById('posts-list').innerHTML = `<p class="text-red-500">記事の取得中にエラーが発生しました。</p>`;
-        });
-    };
+            <!-- 本文入力 -->
+            <div>
+                <label for="body" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
+                {% if form.body.errors %}
+                <p class="text-red-500 text-sm mb-1">{% for error in form.body.errors %}{{ error }}{% endfor %}</p>
+                {% endif %}
+                <textarea id="body" name="body" rows="8" required
+                          class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
+                          placeholder="投稿の本文を記述してください。">{{ form.body.data if form.body.data }}</textarea>
+            </div>
 
-    window.renderPosts = (posts) => {
-        const postsListDiv = document.getElementById('posts-list');
-        if (!postsListDiv) return;
+            <!-- カテゴリ選択 (オプション) -->
+             <div>
+                <label for="category" class="block text-lg font-medium text-gray-700 mb-2">カテゴリ (オプション)</label>
+                <select id="category" name="category"
+                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base">
+                    <option value="">カテゴリを選択</option>
+                    <option value="Tech">テクノロジー</option>
+                    <option value="Life">ライフスタイル</option>
+                    <option value="Food">食べ物</option>
+                    <!-- 実際にはバックエンドからカテゴリリストを渡す想定 -->
+                </select>
+            </div>
 
-        postsListDiv.innerHTML = ''; // リストをクリア
-
-        if (posts.length === 0) {
-            postsListDiv.innerHTML = `<p class="text-gray-500 italic p-4 bg-gray-50 rounded-lg">まだ投稿がありません。</p>`;
-            return;
-        }
-
-        const listHtml = posts.map(post => {
-            const date = post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleString('ja-JP') : '日付不明';
-            // 投稿者IDを全文表示
-            const fullUserId = post.userId || 'Unknown';
-            return `
-                <div class="p-4 border-b border-gray-100 hover:bg-indigo-50/50 transition duration-100 rounded-lg">
-                    <h4 class="text-xl font-semibold text-indigo-700">${post.title}</h4>
-                    <p class="text-sm text-gray-500 mt-1 mb-2">投稿者ID: <span class="font-mono text-xs bg-gray-200 px-1 py-0.5 rounded">${fullUserId}</span> | 日付: ${date}</p>
-                    <p class="text-gray-600 line-clamp-2">${post.content}</p>
+            <!-- 画像ファイル入力 (Cloudinary連携想定) -->
+            <div>
+                <label for="image" class="block text-lg font-medium text-gray-700 mb-2">画像ファイルの選択 (オプション)</label>
+                <input type="file" id="image" name="image" accept="image/*"
+                       class="block w-full text-sm text-gray-600
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-indigo-50 file:text-indigo-700
+                              hover:file:bg-indigo-100 cursor-pointer">
+                
+                <!-- 画像プレビュー -->
+                <div id="image-preview-container" class="mt-4 hidden">
+                    <p class="text-sm font-medium text-gray-500 mb-2">プレビュー:</p>
+                    <img id="image-preview" src="#" alt="Image Preview" class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" style="max-height: 300px;">
                 </div>
-            `;
-        }).join('');
+            </div>
 
-        postsListDiv.innerHTML = `<div class="space-y-3">${listHtml}</div>`;
-    };
+            <!-- CSRFトークン (Flask-WTFなどを想定) -->
+            <!-- {{ form.csrf_token }} -->
 
-    window.onload = setupFirebase;
-</script>
-<style>
-/* カスタムスタイル */
-body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
-.flash-message { animation: fadeinout 4s forwards; }
-@keyframes fadeinout {
-0%, 100% { opacity: 0; }
-10%, 90% { opacity: 1; }
-}
-/* カスタムメッセージボックスの基本スタイル */
-#message-box {
-    transition: opacity 0.3s ease-in-out;
-}
-/* 入力フィールドのスタイルはTailwindクラスで定義し、カスタムCSSの競合を避けます */
-</style>
-</head>
-<body class="min-h-screen flex flex-col">
+            <!-- 送信ボタン -->
+            <div>
+                <button type="submit" id="submitButton"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                    <i class="fas fa-paper-plane mr-2"></i> 投稿を保存
+                </button>
+            </div>
 
-<!-- ナビゲーションバー (base.htmlの構造を維持) -->
-<nav class="bg-white shadow-lg sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <!-- ロゴ/サイト名 -->
-            <div class="flex items-center">
-                <a href="#" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
-                    My Flask Blog
-                </a>
-            </div>
-            <!-- ナビゲーションリンク -->
-            <div class="flex items-center space-x-4">
-                <a href="#" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
-                <a href="#" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
-            </div>
-        </div>
-    </div>
-</nav>
-
-<!-- フラッシュメッセージエリア -->
-<div class="fixed top-16 left-0 right-0 z-50">
-    <div id="loading-box" class="bg-yellow-100 text-yellow-800 p-3 text-center transition duration-300 hidden">
-        <i class="fas fa-spinner fa-spin mr-2"></i> データベース接続中...
+        </form>
     </div>
 </div>
 
-<!-- メインコンテンツ -->
-<main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-3xl mx-auto">
-        
-        <!-- 作成フォームカード -->
-        <div class="bg-white p-6 sm:p-8 shadow-2xl rounded-xl border-4 border-indigo-100">
-            <h2 class="text-3xl font-extrabold text-gray-900 mb-4 border-b-2 pb-2 border-indigo-200">
-                新しいコンテンツを作成
-                <span id="current-user-id" class="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 float-right mt-3">未認証</span>
-            </h2>
-            <p class="text-gray-500 mb-8">
-                以下のフォームに記入し、新しい記事を公開してください。
-            </p>
-
-            <form id="create-form" onsubmit="handleFormSubmit(event)">
-                <!-- Jinja構文を静的値に置き換え -->
-                <input type="hidden" name="csrf_token" value="static-csrf-token-for-preview">
-
-                <!-- タイトル入力フィールド -->
-                <div class="mb-6">
-                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-                        タイトル <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="title" name="title" required
-                           placeholder="コンテンツのタイトルを入力"
-                            <!-- 枠線と影を明確に追加 -->
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-300 focus:border-indigo-600 transition duration-150 ease-in-out text-gray-900"
-                           maxlength="100">
-                </div>
-
-                <!-- コンテンツ/詳細入力フィールド -->
-                <div class="mb-6">
-                    <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
-                        コンテンツ / 詳細 <span class="text-red-500">*</span>
-                    </label>
-                    <textarea id="content" name="content" rows="10" required
-                              placeholder="詳細な内容をこちらに入力してください"
-                            <!-- 枠線と影を明確に追加 -->
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-4 focus:ring-indigo-300 focus:border-indigo-600 transition duration-150 ease-in-out resize-y text-gray-900"></textarea>
-                </div>
-
-                <!-- 画像アップロード（オプション） -->
-                <div class="mb-8 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-indigo-300">
-                    <label for="postImage" class="block text-sm font-medium text-gray-700 mb-2">画像をアップロード</label>
-                    <input type="file" id="postImage" name="postImage" accept="image/*"
-                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150 ease-in-out">
-                </div>
-                
-                <!-- フォーム送信ボタン -->
-                <div class="flex justify-end">
-                    <button type="submit" id="submit-button"
-                            class="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 disabled:bg-indigo-400">
-                        <i class="fas fa-paper-plane mr-2"></i> 投稿して公開
-                    </button>
-                </div>
-            </form>
-
-            <!-- メッセージ表示エリア (カスタムメッセージボックス) -->
-            <div id="message-box" class="mt-6 p-4 rounded-lg hidden" role="alert">
-                <!-- JavaScriptでメッセージが挿入されます -->
-            </div>
-        </div>
-
-        <!-- 投稿されたコンテンツのリアルタイムリスト -->
-        <div class="mt-12">
-            <h3 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">リアルタイム投稿リスト</h3>
-            <p class="text-sm text-gray-600 mb-4">
-                <i class="fas fa-info-circle mr-1 text-indigo-500"></i> このリストはFirestoreに保存されたデータに基づいており、他のユーザーと共有されます。
-            </p>
-            <div id="posts-list" class="bg-white shadow-xl rounded-xl divide-y divide-gray-100 min-h-[100px] flex items-center justify-center">
-                <p class="text-gray-400">投稿を読み込み中...</p>
-            </div>
-        </div>
-
-    </div>
-</main>
-
-<!-- フッター (base.htmlの構造を維持) -->
-<footer class="bg-gray-800 text-white p-4 mt-auto">
-    <div class="max-w-7xl mx-auto text-center text-sm">
-        &copy; 2025 Flask Blog Project. All rights reserved.
-    </div>
-</footer>
-
-<!-- JavaScript for Form Handling and Firestore Interaction -->
 <script>
-    const submitButton = document.getElementById('submit-button');
-    const loadingBox = document.getElementById('loading-box');
-    
-    /**
-     * フォーム送信時の処理
-     * @param {Event} event - フォームイベントオブジェクト
-     */
-    async function handleFormSubmit(event) {
-        event.preventDefault(); // フォームの標準送信を防止
+    document.addEventListener('DOMContentLoaded', () => {
+        const imageInput = document.getElementById('image');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
 
-        if (!window.db || !window.userId) {
-            showMessage('データベースがまだ準備できていません。しばらく待ってから再度お試しください。', 'bg-red-100 text-red-800', 5000);
-            return;
-        }
-
-        const titleInput = document.getElementById('title');
-        const contentInput = document.getElementById('content');
-        
-        const title = titleInput.value.trim();
-        const content = contentInput.value.trim();
-
-        // 簡易バリデーション
-        if (!title || !content) {
-            showMessage('タイトルとコンテンツは必須です。', 'bg-red-100 text-red-800', 5000);
-            return;
-        }
-
-        // 投稿処理開始: ボタンを無効化し、ローディングを表示
-        submitButton.disabled = true;
-        submitButton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> 投稿中...`;
-        loadingBox.classList.remove('hidden');
-
-        try {
-            await window.savePostToFirestore(title, content);
-            
-            // 成功メッセージを表示
-            showMessage('コンテンツの作成に成功し、公開されました！', 'bg-green-100 text-green-800', 5000);
-
-            // フォームをリセット
-            document.getElementById('create-form').reset();
-
-        } catch (error) {
-            console.error("投稿処理に失敗しました:", error);
-            showMessage(`投稿エラー: ${error.message}`, 'bg-red-100 text-red-800', 10000);
-        } finally {
-            // 投稿処理完了: ボタンを元に戻し、ローディングを非表示
-            submitButton.disabled = false;
-            submitButton.innerHTML = `<i class="fas fa-paper-plane mr-2"></i> 投稿して公開`;
-            loadingBox.classList.add('hidden');
-        }
-    }
-
-    /**
-     * ユーザーへのメッセージを表示
-     * @param {string} message - 表示するテキスト
-     * @param {string} classes - Tailwind CSSの背景色と文字色のクラス
-     * @param {number} duration - メッセージを表示する時間（ミリ秒）
-     */
-    function showMessage(message, classes) {
-        const messageBox = document.getElementById('message-box');
-        // メッセージを更新し、クラスを適用
-        messageBox.textContent = message;
-        messageBox.className = `mt-6 p-4 rounded-lg ${classes}`;
-        messageBox.classList.remove('hidden');
-
-        // 5秒後にメッセージを非表示にする
-        setTimeout(() => {
-            messageBox.classList.add('hidden');
-        }, 5000);
-    }
-    
-    // ユーザーIDの表示を更新する
-    window.addEventListener('load', () => {
-        // Firebase初期化完了後にIDを表示するため、setTimeoutで遅延
-        setTimeout(() => {
-            const userIdDisplay = document.getElementById('current-user-id');
-            if (window.userId && userIdDisplay) {
-                // 画面上部のID表示を更新
-                userIdDisplay.textContent = window.userId;
-            } else if (userIdDisplay) {
-                userIdDisplay.textContent = '匿名ユーザー';
+        // --- 画像プレビュー機能 ---
+        imageInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            } else {
+                imagePreview.src = '#';
+                imagePreviewContainer.classList.add('hidden');
             }
-            loadingBox.classList.add('hidden');
-        }, 1500); // Firebase初期化の完了を待つために少し遅延
+        });
     });
 </script>
-</body>
-</html>
+{% endblock %}
