@@ -1,6 +1,6 @@
 import os
 import sys
-import time # timeモジュールは使われていませんでしたが、念のため削除せず残します。strftimeを使っている箇所がコメントアウトされているため。
+import time
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -155,12 +155,12 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                            validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                           validators=[DataRequired(message='ユーザー名は必須です。'),
+                                       Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                              validators=[DataRequired(message='パスワードは必須です。'),
-                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                             validators=[DataRequired(message='パスワードは必須です。'),
+                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
                                      validators=[DataRequired(message='パスワード確認は必須です。'),
@@ -404,7 +404,7 @@ def dashboard():
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事投稿ページ (統合テンプレートを使用)"""
+    """新規記事投稿ページ (create.htmlを使用)"""
     form = PostForm()
 
     if form.validate_on_submit():
@@ -424,7 +424,8 @@ def create():
                 flash('画像付きで記事が正常に投稿されました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                return render_template('create_update.html', title='新規投稿', form=form, post=None, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
+                # テンプレート名を create.html に修正
+                return render_template('create.html', title='新規投稿', form=form, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
         new_post = Post(title=title,
                         content=content,
@@ -434,16 +435,17 @@ def create():
         db.session.add(new_post)
         db.session.commit()
         if not public_id:
-             flash('新しい記事が正常に投稿されました。', 'success')
+            flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('create_update.html', title='新規投稿', form=form, post=None, current_image_url=None, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
+    # テンプレート名を create.html に修正。postとcurrent_image_urlは新規作成時には不要。
+    return render_template('create.html', title='新規投稿', form=form, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事編集ページ (統合テンプレートを使用)"""
+    """記事編集ページ (update.htmlを使用)"""
     post = db.session.get(Post, post_id)
 
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
@@ -474,7 +476,7 @@ def update(post_id):
             try:
                 # 既存の画像を削除してから新しい画像をアップロード
                 if post.public_id:
-                     cloudinary.uploader.destroy(post.public_id)
+                    cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
                 flash('新しい画像が正常にアップロードされました。', 'success')
@@ -487,12 +489,13 @@ def update(post_id):
         if current_user.is_admin and post.user_id != current_user.id:
               return redirect(url_for('admin'))
         else:
-              return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard'))
 
     # テンプレート側で get_cloudinary_url ヘルパー関数を使用
     current_image_url = get_safe_cloudinary_url(post.public_id, width=200, crop="scale")
 
-    return render_template('create_update.html',
+    # テンプレート名を update.html に修正
+    return render_template('update.html',
                            post=post,
                            title='記事編集',
                            form=form,
