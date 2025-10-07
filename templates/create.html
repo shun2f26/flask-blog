@@ -1,107 +1,85 @@
 {% extends "base.html" %}
 
-{% block title %}新規投稿作成{% endblock %}
+{% block title %}新規投稿{% endblock %}
 
 {% block content %}
-<div class="py-10">
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">新規投稿の作成</h1>
-        <p class="text-sm text-gray-500 mb-6">タイトル、本文、そして画像をアップロードして新しいコンテンツを作成します。</p>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    body { font-family: "Inter", sans-serif; }
+    /* エラーメッセージ用のカスタムスタイル */
+    .error-message {
+        font-size: 0.875rem; /* text-sm */
+        color: #ef4444; /* text-red-500 */
+        margin-top: 0.25rem;
+    }
+</style>
 
-        <!-- フォームアクションは 'create' エンドポイントに POST で送信されることを想定 -->
-        <form id="postForm" class="space-y-6" action="{{ url_for('create') }}" method="POST" enctype="multipart/form-data">
-            
-            <!-- タイトル入力 -->
-            <div>
-                <label for="title" class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
-                <!-- フォーム検証でエラーメッセージがある場合を想定 -->
-                {% if form.title.errors %}
-                <p class="text-red-500 text-sm mb-1">{% for error in form.title.errors %}{{ error }}{% endfor %}</p>
-                {% endif %}
-                <input type="text" id="title" name="title" required
-                       class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                       placeholder="魅力的なタイトルを入力してください"
-                       value="{{ form.title.data if form.title.data }}">
-            </div>
+<div class="min-h-screen bg-gray-100 p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto">
+        
+        <!-- ヘッダー -->
+        <div class="mb-8 p-6 bg-white shadow-xl rounded-xl border-t-4 border-indigo-500">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-2">
+                <i class="fas fa-pen-nib text-indigo-500 mr-3"></i>
+                新規投稿作成
+            </h1>
+            <p class="text-gray-500">新しいブログ記事を作成し、画像と共に公開します。</p>
+        </div>
 
-            <!-- 本文入力 -->
-            <div>
-                <label for="body" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-                {% if form.body.errors %}
-                <p class="text-red-500 text-sm mb-1">{% for error in form.body.errors %}{{ error }}{% endfor %}</p>
-                {% endif %}
-                <textarea id="body" name="body" rows="8" required
-                          class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
-                          placeholder="投稿の本文を記述してください。">{{ form.body.data if form.body.data }}</textarea>
-            </div>
+        <!-- 投稿フォーム -->
+        <!-- ファイルアップロードを可能にするため、enctype="multipart/form-data" を追加 -->
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+            <form method="POST" action="{{ url_for('create') }}" enctype="multipart/form-data">
+                {{ form.hidden_tag() }}
 
-            <!-- カテゴリ選択 (オプション) -->
-             <div>
-                <label for="category" class="block text-lg font-medium text-gray-700 mb-2">カテゴリ (オプション)</label>
-                <select id="category" name="category"
-                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base">
-                    <option value="">カテゴリを選択</option>
-                    <option value="Tech">テクノロジー</option>
-                    <option value="Life">ライフスタイル</option>
-                    <option value="Food">食べ物</option>
-                    <!-- 実際にはバックエンドからカテゴリリストを渡す想定 -->
-                </select>
-            </div>
-
-            <!-- 画像ファイル入力 (Cloudinary連携想定) -->
-            <div>
-                <label for="image" class="block text-lg font-medium text-gray-700 mb-2">画像ファイルの選択 (オプション)</label>
-                <input type="file" id="image" name="image" accept="image/*"
-                       class="block w-full text-sm text-gray-600
-                              file:mr-4 file:py-2 file:px-4
-                              file:rounded-full file:border-0
-                              file:text-sm file:font-semibold
-                              file:bg-indigo-50 file:text-indigo-700
-                              hover:file:bg-indigo-100 cursor-pointer">
-                
-                <!-- 画像プレビュー -->
-                <div id="image-preview-container" class="mt-4 hidden">
-                    <p class="text-sm font-medium text-gray-500 mb-2">プレビュー:</p>
-                    <img id="image-preview" src="#" alt="Image Preview" class="max-w-full h-auto rounded-lg shadow-md border border-gray-200 object-cover" style="max-height: 300px;">
+                <!-- 1. タイトルフィールド -->
+                <div class="mb-6">
+                    {{ form.title.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
+                    {{ form.title(class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150", placeholder="記事のタイトルを入力してください") }}
+                    
+                    {% if form.title.errors %}
+                        {% for error in form.title.errors %}
+                            <p class="error-message">{{ error }}</p>
+                        {% endfor %}
+                    {% endif %}
                 </div>
-            </div>
 
-            <!-- CSRFトークン (Flask-WTFなどを想定) -->
-            <!-- {{ form.csrf_token }} -->
+                <!-- 2. 本文フィールド (form.content に修正) -->
+                <div class="mb-6">
+                    {{ form.content.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
+                    {{ form.content(class="mt-1 block w-full h-72 px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 resize-y", placeholder="記事の本文をMarkdown形式などで入力してください") }}
+                    
+                    {% if form.content.errors %}
+                        {% for error in form.content.errors %}
+                            <p class="error-message">{{ error }}</p>
+                        {% endfor %}
+                    {% endif %}
+                </div>
 
-            <!-- 送信ボタン -->
-            <div>
-                <button type="submit" id="submitButton"
-                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                    <i class="fas fa-paper-plane mr-2"></i> 投稿を保存
-                </button>
-            </div>
+                <!-- 3. 画像ファイルフィールド (form.image を追加) -->
+                <div class="mb-8">
+                    {{ form.image.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
+                    <!-- form.image は FileField なので、classはinput[type=file]向けに調整 -->
+                    {{ form.image(class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100") }}
+                    
+                    {% if form.image.errors %}
+                        {% for error in form.image.errors %}
+                            <p class="error-message">{{ error }}</p>
+                        {% endfor %}
+                    {% endif %}
+                    <p class="text-sm text-gray-500 mt-2">許可されるファイル形式: JPG, PNG, GIF</p>
+                </div>
 
-        </form>
+                <!-- 4. 送信ボタン -->
+                <div class="flex justify-end space-x-4">
+                    <a href="{{ url_for('admin') }}" class="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition duration-150">
+                        キャンセル
+                    </a>
+                    {{ form.submit(class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 cursor-pointer") }}
+                </div>
+            </form>
+        </div>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const imageInput = document.getElementById('image');
-        const imagePreview = document.getElementById('image-preview');
-        const imagePreviewContainer = document.getElementById('image-preview-container');
-
-        // --- 画像プレビュー機能 ---
-        imageInput.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                    imagePreviewContainer.classList.remove('hidden');
-                }
-                reader.readAsDataURL(file);
-            } else {
-                imagePreview.src = '#';
-                imagePreviewContainer.classList.add('hidden');
-            }
-        });
-    });
-</script>
 {% endblock %}
