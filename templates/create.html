@@ -1,182 +1,187 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- タイトルを新規作成用に変更 -->
-    <title>Flask Blog | 新規記事を作成</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons CDN for modern icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        /* グローバル設定：フォントと背景 */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f6;
-        }
-        .container {
-            width: 100%;
-            margin-right: auto;
-            margin-left: auto;
-        }
-        /* Custom styling for file input to match theme */
-        .file-input-custom::-webkit-file-upload-button {
-            border: 0;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px; /* rounded-full */
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 600; /* font-semibold */
-            background-color: #fee2e2; /* red-100 */
-            color: #b91c1c; /* red-700 */
-            cursor: pointer;
-            transition: background-color 0.15s;
-        }
-        .file-input-custom::file-selector-button {
-            border: 0;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px; /* rounded-full */
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 600; /* font-semibold */
-            background-color: #fee2e2; /* red-100 */
-            color: #b91c1c; /* red-700 */
-            cursor: pointer;
-            transition: background-color 0.15s;
-        }
-        .file-input-custom:hover::-webkit-file-upload-button,
-        .file-input-custom:hover::file-selector-button {
-            background-color: fecaca; /* red-200 */
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- ブロックタイトルを静的に設定 -->
+<title>Flask Blog - 新規投稿作成</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Font Awesome for Icons (修正済みCDNリンク) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+/* カスタムスタイル */
+body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+.flash-message { animation: fadeinout 4s forwards; }
+@keyframes fadeinout {
+0%, 100% { opacity: 0; }
+10%, 90% { opacity: 1; }
+}
+/* カスタムメッセージボックスの基本スタイル */
+#message-box {
+    transition: opacity 0.3s ease-in-out;
+}
+</style>
 </head>
 <body class="min-h-screen flex flex-col">
-    <!-- Navbar (ベーステンプレートから統合) -->
-    <nav class="bg-white shadow-lg sticky top-0 z-10">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex-shrink-0">
-                    <a href="{{ url_for('index') }}" class="text-xl font-bold text-gray-800 hover:text-red-600 transition duration-150">
-                        My Flask Blog
-                    </a>
-                </div>
-                <!-- 認証済みユーザーのシミュレーション -->
-                <div class="flex items-center space-x-4">
-                    <!-- 管理者リンク (モック) -->
-                    <a href="{{ url_for('admin') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
-                        <i data-lucide="shield" class="w-4 h-4 mr-1"></i> 管理者
-                    </a>
-                    <!-- 新規投稿 (自分自身へのリンク) -->
-                    <a href="{{ url_for('create') }}" class="bg-red-600 text-white hover:bg-red-700 px-3 py-2 rounded-lg text-sm font-medium transition duration-150 flex items-center shadow-md">
-                        <i data-lucide="plus-circle" class="w-4 h-4 mr-1"></i> 新規投稿
-                    </a>
-                    <!-- ログアウト -->
-                    <a href="{{ url_for('logout') }}" class="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium flex items-center">
-                        <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> ログアウト
-                    </a>
-                </div>
+
+<!-- ナビゲーションバー (base.htmlの構造を維持) -->
+<nav class="bg-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <!-- ロゴ/サイト名 -->
+            <div class="flex items-center">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
+                    My Flask Blog
+                </a>
+            </div>
+            <!-- ナビゲーションリンク (認証状態を静的にシミュレート) -->
+            <div class="flex items-center space-x-4">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
+                
+                <!-- 認証済みユーザーのリンクをシミュレート -->
+                <a href="#" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
             </div>
         </div>
-    </nav>
-
-    <!-- Flash Messages (モックの通知メッセージを表示) -->
-    <div class="container mx-auto px-4 pt-4">
-        <!-- 情報メッセージのモック -->
-        <div class="p-3 mb-4 rounded-lg shadow-md bg-blue-100 text-blue-800 border border-blue-300" role="alert">
-            <span class="font-semibold">ヒント:</span> 新しい記事を作成し、公開するにはすべての必須フィールドに入力してください。
-        </div>
     </div>
+</nav>
 
-    <!-- Main Content Block - 記事新規作成フォーム -->
-    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
-        <div class="max-w-3xl mx-auto bg-white p-8 md:p-10 rounded-xl shadow-2xl border border-gray-100">
-            <!-- 見出しを新規作成用に変更 -->
-            <h1 class="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-3 flex items-center">
-                <i data-lucide="file-plus" class="w-7 h-7 mr-3 text-red-600"></i> 新規記事を作成
-            </h1>
-            
-            <!-- フォームの開始 -->
-            <!-- actionをcreate_submit (新規投稿) に変更 -->
-            <form id="create-post-form" action="#create_submit" method="POST" enctype="multipart/form-data">
-                
-                <!-- タイトルフィールド -->
+<!-- フラッシュメッセージエリア (Jinja構文は削除し、カスタムメッセージボックスを使用) -->
+<div class="fixed top-16 left-0 right-0 z-50">
+    <!-- Jinjaブロックは機能しないため削除 -->
+</div>
+
+<!-- メインコンテンツ -->
+<main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+    <!-- {% block content %} の内容をここに挿入 -->
+    <div class="max-w-3xl mx-auto">
+        
+        <!-- 作成フォームカード -->
+        <div class="bg-white p-6 sm:p-8 shadow-2xl rounded-xl border border-gray-200">
+            <h2 class="text-3xl font-extrabold text-gray-900 mb-4 border-b pb-2">
+                新しいコンテンツを作成
+            </h2>
+            <p class="text-gray-500 mb-8">
+                以下のフォームに記入し、新しい記事を公開してください。
+            </p>
+
+            <form id="create-form" onsubmit="handleFormSubmit(event)">
+                <!-- 
+                    【CSRFトークン実装箇所】
+                    このhiddenフィールドがCSRFトークンをサーバーから受け取り、
+                    ユーザーには表示されないようにします。
+                    Flask環境でこのテンプレートがレンダリングされる際にトークンが設定されます。
+                -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- タイトル入力フィールド -->
                 <div class="mb-6">
-                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">タイトル <span class="text-red-500">*</span></label>
-                    <!-- 初期値は空にする -->
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                        タイトル <span class="text-red-500">*</span>
+                    </label>
                     <input type="text" id="title" name="title" required
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm text-gray-900"
-                           placeholder="記事のタイトルを入力してください">
+                           placeholder="コンテンツのタイトルを入力"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out text-gray-900"
+                           maxlength="100">
                 </div>
 
-                <!-- コンテンツフィールド -->
+                <!-- コンテンツ/詳細入力フィールド -->
                 <div class="mb-6">
-                    <label for="content" class="block text-sm font-medium text-gray-700 mb-1">コンテンツ <span class="text-red-500">*</span></label>
-                    <!-- 初期値は空にする -->
-                    <textarea id="content" name="content" rows="15" required
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm text-gray-900"
-                              placeholder="記事の本文を入力してください（HTMLも利用可能）"></textarea>
+                    <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+                        コンテンツ / 詳細 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="content" name="content" rows="10" required
+                              placeholder="詳細な内容をこちらに入力してください"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out resize-y text-gray-900"></textarea>
                 </div>
 
-                <!-- 画像アップロードエリア (プレビューなし) -->
-                <div class="mb-6 p-4 border border-red-200 rounded-lg bg-red-50">
-                    <h3 class="text-lg font-semibold text-red-700 mb-3 flex items-center">
-                        <i data-lucide="image" class="w-5 h-5 mr-2"></i> サムネイル画像
-                    </h3>
-                    
-                    <!-- 画像アップロードフィールド -->
-                    <div class="mb-4">
-                        <label for="image_file" class="block text-sm font-medium text-gray-700 mb-1">画像をアップロード (任意)</label>
-                        <input type="file" id="image_file" name="image_file" accept="image/*" 
-                               class="block w-full text-sm text-gray-500 file-input-custom">
-                        <p class="mt-1 text-xs text-gray-500">JPG, PNG, GIF, 最大 5MB。</p>
-                    </div>
+                <!-- 画像アップロード（オプション） -->
+                <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                    <label for="postImage" class="block text-sm font-medium text-gray-700 mb-2">画像をアップロード</label>
+                    <input type="file" id="postImage" name="postImage" accept="image/*"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150 ease-in-out">
                 </div>
-
-                <!-- フォームアクションボタン -->
-                <div class="mt-8 pt-6 border-t flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
-                    <!-- 戻るボタン -->
-                    <a href="{{ url_for('index') }}" id="cancel-link" class="inline-flex justify-center items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
-                        <i data-lucide="x" class="w-5 h-5 mr-2"></i> キャンセル
-                    </a>
-                    <!-- 投稿ボタンに変更 -->
-                    <button type="submit" class="inline-flex justify-center items-center px-6 py-3 border border-transparent shadow-md text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150">
-                        <i data-lucide="send" class="w-5 h-5 mr-2"></i> 記事を投稿
+                
+                <!-- フォーム送信ボタン -->
+                <div class="flex justify-end">
+                    <button type="submit"
+                            class="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+                        <i class="fas fa-paper-plane mr-2"></i> 投稿して公開
                     </button>
-                    <!-- 編集画面特有の「削除ボタン」は削除しました -->
                 </div>
             </form>
+
+            <!-- メッセージ表示エリア (カスタムメッセージボックス) -->
+            <div id="message-box" class="mt-6 p-4 rounded-lg hidden" role="alert">
+                <!-- JavaScriptでメッセージが挿入されます -->
+            </div>
         </div>
-    </main>
+    </div>
+    <!-- {% endblock content %} -->
+</main>
 
-    <!-- Footer (ベーステンプレートから統合) -->
-    <footer class="bg-gray-800 text-white py-4 mt-auto">
-        <div class="container mx-auto text-center text-sm">
-            &copy; 2024 Flask Blog App. All Rights Reserved.
-        </div>
-    </footer>
+<!-- フッター (base.htmlの構造を維持) -->
+<footer class="bg-gray-800 text-white p-4 mt-auto">
+    <div class="max-w-7xl mx-auto text-center text-sm">
+        <!-- Jinja: &copy; {{ now().year }} -->
+        &copy; 2025 Flask Blog Project. All rights reserved.
+    </div>
+</footer>
 
-    <script>
-        // Lucide Iconsの実行
-        lucide.createIcons();
+<!-- JavaScript for Form Handling -->
+<script>
+    /**
+     * フォーム送信時の処理
+     * @param {Event} event - フォームイベントオブジェクト
+     */
+    function handleFormSubmit(event) {
+        event.preventDefault(); // フォームの標準送信を防止
 
-        // JavaScriptでフォーム送信を処理する（モック）
-        document.getElementById('create-post-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            const title = document.getElementById('title').value;
-            const content = document.getElementById('content').value;
-            
-            console.log('新規記事の作成処理を開始します...');
-            console.log('タイトル:', title);
-            
-            // 投稿処理後、成功メッセージを表示し、トップページなどにリダイレクト（モック）
-            // 🚨 注意: 実際のアプリケーションでは、alert()の代わりにカスタムモーダルを使用してください。
-            alert(`新しい記事「${title.substring(0, 20)}...」が正常に投稿されました！`);
-            window.location.hash = '#index'; 
-            
-            // 実際のFlaskアプリでは、form.validate_on_submit()後に
-            // redirect(url_for('index')) などが行われます。
-        });
-    </script>
+        const title = document.getElementById('title').value;
+        const content = document.getElementById('content').value;
+        const imageFile = document.getElementById('postImage').files[0];
+        // CSRFトークンを取得 (サーバーに送信されるが、クライアント側では特に利用しない)
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value; 
+        
+        // 簡易バリデーション
+        if (!title || !content) {
+            showMessage('タイトルとコンテンツは必須です。', 'bg-red-100 text-red-800');
+            return;
+        }
+
+        // フォームデータの表示（通常はここでAPI送信処理を行う）
+        console.log('--- フォームデータ ---');
+        console.log('タイトル:', title);
+        console.log('コンテンツ:', content.substring(0, 50) + '...');
+        console.log('画像ファイル:', imageFile ? imageFile.name : 'なし');
+        console.log('CSRFトークン:', csrfToken); // 動作確認のためコンソールにのみ表示
+        
+        // 成功メッセージを表示
+        showMessage('コンテンツの作成リクエストを送信しました。', 'bg-green-100 text-green-800');
+
+        // フォームをリセット
+        document.getElementById('create-form').reset();
+    }
+
+    /**
+     * ユーザーへのメッセージを表示
+     * @param {string} message - 表示するテキスト
+     * @param {string} classes - Tailwind CSSの背景色と文字色のクラス
+     */
+    function showMessage(message, classes) {
+        const messageBox = document.getElementById('message-box');
+        // メッセージを更新し、クラスを適用
+        messageBox.textContent = message;
+        messageBox.className = `mt-6 p-4 rounded-lg ${classes}`;
+        messageBox.classList.remove('hidden');
+
+        // 5秒後にメッセージを非表示にする
+        setTimeout(() => {
+            messageBox.classList.add('hidden');
+        }, 5000);
+    }
+</script>
 </body>
 </html>
