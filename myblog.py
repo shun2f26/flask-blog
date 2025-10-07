@@ -22,10 +22,9 @@ from flask_wtf.file import FileField, FileAllowed
 
 
 # --- Cloudinary設定と依存性チェック ---
-# 環境変数はRenderのEnvironment Variablesで設定されることを想定
 CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
 API_KEY = os.environ.get('CLOUDINARY_API_KEY')
-API_SECRET = os.environ.get('CLOUD_SECRET') # CLOUDINARY_API_SECRETから変更
+API_SECRET = os.environ.get('CLOUDINARY_API_SECRET') # CLOUD_SECRETから一般的な名前に戻しました
 
 CLOUDINARY_AVAILABLE = False
 cloudinary = None
@@ -63,7 +62,7 @@ def get_safe_cloudinary_url(public_id, **kwargs):
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     
-    # デフォルトの変換オプション
+    # デフォルトの変換オプションを適用 (Web最適化)
     kwargs.setdefault('width', 600)
     kwargs.setdefault('crop', 'limit')
     kwargs.setdefault('fetch_format', 'auto')
@@ -132,7 +131,6 @@ def now():
     return datetime.now(timezone(timedelta(hours=9)))
 
 # --- カスタムJinjaフィルターの定義と登録 ---
-# ユーザーの要求により、関数名を datetimeformat に統一
 def datetimeformat(value, format_string='%Y年%m月%d日 %H:%M'):
     """
     日付/時刻オブジェクトを指定された形式の文字列にフォーマットするフィルター。
@@ -145,8 +143,13 @@ def datetimeformat(value, format_string='%Y年%m月%d日 %H:%M'):
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         # DBに保存されたDateTimeオブジェクトには通常tzinfoがないため、JSTとして扱う
         jst = timezone(timedelta(hours=9))
-        value = value.replace(tzinfo=jst)
-    
+        # データベースから取得したnaive datetimeをJSTとして設定
+        try:
+            value = value.replace(tzinfo=jst)
+        except ValueError:
+             # 例外処理: 既にtzinfoがある場合など
+            pass
+
     return value.strftime(format_string)
 
 # Jinja環境に 'datetimeformat' フィルターとして登録
@@ -186,12 +189,10 @@ class Post(db.Model):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     public_id = db.Column(db.String(100), nullable=True) # Cloudinary Public ID
-    # 修正: create_at を created_at に変更し、Userモデルと統一
-    created_at = db.Column(db.DateTime, nullable=False, default=now)
+    created_at = db.Column(db.DateTime, nullable=False, default=now) # フィールド名を created_at に統一
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
 
     def __repr__(self):
-        # 修正: self.create_at を self.created_at に変更
         return f"Post('{self.title}', '{self.created_at}')"
 
 
@@ -283,7 +284,7 @@ def admin_required(f):
 @app.route("/index")
 def index():
     """ブログ記事一覧ページ (全ユーザーの最新記事)"""
-    # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+    # 修正: Post.created_at.desc() に変更
     posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
     return render_template('index.html', title='ホーム', posts=posts)
 
@@ -301,7 +302,7 @@ def user_blog(username):
         flash(f'ユーザー "{username}" は見つかりませんでした。', 'danger')
         return redirect(url_for('index'))
 
-    # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+    # 修正: Post.created_at.desc() に変更
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=target_user.id)
@@ -478,6 +479,8 @@ def create():
         image_file = request.files.get(form.image.name)
         public_id = None
         
+        is_image_uploaded = False
+        
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
                 # Cloudinaryにアップロード
@@ -487,7 +490,7 @@ def create():
                     resource_type="image"
                 )
                 public_id = upload_result.get('public_id')
-                # 画像のアップロードに成功した場合は、このメッセージを出す
+                is_image_uploaded = True
                 flash('記事と画像が正常に投稿されました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
@@ -495,16 +498,15 @@ def create():
             
         
         # flashメッセージのロジックを調整: 画像が試行されなかった、または画像アップロードに成功しなかった場合（画像なしの成功）
-        if not public_id and not (image_file and image_file.filename != ''):
-             flash('新しい記事が正常に投稿されました。', 'success')
+        if not is_image_uploaded:
+            flash('新しい記事が正常に投稿されました。', 'success')
 
 
         new_post = Post(title=title,
-                              content=content,
-                              user_id=current_user.id,
-                              public_id=public_id,
-                              # 修正: create_at を created_at に変更
-                              created_at=now())
+                        content=content,
+                        user_id=current_user.id,
+                        public_id=public_id,
+                        created_at=now()) # フィールド名を created_at に修正
         db.session.add(new_post)
         db.session.commit()
         
@@ -574,6 +576,7 @@ def update(post_id):
         return redirect(url_for('admin'))
 
     # GETリクエストの場合、またはバリデーションエラーの場合
+    # current_image_url はテンプレートで使用するために作成 (update.htmlで利用)
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
@@ -646,13 +649,13 @@ def admin():
             })
             
         # 管理者は全記事も取得
-        # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+        # 修正: Post.created_at.desc() に変更
         posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
         title = '管理者ダッシュボード'
         
     else:
         # 一般ユーザー: 自分の記事のみ取得
-        # 修正: Post.create_at.desc() を Post.created_at.desc() に変更
+        # 修正: Post.created_at.desc() に変更
         posts = db.session.execute(
             db.select(Post)
             .filter_by(user_id=current_user.id)
