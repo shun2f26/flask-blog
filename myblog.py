@@ -1,5 +1,6 @@
 import os
 import sys
+import time # timeモジュールは使われていませんでしたが、念のため削除せず残します。strftimeを使っている箇所がコメントアウトされているため。
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -8,7 +9,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy.orm import relationship, aliased
-from sqlalchemy import func, select 
+from sqlalchemy import func, select
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
 
@@ -16,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError
+# ファイルアップロードのための新しいインポート
+from flask_wtf.file import FileField, FileAllowed
 
 
 # --- Cloudinary設定と依存性チェック ---
@@ -24,8 +27,7 @@ API_KEY = os.environ.get('CLOUDINARY_API_KEY')
 API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
 
 CLOUDINARY_AVAILABLE = False
-# cloudinaryモジュール自体はtryブロックの外で宣言しておく
-cloudinary = None 
+cloudinary = None
 try:
     if CLOUD_NAME and API_KEY and API_SECRET:
         import cloudinary as actual_cloudinary # 実際のモジュールを別名でインポート
@@ -40,8 +42,10 @@ try:
         cloudinary = actual_cloudinary # グローバル変数に設定
         CLOUDINARY_AVAILABLE = True
     else:
+        # 環境変数が設定されていない場合
         pass
 except ImportError:
+    # モジュールが見つからない場合
     pass
 except Exception as e:
     print(f"Cloudinary configuration failed: {e}. Image features disabled.", file=sys.stderr)
@@ -85,11 +89,16 @@ login_manager = LoginManager()
 migrate = Migrate()
 csrf = CSRFProtect()
 
+# シークレットキーはデバッグモード以外では必須です
+app.secret_key = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_blog')
+
+# インメモリの投稿リストと関連変数 (posts, next_id) はデータベース実装と重複するため削除
+
 db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
-csrf.init_app(app) 
-migrate.init_app(app, db) 
+csrf.init_app(app)
+migrate.init_app(app, db)
 
 login_manager.login_view = 'login'
 login_manager.login_message = 'このページにアクセスするにはログインが必要です。'
@@ -109,8 +118,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    is_admin = db.Column(db.Boolean, default=False, nullable=False) 
-    created_at = db.Column(db.DateTime, nullable=False, default=now) 
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
     posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
 
     reset_token = db.Column(db.String(256), nullable=True)
@@ -123,7 +132,7 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         """入力されたパスワードとハッシュを比較する"""
         return bcrypt.check_password_hash(self.password_hash, password)
-    
+
     def __repr__(self):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
 
@@ -146,8 +155,8 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                           validators=[DataRequired(message='ユーザー名は必須です。'),
-                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                            validators=[DataRequired(message='ユーザー名は必須です。'),
+                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                               validators=[DataRequired(message='パスワードは必須です。'),
@@ -161,7 +170,7 @@ class RegistrationForm(FlaskForm):
 
     def validate_username(self, username):
         """ユーザー名の一意性を検証"""
-        user = User.query.filter_by(username=username.data).first()
+        user = db.session.execute(db.select(User).filter_by(username=username.data)).scalar_one_or_none()
         if user:
             raise ValidationError('そのユーザー名はすでに使用されています。')
 
@@ -173,9 +182,12 @@ class LoginForm(FlaskForm):
     submit = SubmitField('ログイン')
 
 class PostForm(FlaskForm):
-    """記事投稿・編集用のフォームクラス"""
+    """記事投稿・編集用のフォームクラス (画像ファイルフィールドを追加)"""
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
+    image = FileField('画像をアップロード (任意)', validators=[
+        FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみをアップロードできます')
+    ])
     submit = SubmitField('投稿')
 
 class RequestResetForm(FlaskForm):
@@ -194,10 +206,10 @@ class ResetPasswordForm(FlaskForm):
 @app.context_processor
 def inject_globals():
     """Jinja2テンプレートにグローバル変数とヘルパーを注入します。"""
-    
+
     return {
         'now': datetime.now,
-        'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE, 
+        'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE,
         'get_cloudinary_url': get_safe_cloudinary_url # 安全なヘルパー関数を注入
     }
 
@@ -225,6 +237,7 @@ def admin_required(f):
 @app.route("/index")
 def index():
     """ブログ記事一覧ページ (全ユーザーの最新記事)"""
+    # ページネーションを実装するとより良いが、ここでは単純に全件取得
     posts = db.session.execute(db.select(Post).order_by(Post.create_at.desc())).scalars().all()
     return render_template('index.html', title='ホーム', posts=posts)
 
@@ -237,29 +250,29 @@ def index():
 def user_blog(username):
     """特定のユーザーの公開ブログページ"""
     target_user = db.session.execute(db.select(User).filter_by(username=username)).scalar_one_or_none()
-    
+
     if not target_user:
         flash(f'ユーザー "{username}" は見つかりませんでした。', 'danger')
         return redirect(url_for('index'))
-        
+
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=target_user.id)
         .order_by(Post.create_at.desc())
     ).scalars().all()
-    
-    return render_template('user_blog.html', 
-                           title=f'{username} のブログ', 
-                           target_user=target_user, 
+
+    return render_template('user_blog.html',
+                           title=f'{username} のブログ',
+                           target_user=target_user,
                            posts=posts)
-                           
+
 @app.route('/view/<int:post_id>')
 def view(post_id):
     """個別の記事を表示するページ"""
     post = db.session.get(Post, post_id)
     if not post:
         abort(404)
-        
+
     # image_url の計算はテンプレート側のヘルパー関数に任せる
     return render_template('view.html', post=post, title=post.title)
 
@@ -272,7 +285,7 @@ def view(post_id):
 def login():
     """ログインページ"""
     if current_user.is_authenticated:
-        return redirect(url_for('admin'))
+        return redirect(url_for('dashboard')) # ログイン後はダッシュボードへ
 
     form = LoginForm()
 
@@ -286,7 +299,7 @@ def login():
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash(f'ログインに成功しました！ようこそ、{user.username}さん。', 'success')
-            return redirect(next_page or url_for('admin'))
+            return redirect(next_page or url_for('dashboard')) # ログイン後はダッシュボードへ
         else:
             flash('ユーザー名またはパスワードが正しくありません。', 'danger')
 
@@ -307,7 +320,7 @@ def signup():
 
         new_user = User(username=username)
         new_user.set_password(password)
-        
+
         is_first_user = db.session.execute(db.select(User).limit(1)).scalar_one_or_none() is None
 
         if is_first_user:
@@ -318,7 +331,7 @@ def signup():
 
         db.session.add(new_user)
         db.session.commit()
-        
+
         return redirect(url_for('login'))
 
     return render_template('signup.html', title='サインアップ', form=form)
@@ -331,7 +344,7 @@ def logout():
     logout_user()
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
-    
+
 # -----------------------------------------------
 # パスワードリセット関連 (ダミー実装)
 # -----------------------------------------------
@@ -340,25 +353,28 @@ def logout():
 def forgot_password():
     """パスワードリセット要求ページ (forgot_password.htmlをレンダリング)"""
     form = RequestResetForm()
-    
+
     if form.validate_on_submit():
         flash(f'ユーザー名 "{form.username.data}" にリセットリンクを送信しました。(※ダミー)', 'info')
+        # ここで実際にはリセットトークンを生成し、メールを送信する
         return redirect(url_for('login'))
-        
+
     return render_template('forgot_password.html', title='パスワードを忘れた場合', form=form)
 
 
 @app.route('/reset_password/<path:token>', methods=['GET', 'POST'])
 def reset_password(token):
     """パスワードリセット実行ページ (reset_password.htmlをレンダリング)"""
+    # 実際にはここでトークンの検証を行う
     form = ResetPasswordForm()
-    
+
     if form.validate_on_submit():
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。(※ダミー)', 'success')
+        # 実際にはここでユーザーのパスワードを更新する
         return redirect(url_for('login'))
-    
+
     print(f"Received reset token: {token}", file=sys.stderr)
-    
+
     return render_template('reset_password.html', title='パスワードリセット', form=form)
 
 
@@ -375,9 +391,9 @@ def dashboard():
         .filter_by(user_id=current_user.id)
         .order_by(Post.create_at.desc())
     ).scalars().all()
-    
-    return render_template('dashboard.html', 
-                           title=f'{current_user.username} のダッシュボード', 
+
+    return render_template('dashboard.html',
+                           title=f'{current_user.username} のダッシュボード',
                            posts=posts)
 
 
@@ -389,25 +405,26 @@ def dashboard():
 @login_required
 def create():
     """新規記事投稿ページ (統合テンプレートを使用)"""
-    post = Post(title='', content='') # ダミーオブジェクト
     form = PostForm()
-    
+
     if form.validate_on_submit():
         title = form.title.data
         content = form.content.data
         
-        image_file = request.files.get('image')
+        # フォームから直接ファイルを取得 (WTFormsのFileFieldを使用)
+        image_file = request.files.get(form.image.name)
         public_id = None
-
+        
+        # Cloudinaryが利用可能で、ファイルがアップロードされた場合
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
                 # cloudinary.uploader は CLOUDINARY_AVAILABLE のチェックにより安全に呼び出される
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 public_id = upload_result.get('public_id')
-                flash('画像付きで記事が正常に投稿されました。', 'success') 
+                flash('画像付きで記事が正常に投稿されました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                return render_template('create_update.html', title='新規投稿', form=form, post=post)
+                return render_template('create_update.html', title='新規投稿', form=form, post=None, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
         new_post = Post(title=title,
                         content=content,
@@ -416,10 +433,11 @@ def create():
                         create_at=now())
         db.session.add(new_post)
         db.session.commit()
-        flash('新しい記事が正常に投稿されました。', 'success')
+        if not public_id:
+             flash('新しい記事が正常に投稿されました。', 'success')
         return redirect(url_for('dashboard'))
 
-    return render_template('create_update.html', title='新規投稿', form=form, post=None, current_image_url=None)
+    return render_template('create_update.html', title='新規投稿', form=form, post=None, current_image_url=None, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
@@ -427,7 +445,7 @@ def create():
 def update(post_id):
     """記事編集ページ (統合テンプレートを使用)"""
     post = db.session.get(Post, post_id)
-    
+
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('編集権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
@@ -437,8 +455,9 @@ def update(post_id):
     if form.validate_on_submit():
         post.title = form.title.data
         post.content = form.content.data
-        
-        image_file = request.files.get('image')
+
+        # フォームから直接ファイルを取得
+        image_file = request.files.get(form.image.name)
         delete_image = request.form.get('delete_image')
 
         # 画像削除処理
@@ -453,29 +472,32 @@ def update(post_id):
         # 新規画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
-                if post.public_id: cloudinary.uploader.destroy(post.public_id)
+                # 既存の画像を削除してから新しい画像をアップロード
+                if post.public_id:
+                     cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
                 flash('新しい画像が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-        
+
         db.session.commit()
         flash('記事が正常に更新されました。', 'success')
-        
+
         if current_user.is_admin and post.user_id != current_user.id:
               return redirect(url_for('admin'))
         else:
               return redirect(url_for('dashboard'))
-    
-    # テンプレート側で get_cloudinary_url ヘルパー関数を使用するため、current_image_url の計算は不要
+
+    # テンプレート側で get_cloudinary_url ヘルパー関数を使用
     current_image_url = get_safe_cloudinary_url(post.public_id, width=200, crop="scale")
 
-    return render_template('create_update.html', 
-                           post=post, 
-                           title='記事編集', 
-                           form=form, 
-                           current_image_url=current_image_url)
+    return render_template('create_update.html',
+                           post=post,
+                           title='記事編集',
+                           form=form,
+                           current_image_url=current_image_url,
+                           CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -483,13 +505,13 @@ def update(post_id):
 def delete(post_id):
     """記事削除処理"""
     post = db.session.get(Post, post_id)
-    
+
     target_redirect = 'dashboard'
 
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('削除権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
-        
+
     if current_user.is_admin and post.user_id != current_user.id:
         target_redirect = 'admin'
 
@@ -502,7 +524,7 @@ def delete(post_id):
     db.session.delete(post)
     db.session.commit()
     flash('記事が正常に削除されました。', 'success')
-    
+
     return redirect(url_for(target_redirect))
 
 
@@ -527,22 +549,19 @@ def admin():
         post_count_sq,
         User.id == post_count_sq.c.user_id
     ).order_by(User.created_at.desc())
-    
+
     users_data = db.session.execute(users_with_count_stmt).all()
-    
+
     users = []
     for user_obj, post_count in users_data:
-        user_posts = db.session.execute(
-            db.select(Post).filter_by(user_id=user_obj.id).order_by(Post.create_at.desc())
-        ).scalars().all()
-
+        # 管理者ダッシュボードでは、各ユーザーの最新記事数のみを表示する
         users.append({
             'user': user_obj,
             'post_count': post_count or 0,
-            'posts': user_posts
+            # 'posts' リストは管理画面の表示をシンプルにするため、ここでは取得を省略
         })
-        
-    return render_template('admin.html', 
+
+    return render_template('admin.html',
                            users=users,
                            title='管理者ダッシュボード')
 
@@ -560,7 +579,7 @@ def toggle_admin(user_id):
     if not user:
         flash('ユーザーが見つかりませんでした。', 'danger')
         return redirect(url_for('admin'))
-        
+
     user.is_admin = not user.is_admin
     db.session.commit()
 
@@ -570,8 +589,8 @@ def toggle_admin(user_id):
         flash(f'ユーザー "{user.username}" の管理者権限を解除しました。', 'info')
 
     return redirect(url_for('admin'))
-    
-    
+
+
 # -----------------------------------------------
 # その他ユーティリティ (エラーハンドリングを含む)
 # -----------------------------------------------
@@ -583,9 +602,10 @@ def db_reset():
         try:
             with app.app_context():
                 db.session.close()
-                db.drop_all() 
-                db.create_all() 
+                db.drop_all()
+                db.create_all()
                 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
+                    # PostgreSQLではalembic_versionテーブルの削除が必要になる場合がある
                     db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
                     db.session.commit()
                 flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
@@ -603,7 +623,7 @@ def db_reset():
 @login_required
 def account():
     # account.html をレンダリング
-    return render_template('account.html', title='アカウント設定') 
+    return render_template('account.html', title='アカウント設定')
 
 # カスタムエラーハンドラはエラーテンプレートをレンダリングするように変更
 
@@ -615,13 +635,14 @@ def not_found_error(error):
 @app.errorhandler(403)
 def forbidden_error(error):
     """403エラーハンドラ (権限なし)"""
-    flash('アクセス権限がありません。', 'danger')
-    return redirect(url_for('index'))
-    
+    # ユーザーがログインしていない場合は login_required によってログインページにリダイレクトされるため、
+    # ここに来るのはログインしているが権限がない場合が多い
+    return render_template('error_page.html', title='403 Forbidden', error_code=403, message='このリソースにアクセスする権限がありません。'), 403
+
 @app.errorhandler(500)
 def internal_error(error):
     """500エラーハンドラ (内部サーバーエラー)"""
-    db.session.rollback() 
+    db.session.rollback()
     return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
 
 
