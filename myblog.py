@@ -233,7 +233,7 @@ class PostForm(FlaskForm):
     image = FileField('画像をアップロード (任意)', validators=[
         FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみをアップロードできます')
     ])
-    submit = SubmitField('投稿')
+    submit = SubmitField('更新')
 
 class RequestResetForm(FlaskForm):
     """パスワードリセット要求用のフォームクラス"""
