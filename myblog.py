@@ -131,6 +131,24 @@ def now():
     """現在の日本時間 (JST) を返すヘルパー関数"""
     return datetime.now(timezone(timedelta(hours=9)))
 
+# --- カスタムJinjaフィルターの定義と登録 ---
+def date_format_filter(value, format_string='%Y年%m月%d日 %H:%M'):
+    """
+    日付/時刻オブジェクトを指定された形式の文字列にフォーマットするフィルター。
+    JST (UTC+9) に対応。
+    """
+    # タイムゾーン情報がない場合は、アプリケーションのデフォルト（JST）と見なす
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        # DBに保存されたDateTimeオブジェクトには通常tzinfoがないため、JSTとして扱う
+        jst = timezone(timedelta(hours=9))
+        value = value.replace(tzinfo=jst)
+    
+    return value.strftime(format_string)
+
+# Jinja環境に 'date_format' フィルターとして登録
+app.jinja_env.filters['date_format'] = date_format_filter
+
+
 # --- モデル定義 ---
 
 class User(UserMixin, db.Model):
