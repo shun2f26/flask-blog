@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -7,8 +6,8 @@
 <title>Flask Blog - {% block title %}{% endblock %}</title>
 <!-- Tailwind CSS CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- Font Awesome for Icons -->
-<link rel="stylesheet" href="https://www.google.com/search?q=https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<!-- Font Awesome for Icons (修正済み: 正しいCDNリンク) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
 /* カスタムスタイル */
 body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
@@ -23,61 +22,61 @@ body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
 
 <!-- ナビゲーションバー -->
 <nav class="bg-white shadow-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <!-- ロゴ/サイト名 -->
-            <div class="flex items-center">
-                <a href="{{ url_for('index') }}" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
-                    My Flask Blog
-                </a>
-            </div>
-            <!-- ナビゲーションリンク -->
-            <div class="flex items-center space-x-4">
-                <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
-                
-                {% if current_user.is_authenticated %}
-                    {% if current_user.is_admin %}
-                        <a href="{{ url_for('admin') }}" class="text-red-600 hover:text-red-800 font-medium transition duration-150">管理者</a>
-                    {% endif %}
-                    <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ダッシュボード</a>
-                    <a href="{{ url_for('logout') }}" class="py-1 px-3 border border-red-400 text-red-600 hover:bg-red-50 rounded-lg transition duration-150">ログアウト</a>
-                {% else %}
-                    <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ログイン</a>
-                    <a href="{{ url_for('signup') }}" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <!-- ロゴ/サイト名 -->
+            <div class="flex items-center">
+                <a href="{{ url_for('index') }}" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
+                    My Flask Blog
+                </a>
+            </div>
+            <!-- ナビゲーションリンク -->
+            <div class="flex items-center space-x-4">
+                <a href="{{ url_for('index') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
+                
+                {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('admin') }}" class="text-red-600 hover:text-red-800 font-medium transition duration-150">管理者</a>
+                    {% endif %}
+                    <a href="{{ url_for('dashboard') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ダッシュボード</a>
+                    <a href="{{ url_for('logout') }}" class="py-1 px-3 border border-red-400 text-red-600 hover:bg-red-50 rounded-lg transition duration-150">ログアウト</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ログイン</a>
+                    <a href="{{ url_for('signup') }}" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </nav>
 
 <!-- フラッシュメッセージエリア -->
 <div class="fixed top-16 left-0 right-0 z-50">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-            <div class="flash-message p-3 text-center text-white 
-                {% if category == 'success' %}bg-green-500
-                {% elif category == 'danger' %}bg-red-500
-                {% elif category == 'info' %}bg-blue-500
-                {% else %}bg-gray-500
-                {% endif %}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash-message p-3 text-center text-white 
+                {% if category == 'success' %}bg-green-500
+                {% elif category == 'danger' %}bg-red-500
+                {% elif category == 'info' %}bg-blue-500
+                {% else %}bg-gray-500
+                {% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 </div>
 
 <!-- メインコンテンツ -->
 <main class="flex-grow">
-    {% block content %}{% endblock %}
+    {% block content %}{% endblock %}
 </main>
 
 <!-- フッター -->
 <footer class="bg-gray-800 text-white p-4 mt-auto">
-    <div class="max-w-7xl mx-auto text-center text-sm">
-        &copy; {{ now().year }} Flask Blog Project. All rights reserved.
-    </div>
+    <div class="max-w-7xl mx-auto text-center text-sm">
+        &copy; {{ now().year }} Flask Blog Project. All rights reserved.
+    </div>
 </footer>
 
 </body>
