@@ -29,7 +29,7 @@
             <p class="flex items-center">
                 <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
                 <!-- dateformat を datetimeformat に修正 -->
-                <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat }}</time>
+                <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat('%Y-%m-%d') }}</time>
             </p>
             
             <!-- カテゴリ (post.category はモデルに存在しないため削除またはコメントアウト) -->
