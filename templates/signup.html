@@ -62,17 +62,6 @@
                     {% endif %}
                 </div>
                 
-                <!-- メールアドレス -->
-                <div>
-                    <label for="email" class="sr-only">メールアドレス</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="メールアドレス"
-                           value="{{ form.email.data if form.email.data }}">
-                    {% if form.email.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.email.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
-                </div>
 
                 <!-- パスワード -->
                 <div>
