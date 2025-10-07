@@ -1,173 +1,174 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
 {% block title %}{{ post.title }}{% endblock %}
 
 {% block content %}
-
-<!-- カスタムモーダルのためのCSS（Tailwind CSSを使用） -->
-<style>
-    /* モーダルオーバーレイのスタイル */
-    .modal-overlay {
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-        z-index: 50; /* Tailwind z-50 */
-    }
-    .modal-overlay.active {
-        visibility: visible;
-        opacity: 1;
-    }
-    /* モーダルコンテナのスタイル */
-    .modal-container {
-        transform: translateY(-50px);
-        transition: transform 0.3s ease, opacity 0.3s ease;
-    }
-    .modal-overlay.active .modal-container {
-        transform: translateY(0);
-    }
-</style>
-
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <article class="bg-white p-8 rounded-xl shadow-2xl">
-        <h1 class="text-4xl font-extrabold text-gray-900 mb-4">{{ post.title }}</h1>
-
-        <div class="flex items-center text-sm text-gray-500 mb-6 border-b pb-3">
-            <span class="mr-4"><i class="fas fa-user-circle mr-1"></i>
-                <a href="{{ url_for('user_blog', username=post.author.username) }}" class="hover:text-red-600">{{ post.author.username }}</a>
-            </span>
-            <span class="mr-4"><i class="fas fa-clock mr-1"></i> {{ post.create_at.strftime('%Y年%m月%d日 %H:%M') }}</span>
-        </div>
-
-        <!-- 記事画像表示 -->
-        <!-- NOTE: get_cloudinary_urlが利用可能であると仮定してそのまま残しています。 -->
-        {% set image_url = get_cloudinary_url(post.public_id, width=800, crop="limit") %}
-        {% if image_url %}
-        <div class="mb-8 w-full">
-            <img src="{{ image_url }}"
-                 alt="{{ post.title }} のメイン画像"
-                 class="rounded-lg shadow-lg max-w-full h-auto mx-auto" />
-        </div>
-        {% endif %}
-
-        <!-- 記事本文 -->
-        <!-- proseクラスはMarkdownやリッチテキストの内容を美しく表示するためにTailwind Typographyプラグインを想定 -->
-        <div class="prose max-w-none text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
-            {{ post.content }}
-        </div>
-
-        <!-- 編集・削除ボタン -->
-        {% if current_user.is_authenticated and (current_user.id == post.user_id or current_user.is_admin) %}
-        <div class="mt-10 pt-6 border-t flex space-x-4">
-            <a href="{{ url_for('update', post_id=post.id) }}"
-               class="py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition">
-                <i class="fas fa-edit"></i> 編集
-            </a>
+<div class="py-10">
+    <div class="max-w-4xl mx-auto">
+        <!-- 投稿カード -->
+        <article class="bg-white shadow-2xl rounded-xl overflow-hidden mb-10 p-6 md:p-8">
             
-            <!-- 削除フォーム (onsubmitからwindow.confirmを削除) -->
-            <form id="delete-form" method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <!-- 削除ボタンにIDを追加し、モーダルを開くトリガーとする -->
-                <button type="button" id="delete-button"
-                        class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition">
-                    <i class="fas fa-trash-alt"></i> 削除
-                </button>
-            </form>
+            <!-- 投稿ヘッダーとメタ情報 -->
+            <div class="flex justify-between items-start mb-6 border-b pb-4">
+                <div>
+                    <h1 class="text-4xl font-extrabold text-gray-900 leading-tight mb-2">{{ post.title }}</h1>
+                    <div class="text-sm text-gray-500 flex items-center space-x-4">
+                        <p>
+                            <i class="fas fa-user-circle mr-1"></i>
+                            作成者: <span class="font-semibold text-gray-700">{{ post.author.username }}</span>
+                        </p>
+                        <p>
+                            <i class="fas fa-calendar-alt mr-1"></i>
+                            作成日: <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | dateformat }}</time>
+                        </p>
+                        {% if post.category %}
+                        <span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            {{ post.category }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 操作ボタン (編集・削除) -->
+                <!-- ユーザーが投稿者か管理者である場合のみ表示されることを想定 -->
+                {% if current_user.id == post.author_id %}
+                <div class="flex space-x-3 mt-1">
+                    <a href="{{ url_for('update', post_id=post.id) }}"
+                       class="text-blue-600 hover:text-blue-800 transition duration-150 ease-in-out p-2 rounded-full hover:bg-blue-50"
+                       title="編集">
+                        <i class="fas fa-edit text-xl"></i>
+                    </a>
+                    <!-- 削除ボタン（モーダル表示を想定） -->
+                    <button id="deleteButton"
+                            data-post-id="{{ post.id }}"
+                            class="text-red-600 hover:text-red-800 transition duration-150 ease-in-out p-2 rounded-full hover:bg-red-50"
+                            title="削除">
+                        <i class="fas fa-trash-alt text-xl"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 投稿画像 -->
+            {% if post.image_url %}
+            <figure class="mb-8">
+                <img src="{{ post.image_url }}" alt="{{ post.title }}" class="w-full h-auto max-h-96 object-cover rounded-xl shadow-lg border border-gray-100">
+            </figure>
+            {% endif %}
+
+            <!-- 投稿本文 -->
+            <div class="prose prose-lg max-w-none text-gray-800">
+                <!-- 本文はマークダウンなどで記述されている場合を想定し、安全に出力する -->
+                <!-- 例: {{ post.body | safe }} または | markdown_to_html -->
+                <p class="whitespace-pre-wrap">{{ post.body }}</p>
+            </div>
+        </article>
+        
+        <!-- コメントセクション -->
+        <section class="bg-white shadow-xl rounded-xl p-6 md:p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2"><i class="fas fa-comments mr-2"></i> コメント ({{ post.comments|length }})</h2>
+
+            <!-- コメントフォーム (ダミー) -->
+            <div class="mb-8">
+                <form action="{{ url_for('add_comment', post_id=post.id) }}" method="POST" class="space-y-4">
+                    <textarea name="comment_text" rows="3" required
+                              class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="コメントを入力してください..." {% if not current_user.is_authenticated %}disabled{% endif %}></textarea>
+                    <button type="submit"
+                            class="py-2 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out disabled:bg-indigo-300"
+                            {% if not current_user.is_authenticated %}disabled{% endif %}>
+                        コメントを送信
+                    </button>
+                    {% if not current_user.is_authenticated %}
+                    <p class="text-sm text-red-500">コメントを投稿するには<a href="{{ url_for('login') }}" class="underline hover:text-red-600 font-medium">ログイン</a>が必要です。</p>
+                    {% endif %}
+                </form>
+            </div>
+
+            <!-- 既存のコメント一覧 -->
+            <div class="space-y-6">
+                {% for comment in post.comments %}
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-semibold text-gray-800">
+                            <i class="fas fa-user-edit mr-1"></i> {{ comment.author.username }}
+                        </p>
+                        <time datetime="{{ comment.created_at | datetimeformat }}" class="text-xs text-gray-500">
+                            {{ comment.created_at | dateformat_short }}
+                        </time>
+                    </div>
+                    <p class="text-gray-700 whitespace-pre-wrap">{{ comment.text }}</p>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center py-4">まだコメントはありません。最初のコメントを投稿しましょう！</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- 削除確認モーダル (ダミー) -->
+        <div id="deleteModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">投稿を削除しますか？</h3>
+                <p class="text-gray-600 mb-6">この操作は元に戻せません。本当にこの投稿を削除しますか？</p>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelDelete"
+                            class="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-150">
+                        キャンセル
+                    </button>
+                    <!-- 実際にはJavaScriptでフォームを送信するか、ページ遷移を行う -->
+                    <button id="confirmDelete"
+                            class="py-2 px-4 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition duration-150">
+                        削除する
+                    </button>
+                </div>
+            </div>
         </div>
-        {% endif %}
-    </article>
-    <div class="mt-8 text-center">
-        <a href="{{ url_for('index') }}" class="text-red-600 hover:text-red-800 transition text-lg font-medium">
-            <i class="fas fa-arrow-left mr-1"></i> 記事一覧に戻る
-        </a>
+        
     </div>
 </div>
 
-<!-- 削除確認カスタムモーダル -->
-<div id="delete-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center p-4">
-    <div class="modal-container bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-        <div class="text-center">
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
-            </div>
-            <h3 class="text-lg leading-6 font-bold text-gray-900 mt-3">記事の削除確認</h3>
-            <div class="mt-2">
-                <p class="text-sm text-gray-500">
-                    本当にこの記事を削除してもよろしいですか？一度削除すると元に戻すことはできません。
-                </p>
-            </div>
-        </div>
-        <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">
-            <!-- 削除実行ボタン -->
-            <button type="button" id="confirm-delete-button"
-                    class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition duration-150">
-                はい、削除します
-            </button>
-            <!-- キャンセルボタン -->
-            <button type="button" id="cancel-delete-button"
-                    class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm transition duration-150">
-                キャンセル
-            </button>
-        </div>
-    </div>
-</div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const deleteButton = document.getElementById('deleteButton');
+        const deleteModal = document.getElementById('deleteModal');
+        const cancelDelete = document.getElementById('cancelDelete');
+        const confirmDelete = document.getElementById('confirmDelete');
 
-{% endblock %}
+        if (deleteButton) {
+            const postId = deleteButton.dataset.postId;
 
-{% block scripts %}
-    {{ super() }}
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const deleteButton = document.getElementById('delete-button');
-            const deleteForm = document.getElementById('delete-form');
-            const deleteModal = document.getElementById('delete-modal');
-            const confirmDeleteButton = document.getElementById('confirm-delete-button');
-            const cancelDeleteButton = document.getElementById('cancel-delete-button');
+            deleteButton.addEventListener('click', () => {
+                deleteModal.classList.remove('hidden');
+            });
 
-            /**
-             * モーダルを表示する
-             */
-            const showModal = () => {
-                deleteModal.classList.add('active');
-            };
+            cancelDelete.addEventListener('click', () => {
+                deleteModal.classList.add('hidden');
+            });
 
-            /**
-             * モーダルを非表示にする
-             */
-            const hideModal = () => {
-                deleteModal.classList.remove('active');
-            };
+            confirmDelete.addEventListener('click', () => {
+                // 実際には、ここに削除エンドポイントへのPOSTリクエストやフォーム送信のロジックを記述します。
+                // 例: window.location.href = `/post/${postId}/delete_confirm`;
+                console.log(`Deleting post ID: ${postId}`);
+                
+                // 削除実行のため、削除エンドポイントへPOSTリクエストを送るフォームを動的に作成し送信
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{{ url_for("delete", post_id=post.id) }}';
+                // CSRFトークンなどが必要な場合は、ここに追加
+                // const csrfToken = document.querySelector('input[name="csrf_token"]');
+                // if (csrfToken) form.appendChild(csrfToken.cloneNode());
 
-            // 1. 削除ボタンクリックでモーダルを表示
-            if (deleteButton) {
-                deleteButton.addEventListener('click', (e) => {
-                    e.preventDefault(); // フォームのデフォルト送信を防止
-                    showModal();
-                });
-            }
-
-            // 2. モーダル内の「キャンセル」ボタンで非表示
-            if (cancelDeleteButton) {
-                cancelDeleteButton.addEventListener('click', hideModal);
-            }
-
-            // 3. オーバーレイクリックでモーダルを非表示 (モーダル自体は除く)
-            if (deleteModal) {
-                deleteModal.addEventListener('click', (e) => {
-                    if (e.target === deleteModal) {
-                        hideModal();
-                    }
-                });
-            }
-
-            // 4. モーダル内の「はい、削除します」ボタンでフォームを送信
-            if (confirmDeleteButton) {
-                confirmDeleteButton.addEventListener('click', () => {
-                    // モーダルを非表示にした後、フォームを送信
-                    hideModal();
-                    // 削除処理の実行
-                    console.log('記事を削除しています...');
-                    deleteForm.submit();
-                });
-            }
-        });
-    </script>
+                document.body.appendChild(form);
+                form.submit();
+            });
+            
+            // モーダルの外側をクリックで閉じる
+            deleteModal.addEventListener('click', (e) => {
+                if (e.target === deleteModal) {
+                    deleteModal.classList.add('hidden');
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
