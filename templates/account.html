@@ -1,146 +1,184 @@
 {% extends "base.html" %}
 
-{% block title %}アカウント設定{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
+    /* Interフォントを適用 */
     body { font-family: "Inter", sans-serif; }
+    /* モーダルの背景を固定 */
+    .modal-overlay {
+        backdrop-filter: blur(4px);
+    }
 </style>
 
 <div class="min-h-screen bg-gray-50 p-4 sm:p-8">
-    <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-2xl">
-        <div class="flex items-center mb-8">
-            <!-- admin.html への戻るリンク -->
-            <a href="{{ url_for('admin') }}" class="text-indigo-500 hover:text-indigo-700 transition duration-150 mr-4 p-2 rounded-full hover:bg-gray-100">
+    <div class="max-w-2xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-2xl">
+        <div class="flex items-center mb-10">
+            <!-- ブログトップへの戻るリンク (必要に応じてURLを変更してください) -->
+            <a href="{{ url_for('index') }}" class="text-indigo-500 hover:text-indigo-700 transition duration-150 mr-4 p-2 rounded-full hover:bg-gray-100">
                 <i class="fas fa-arrow-left text-lg"></i>
             </a>
             <h1 class="text-3xl font-extrabold text-gray-900">
-                <i class="fas fa-user-circle text-purple-500 mr-2"></i>
-                アカウント設定
+                <i class="fas fa-user-cog text-purple-500 mr-2"></i>
+                {{ title }}
             </h1>
         </div>
-        
-        <!-- タブナビゲーション（実際の切り替えはJavaScript/サーバーサイドで行う） -->
-        <div class="border-b border-gray-200 mb-8">
-            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                <span class="border-indigo-500 text-indigo-600 whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm cursor-pointer">
-                    プロフィール更新
-                </span>
-                <span class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm cursor-pointer">
-                    パスワード変更
-                </span>
-                <span class="border-transparent text-red-500 hover:text-red-700 hover:border-red-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm cursor-pointer">
-                    アカウント削除
-                </span>
-            </nav>
-        </div>
 
-        <!-- 1. プロフィール更新フォーム -->
-        <section id="profile-section" class="space-y-6 pb-8 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-800">プロフィールの編集</h2>
-            <form action="{{ url_for('update_profile') }}" method="POST" class="space-y-4">
+        <!-- 1. ユーザー名 (username) 更新フォーム -->
+        <section id="username-section" class="space-y-6 pb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 border-l-4 border-indigo-500 pl-3">
+                <i class="fas fa-user-edit mr-2 text-indigo-500"></i>
+                ユーザー名の更新
+            </h2>
+            <form action="{{ url_for('update_username') }}" method="POST" class="space-y-4">
                 
-                <!-- ユーザー名 -->
+                <!-- ユーザー名 (username) -->
                 <div>
-                    <label for="acc_username" class="block text-sm font-medium text-gray-700 mb-1">ユーザー名</label>
-                    <input type="text" id="acc_username" name="username" value="現在のユーザー名" required
+                    <label for="acc_username" class="block text-sm font-medium text-gray-700 mb-1">現在のユーザー名 / 新しいユーザー名</label>
+                    
+                    <input type="text" id="acc_username" name="username" 
+                           value="{% if current_user %}{{ current_user.username }}{% endif %}" required
                            class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                           placeholder="ユーザー名">
-                </div>
-
-                <!-- メールアドレス -->
-                <div>
-                    <label for="acc_email" class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
-                    <input type="email" id="acc_email" name="email" value="current@example.com" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                           placeholder="メールアドレス">
+                           placeholder="新しいユーザー名を入力">
                 </div>
                 
-                <!-- プロフィール更新ボタン -->
+                <!-- ユーザー名更新ボタン -->
                 <button type="submit"
-                        class="w-full sm:w-auto flex items-center justify-center py-2 px-6 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <i class="fas fa-save mr-2"></i>
-                    プロフィールを更新
+                         class="w-full sm:w-auto flex items-center justify-center py-2 px-6 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    ユーザー名を更新
                 </button>
             </form>
         </section>
 
-        <!-- 2. パスワード変更フォーム -->
+        <!-- 2. パスワード (password_hash) 変更フォーム -->
         <section id="password-section" class="space-y-6 pt-8 pb-8 border-b border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-800">パスワードの変更</h2>
-            <p class="text-sm text-gray-500">新しいパスワードを設定するため、現在のパスワードと新しいパスワードを入力してください。</p>
+            <h2 class="text-2xl font-bold text-gray-800 border-l-4 border-purple-500 pl-3">
+                <i class="fas fa-lock mr-2 text-purple-500"></i>
+                パスワードの変更
+            </h2>
             <form action="{{ url_for('change_password') }}" method="POST" class="space-y-4">
                 
                 <!-- 現在のパスワード -->
                 <div>
                     <label for="current_password" class="block text-sm font-medium text-gray-700 mb-1">現在のパスワード</label>
                     <input type="password" id="current_password" name="current_password" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-purple-500 focus:border-purple-500">
                 </div>
                 
                 <!-- 新しいパスワード -->
                 <div>
                     <label for="new_password" class="block text-sm font-medium text-gray-700 mb-1">新しいパスワード</label>
                     <input type="password" id="new_password" name="new_password" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-purple-500 focus:border-purple-500">
                 </div>
 
                 <!-- パスワード確認 -->
                 <div>
                     <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">新しいパスワード（確認）</label>
                     <input type="password" id="confirm_password" name="confirm_password" required
-                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                           class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-purple-500 focus:border-purple-500">
                 </div>
 
                 <!-- パスワード変更ボタン -->
                 <button type="submit"
-                        class="w-full sm:w-auto flex items-center justify-center py-2 px-6 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                         class="w-full sm:w-auto flex items-center justify-center py-2 px-6 border border-transparent text-base font-medium rounded-lg text-white bg-purple-600 hover:bg-purple-700 transition duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
                     <i class="fas fa-key mr-2"></i>
                     パスワードを変更
                 </button>
             </form>
         </section>
 
-        <!-- 3. アカウント削除エリア -->
+        <!-- 3. アカウント削除（退会）エリア -->
         <section id="delete-section" class="space-y-6 pt-8 bg-red-50 p-6 rounded-xl border-2 border-red-300">
-            <h2 class="text-2xl font-bold text-red-700">アカウントの削除</h2>
+            <h2 class="text-2xl font-bold text-red-700 border-l-4 border-red-500 pl-3">
+                <i class="fas fa-trash-alt mr-2 text-red-500"></i>
+                退会（アカウント削除）
+            </h2>
             <p class="text-sm text-red-600">
-                **注意：** この操作は元に戻せません。アカウントを削除すると、すべての関連データが完全に削除されます。続行する前に、この決定をよく検討してください。
+                この操作は元に戻せません。アカウントを削除すると、すべてのデータが完全に削除されます。
             </p>
-            <button type="button" onclick="confirmAccountDeletion()"
+            
+            <!-- 確認モーダルを表示するためのボタン -->
+            <button type="button" onclick="showDeleteModal()"
                     class="w-full sm:w-auto flex items-center justify-center py-2 px-6 border border-transparent text-base font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 transition duration-150 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <i class="fas fa-times-circle mr-2"></i>
                 アカウントを完全に削除
             </button>
         </section>
     </div>
 </div>
 
-<script>
-// IMPORTANT: カスタムモーダルを使用してユーザーに確認を求めます。
-// iframe環境では、alert() や confirm() は使用しないでください。
-function confirmAccountDeletion() {
-    console.log("アカウント削除の確認モーダルを表示する必要があります。");
+<!-- アカウント削除確認モーダル (confirm()の代替) -->
+<div id="deleteModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <!-- モーダルオーバーレイ -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 modal-overlay transition-opacity" aria-hidden="true"></div>
 
-    // 実際のアプリケーションでは、ここにカスタムモーダル表示ロジックを実装します。
-    // if (showCustomConfirmModal("本当にアカウントを削除しますか？")) {
-    //     // ユーザーが確認した場合、サーバーの削除エンドポイントへリクエストを送信
-    //     // window.location.href = "{{ url_for('delete_account') }}";
-    // }
-    
-    // デモンストレーションのため、一時的にメッセージを表示
-    const modalMessage = document.createElement('div');
-    modalMessage.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modalMessage.innerHTML = `
-        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-            <p class="text-lg font-semibold text-red-600 mb-4">アカウント削除の確認</p>
-            <p class="text-gray-700 mb-6">本当にアカウントを削除しますか？この操作は元に戻せません。</p>
-            <button onclick="this.parentNode.parentNode.remove()" class="py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150">閉じる</button>
+        <!-- モーダルパネル -->
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                            アカウント削除の最終確認
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500">
+                                本当にアカウントを削除してもよろしいですか？この操作を実行すると、**ブログ記事を含むすべてのデータが完全に失われます**。
+                            </p>
+                            <p class="text-sm font-bold text-red-500 mt-2">
+                                この操作は元に戻せません！
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <!-- 削除実行フォーム -->
+                <form id="deleteForm" action="{{ url_for('delete_account') }}" method="POST">
+                    <button type="submit"
+                            class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition duration-150">
+                        削除を確定する
+                    </button>
+                </form>
+                
+                <button type="button" onclick="hideDeleteModal()"
+                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition duration-150">
+                    キャンセル
+                </button>
+            </div>
         </div>
-    `;
-    document.body.appendChild(modalMessage);
-}
+    </div>
+</div>
+
+<script>
+    /**
+     * アカウント削除確認モーダルを表示します。
+     */
+    function showDeleteModal() {
+        const modal = document.getElementById('deleteModal');
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-modal', 'true');
+        modal.focus();
+    }
+
+    /**
+     * アカウント削除確認モーダルを非表示にします。
+     */
+    function hideDeleteModal() {
+        const modal = document.getElementById('deleteModal');
+        modal.classList.add('hidden');
+        modal.removeAttribute('aria-modal');
+    }
+
+    // エディタ内で confirm() / alert() を使用できないため、カスタムモーダルを使用しています。
 </script>
 {% endblock %}
