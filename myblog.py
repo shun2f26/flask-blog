@@ -273,7 +273,7 @@ def view(post_id):
     if not post:
         abort(404)
 
-    # image_url の計算はテンプレート側のヘルパー関数に任せる
+    # post_image_url はテンプレート側のヘルパー関数で生成されます
     return render_template('view.html', post=post, title=post.title)
 
 
@@ -428,10 +428,10 @@ def create():
                 return render_template('create.html', title='新規投稿', form=form, CLOUDINARY_AVAILABLE=CLOUDINARY_AVAILABLE)
 
         new_post = Post(title=title,
-                        content=content,
-                        user_id=current_user.id,
-                        public_id=public_id,
-                        create_at=now())
+                         content=content,
+                         user_id=current_user.id,
+                         public_id=public_id,
+                         create_at=now())
         db.session.add(new_post)
         db.session.commit()
         if not public_id:
@@ -467,7 +467,6 @@ def update(post_id):
             try:
                 cloudinary.uploader.destroy(post.public_id)
                 post.public_id = None
-                flash('画像を削除しました。', 'success')
             except Exception as e:
                 flash(f'画像の削除中にエラーが発生しました: {e}', 'danger')
 
@@ -479,13 +478,19 @@ def update(post_id):
                     cloudinary.uploader.destroy(post.public_id)
                 upload_result = cloudinary.uploader.upload(image_file, folder="flask_blog_images")
                 post.public_id = upload_result.get('public_id')
-                flash('新しい画像が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
+        
+        # フラッシュメッセージの調整
+        if delete_image == 'on' or (image_file and image_file.filename != ''):
+            # 画像操作があった場合は、成功メッセージを統合
+            flash('記事と画像が正常に更新されました。', 'success')
+        else:
+             flash('記事が正常に更新されました。', 'success')
+
 
         db.session.commit()
-        flash('記事が正常に更新されました。', 'success')
-
+        
         if current_user.is_admin and post.user_id != current_user.id:
               return redirect(url_for('admin'))
         else:
