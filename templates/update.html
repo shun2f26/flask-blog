@@ -43,14 +43,24 @@ body { font-family: "Inter", sans-serif; }
         <!-- 本文入力 -->
         <div>
             <label for="content" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-            {% if form and form.body.errors %}
+            
+            <!-- ★ 修正箇所1: form.body.errors を form.content.errors に変更 ★ -->
+            {% if form and form.content.errors %}
             <ul class="text-red-500 text-sm mb-1 space-y-1">
-                {% for error in form.body.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
+                <!-- エラーメッセージは body ではなく content のものを表示 -->
+                {% for error in form.content.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
             </ul>
             {% endif %}
+            
             <textarea id="content" name="content" rows="10" required
                         class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
-                        placeholder="投稿の本文を記述してください。">{{ form.body.data if form and form.body.data is not none else post.body if post.body is not none else '' }}</textarea>
+                        placeholder="投稿の本文を記述してください。">
+                        
+                        <!-- ★ 修正箇所2: form.body.data を form.content.data に変更 ★ -->
+                        <!-- post.body が使用されているため、これも post.content に変更することを推奨します。 -->
+                        {{ form.content.data if form and form.content.data is not none else post.content if post.content is not none else '' }}
+                        
+            </textarea>
         </div>
 
         <!-- カテゴリ選択 -->
@@ -124,22 +134,22 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 const currentImageContainer = document.getElementById('current-image-container'); // 既存画像のコンテナ
 
     // --- 画像プレビュー機能 ---
-    imageInput.addEventListener(&#39;change&#39;, function() {
+    imageInput.addEventListener('change', function() {
         const file = this.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 imagePreview.src = e.target.result;
-                imagePreviewContainer.classList.remove(&#39;hidden&#39;);
+                imagePreviewContainer.classList.remove('hidden');
                 // 新規画像が選択された場合、既存の画像を非表示にする
-                if(currentImageContainer) currentImageContainer.style.display = &#39;none&#39;;
+                if(currentImageContainer) currentImageContainer.style.display = 'none';
             }
             reader.readAsDataURL(file);
         } else {
-            imagePreview.src = &#39;#&#39;;
-            imagePreviewContainer.classList.add(&#39;hidden&#39;);
+            imagePreview.src = '#';
+            imagePreviewContainer.classList.add('hidden');
             // 新規画像がキャンセルされた場合、既存の画像を再表示する
-            if(currentImageContainer) currentImageContainer.style.display = &#39;block&#39;;
+            if(currentImageContainer) currentImageContainer.style.display = 'block';
         }
     });
 });
