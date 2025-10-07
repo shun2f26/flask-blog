@@ -194,7 +194,7 @@ class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
                             validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                               validators=[DataRequired(message='パスワードは必須です。'),
@@ -300,9 +300,9 @@ def user_blog(username):
     ).scalars().all()
 
     return render_template('user_blog.html',
-                           title=f'{username} のブログ',
-                           target_user=target_user,
-                           posts=posts)
+                            title=f'{username} のブログ',
+                            target_user=target_user,
+                            posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -482,7 +482,7 @@ def create():
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary upload error: {e}", file=sys.stderr)
-        
+            
         if not public_id and image_file and image_file.filename != '':
              # 画像のアップロードが試みられたが失敗した場合
              # flashメッセージはすでにtry...exceptブロック内で処理されている
@@ -493,10 +493,10 @@ def create():
 
 
         new_post = Post(title=title,
-                         content=content,
-                         user_id=current_user.id,
-                         public_id=public_id,
-                         create_at=now())
+                             content=content,
+                             user_id=current_user.id,
+                             public_id=public_id,
+                             create_at=now())
         db.session.add(new_post)
         db.session.commit()
         
@@ -567,10 +567,10 @@ def update(post_id):
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
-                           post=post,
-                           title='記事編集',
-                           form=form,
-                           current_image_url=current_image_url)
+                            post=post,
+                            title='記事編集',
+                            form=form,
+                            current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -651,10 +651,10 @@ def admin():
 
 
     return render_template('admin.html',
-                           users=users, # 管理者のみ使用
-                           posts=posts, # ログインユーザーの記事一覧として使用
-                           is_admin_view=current_user.is_admin, # テンプレートで出し分け用
-                           title=title)
+                            users=users, # 管理者のみ使用
+                            posts=posts, # ログインユーザーの記事一覧として使用
+                            is_admin_view=current_user.is_admin, # テンプレートで出し分け用
+                            title=title)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
