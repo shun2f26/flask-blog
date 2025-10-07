@@ -1,101 +1,53 @@
 {% extends "base.html" %}
 
-{% block title %}ログイン{% endblock %}
-
 {% block content %}
-<!-- Tailwind CSSとFont Awesomeの読み込みを想定 -->
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-    body { font-family: "Inter", sans-serif; }
-</style>
-
-<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-2xl border border-gray-100">
-
-        <div class="text-center">
-            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
-                アカウントにログイン
-            </h2>
-            <p class="mt-2 text-sm text-gray-600">
-                アカウントをお持ちでない場合は、
-                <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
-                    こちらから新規登録
-                </a>
-            </p>
-        </div>
-
-        <!-- フォーム -->
-        <!-- サーバーサイドで認証成功後、/admin にリダイレクトするよう設定が必要です。 -->
-        <form class="mt-8 space-y-6" action="{{ url_for('login') }}" method="POST">
-
-            <!-- CSRFトークン (Flask-WTFなどを想定) -->
-            <!-- {{ form.csrf_token }} -->
-
-            <!-- 全体エラーメッセージ -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                    <div class="p-3 mb-4 text-sm text-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-700 bg-{{ 'red' if category == 'error' or category == 'danger' else 'green' }}-100 rounded-lg" role="alert">
-                        {{ message }}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg p-4">
+                <h2 class="text-center mb-4 text-primary">ログイン</h2>
+                <form method="POST" action="{{ url_for('login') }}" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-group mb-3">
+                        <!-- 🚨 修正: form.email を form.username に変更 -->
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control", placeholder="ユーザー名を入力", required=True) }}
+                        {% for error in form.username.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+                    
+                    <div class="form-group mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control", placeholder="パスワードを入力", required=True) }}
+                        {% for error in form.password.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
 
-            <!-- 入力フィールドグループ -->
-            <div class="rounded-md shadow-sm space-y-4">
-                <!-- メールアドレス -->
-                <div>
-                    <label for="email" class="sr-only">メールアドレス</label>
-                    <input id="email" name="email" type="email" autocomplete="email" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="メールアドレス"
-                           value="{{ form.email.data if form.email.data }}">
-                    {% if form.email.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.email.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
+                    <div class="form-group form-check mb-4">
+                        {{ form.remember_me(class="form-check-input") }}
+                        {{ form.remember_me.label(class="form-check-label") }}
+                    </div>
+
+                    <div class="d-grid gap-2 mb-3">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        <a href="{{ url_for('forgot_password') }}">パスワードを忘れた場合</a>
+                    </small>
                 </div>
-
-                <!-- パスワード -->
-                <div>
-                    <label for="password" class="sr-only">パスワード</label>
-                    <input id="password" name="password" type="password" autocomplete="current-password" required
-                           class="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           placeholder="パスワード">
-                    {% if form.password.errors %}
-                    <p class="text-red-500 text-xs mt-1">{% for error in form.password.errors %}{{ error }}{% endfor %}</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <input id="remember_me" name="remember_me" type="checkbox"
-                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                    <label for="remember_me" class="ml-2 block text-sm text-gray-900">
-                        次回から自動でログイン
-                    </label>
-                </div>
-
-                <div class="text-sm">
-                    <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                        パスワードを忘れましたか？
-                    </a>
+                <div class="text-center mt-2">
+                    <small>
+                        アカウントをお持ちでないですか？ <a href="{{ url_for('signup') }}">サインアップ</a>
+                    </small>
                 </div>
             </div>
-
-            <!-- ログインボタン -->
-            <div>
-                <button type="submit"
-                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 shadow-lg mt-6">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-sign-in-alt h-5 w-5 text-indigo-300 group-hover:text-indigo-200"></i>
-                    </span>
-                    ログイン
-                </button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 {% endblock %}
