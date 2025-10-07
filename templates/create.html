@@ -19,7 +19,7 @@ body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
 }
 /* カスタムメッセージボックスの基本スタイル */
 #message-box {
-    transition: opacity 0.3s ease-in-out;
+    transition: opacity 0.3s ease-in-out;
 }
 </style>
 </head>
@@ -27,161 +27,169 @@ body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
 
 <!-- ナビゲーションバー (base.htmlの構造を維持) -->
 <nav class="bg-white shadow-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <!-- ロゴ/サイト名 -->
-            <div class="flex items-center">
-                <!-- Jinja: href="{{ url_for('index') }}" -->
-                <a href="#" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
-                    My Flask Blog
-                </a>
-            </div>
-            <!-- ナビゲーションリンク (認証状態を静的にシミュレート) -->
-            <div class="flex items-center space-x-4">
-                <!-- Jinja: href="{{ url_for('index') }}" -->
-                <a href="#" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
-                
-                <!-- 認証済みユーザーのリンクをシミュレート -->
-                <a href="#" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
-            </div>
-        </div>
-    </div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <!-- ロゴ/サイト名 -->
+            <div class="flex items-center">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="flex-shrink-0 text-2xl font-extrabold text-indigo-600">
+                    My Flask Blog
+                </a>
+            </div>
+            <!-- ナビゲーションリンク (認証状態を静的にシミュレート) -->
+            <div class="flex items-center space-x-4">
+                <!-- Jinja: href="{{ url_for('index') }}" -->
+                <a href="#" class="text-gray-600 hover:text-indigo-600 font-medium transition duration-150">ホーム</a>
+                
+                <!-- 認証済みユーザーのリンクをシミュレート -->
+                <a href="#" class="py-1 px-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">サインアップ</a>
+            </div>
+        </div>
+    </div>
 </nav>
 
 <!-- フラッシュメッセージエリア (Jinja構文は削除し、カスタムメッセージボックスを使用) -->
 <div class="fixed top-16 left-0 right-0 z-50">
-    <!-- Jinjaブロックは機能しないため削除 -->
+    <!-- Jinjaブロックは機能しないため削除 -->
 </div>
 
 <!-- メインコンテンツ -->
 <main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
-    <!-- {% block content %} の内容をここに挿入 -->
-    <div class="max-w-3xl mx-auto">
-        
-        <!-- 作成フォームカード -->
-        <div class="bg-white p-6 sm:p-8 shadow-2xl rounded-xl border border-gray-200">
-            <h2 class="text-3xl font-extrabold text-gray-900 mb-4 border-b pb-2">
-                新しいコンテンツを作成
-            </h2>
-            <p class="text-gray-500 mb-8">
-                以下のフォームに記入し、新しい記事を公開してください。
-            </p>
+    <!-- {% block content %} の内容をここに挿入 -->
+    <div class="max-w-3xl mx-auto">
+        
+        <!-- 作成フォームカード -->
+        <div class="bg-white p-6 sm:p-8 shadow-2xl rounded-xl border border-gray-200">
+            <h2 class="text-3xl font-extrabold text-gray-900 mb-4 border-b pb-2">
+                新しいコンテンツを作成
+            </h2>
+            <p class="text-gray-500 mb-8">
+                以下のフォームに記入し、新しい記事を公開してください。
+            </p>
 
-            <form id="create-form" onsubmit="handleFormSubmit(event)">
-                <!-- 
-                    【CSRFトークン実装箇所】
-                    このhiddenフィールドがCSRFトークンをサーバーから受け取り、
-                    ユーザーには表示されないようにします。
-                    Flask環境でこのテンプレートがレンダリングされる際にトークンが設定されます。
-                -->
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <form id="create-form" onsubmit="handleFormSubmit(event)">
+                <!-- 
+                    【CSRFトークン実装箇所】
+                    このhiddenフィールドがCSRFトークンをサーバーから受け取り、
+                    ユーザーには表示されないようにします。
+                    Flask環境でこのテンプレートがレンダリングされる際にトークンが設定されます。
+                -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                <!-- タイトル入力フィールド -->
-                <div class="mb-6">
-                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-                        タイトル <span class="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="title" name="title" required
-                           placeholder="コンテンツのタイトルを入力"
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out text-gray-900"
-                           maxlength="100">
-                </div>
+                <!-- タイトル入力フィールド -->
+                <div class="mb-6">
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                        タイトル <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="title" name="title" required
+                           placeholder="コンテンツのタイトルを入力"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out text-gray-900"
+                           maxlength="100">
+                </div>
 
-                <!-- コンテンツ/詳細入力フィールド -->
-                <div class="mb-6">
-                    <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
-                        コンテンツ / 詳細 <span class="text-red-500">*</span>
-                    </label>
-                    <textarea id="content" name="content" rows="10" required
-                              placeholder="詳細な内容をこちらに入力してください"
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out resize-y text-gray-900"></textarea>
-                </div>
+                <!-- コンテンツ/詳細入力フィールド -->
+                <div class="mb-6">
+                    <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+                        コンテンツ / 詳細 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="content" name="content" rows="10" required
+                              placeholder="詳細な内容をこちらに入力してください"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-600 focus:border-indigo-600 transition duration-150 ease-in-out resize-y text-gray-900"></textarea>
+                </div>
 
-                <!-- 画像アップロード（オプション） -->
-                <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                    <label for="postImage" class="block text-sm font-medium text-gray-700 mb-2">画像をアップロード</label>
-                    <input type="file" id="postImage" name="postImage" accept="image/*"
-                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150 ease-in-out">
-                </div>
-                
-                <!-- フォーム送信ボタン -->
-                <div class="flex justify-end">
-                    <button type="submit"
-                            class="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
-                        <i class="fas fa-paper-plane mr-2"></i> 投稿して公開
-                    </button>
-                </div>
-            </form>
+                <!-- 画像アップロード（オプション） -->
+                <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                    <label for="postImage" class="block text-sm font-medium text-gray-700 mb-2">画像をアップロード</label>
+                    <input type="file" id="postImage" name="postImage" accept="image/*"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150 ease-in-out">
+                </div>
+                
+                <!-- フォーム送信ボタン -->
+                <div class="flex justify-end">
+                    <button type="submit"
+                            class="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+                        <i class="fas fa-paper-plane mr-2"></i> 投稿して公開
+                    </button>
+                </div>
+            </form>
 
-            <!-- メッセージ表示エリア (カスタムメッセージボックス) -->
-            <div id="message-box" class="mt-6 p-4 rounded-lg hidden" role="alert">
-                <!-- JavaScriptでメッセージが挿入されます -->
-            </div>
-        </div>
-    </div>
-    <!-- {% endblock content %} -->
+            <!-- メッセージ表示エリア (カスタムメッセージボックス) -->
+            <div id="message-box" class="mt-6 p-4 rounded-lg hidden" role="alert">
+                <!-- JavaScriptでメッセージが挿入されます -->
+            </div>
+        </div>
+    </div>
+    <!-- {% endblock content %} -->
 </main>
 
 <!-- フッター (base.htmlの構造を維持) -->
 <footer class="bg-gray-800 text-white p-4 mt-auto">
-    <div class="max-w-7xl mx-auto text-center text-sm">
-        <!-- Jinja: &copy; {{ now().year }} -->
-        &copy; 2025 Flask Blog Project. All rights reserved.
-    </div>
+    <div class="max-w-7xl mx-auto text-center text-sm">
+        <!-- Jinja: &copy; {{ now().year }} -->
+        &copy; 2025 Flask Blog Project. All rights reserved.
+    </div>
 </footer>
 
 <!-- JavaScript for Form Handling -->
 <script>
-    /**
-     * フォーム送信時の処理
-     * @param {Event} event - フォームイベントオブジェクト
-     */
-    function handleFormSubmit(event) {
-        event.preventDefault(); // フォームの標準送信を防止
+    /**
+     * フォーム送信時の処理
+     * @param {Event} event - フォームイベントオブジェクト
+     */
+    function handleFormSubmit(event) {
+        event.preventDefault(); // フォームの標準送信を防止
 
-        const title = document.getElementById('title').value;
-        const content = document.getElementById('content').value;
-        const imageFile = document.getElementById('postImage').files[0];
-        // CSRFトークンを取得 (サーバーに送信されるが、クライアント側では特に利用しない)
-        const csrfToken = document.querySelector('input[name="csrf_token"]').value; 
-        
-        // 簡易バリデーション
-        if (!title || !content) {
-            showMessage('タイトルとコンテンツは必須です。', 'bg-red-100 text-red-800');
-            return;
-        }
+        const title = document.getElementById('title').value;
+        const content = document.getElementById('content').value;
+        const imageFile = document.getElementById('postImage').files[0];
+        // CSRFトークンを取得 (サーバーに送信されるが、クライアント側では特に利用しない)
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value; 
+        
+        // 簡易バリデーション
+        if (!title || !content) {
+            showMessage('タイトルとコンテンツは必須です。', 'bg-red-100 text-red-800');
+            return;
+        }
 
-        // フォームデータの表示（通常はここでAPI送信処理を行う）
-        console.log('--- フォームデータ ---');
-        console.log('タイトル:', title);
-        console.log('コンテンツ:', content.substring(0, 50) + '...');
-        console.log('画像ファイル:', imageFile ? imageFile.name : 'なし');
-        console.log('CSRFトークン:', csrfToken); // 動作確認のためコンソールにのみ表示
-        
-        // 成功メッセージを表示
-        showMessage('コンテンツの作成リクエストを送信しました。', 'bg-green-100 text-green-800');
+        // フォームデータの表示（通常はここでAPI送信処理を行う）
+        console.log('--- フォームデータ ---');
+        console.log('タイトル:', title);
+        console.log('コンテンツ:', content.substring(0, 50) + '...');
+        console.log('画像ファイル:', imageFile ? imageFile.name : 'なし');
+        console.log('CSRFトークン:', csrfToken); // 動作確認のためコンソールにのみ表示
+        
+        // 成功メッセージを表示
+        showMessage('コンテンツの作成リクエストを送信しました。管理者ページにリダイレクトします...', 'bg-green-100 text-green-800');
 
-        // フォームをリセット
-        document.getElementById('create-form').reset();
-    }
+        // フォームをリセット
+        document.getElementById('create-form').reset();
+        
+        // --- ここから修正箇所 ---
+        // 3秒後に /admin ページへリダイレクト
+        setTimeout(() => {
+            // 実際のFlask環境では window.location.href = "{{ url_for('admin') }}" を使用
+            window.location.href = '/admin';
+        }, 3000);
+        // --- 修正箇所ここまで ---
+    }
 
-    /**
-     * ユーザーへのメッセージを表示
-     * @param {string} message - 表示するテキスト
-     * @param {string} classes - Tailwind CSSの背景色と文字色のクラス
-     */
-    function showMessage(message, classes) {
-        const messageBox = document.getElementById('message-box');
-        // メッセージを更新し、クラスを適用
-        messageBox.textContent = message;
-        messageBox.className = `mt-6 p-4 rounded-lg ${classes}`;
-        messageBox.classList.remove('hidden');
+    /**
+     * ユーザーへのメッセージを表示
+     * @param {string} message - 表示するテキスト
+     * @param {string} classes - Tailwind CSSの背景色と文字色のクラス
+     */
+    function showMessage(message, classes) {
+        const messageBox = document.getElementById('message-box');
+        // メッセージを更新し、クラスを適用
+        messageBox.textContent = message;
+        messageBox.className = `mt-6 p-4 rounded-lg ${classes}`;
+        messageBox.classList.remove('hidden');
 
-        // 5秒後にメッセージを非表示にする
-        setTimeout(() => {
-            messageBox.classList.add('hidden');
-        }, 5000);
-    }
+        // 5秒後にメッセージを非表示にする（リダイレクトを考慮し、ここではリセットしない）
+        // setTimeout(() => {
+        //     messageBox.classList.add('hidden');
+        // }, 5000);
+    }
 </script>
 </body>
 </html>
