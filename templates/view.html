@@ -2,66 +2,55 @@
 {% block title %}{{ post.title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-2xl">
-    <div class="mb-8 border-b pb-4">
-        <!-- 記事タイトル -->
-        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">{{ post.title }}</h1>
-        
-        <!-- 記事メタ情報 -->
-        <div class="text-sm text-gray-500 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center space-y-1 sm:space-y-0">
-            <span class="flex items-center">
-                <i class="fas fa-user-circle mr-2 text-indigo-500"></i>
-                投稿者: {{ post.author.username }}
-            </span>
-            <span class="flex items-center">
-                <i class="fas fa-calendar-alt mr-2 text-indigo-500"></i>
-                投稿日: {{ post.create_at.strftime('%Y/%m/%d %H:%M') }}
-            </span>
-        </div>
+
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+<article class="bg-white p-8 rounded-xl shadow-2xl">
+<h1 class="text-4xl font-extrabold text-gray-900 mb-4">{{ post.title }}</h1>
+
+    <div class="flex items-center text-sm text-gray-500 mb-6 border-b pb-3">
+        <span class="mr-4"><i class="fas fa-user-circle mr-1"></i> 
+            <a href="{{ url_for('user_blog', username=post.author.username) }}" class="hover:text-indigo-600">{{ post.author.username }}</a>
+        </span>
+        <span class="mr-4"><i class="fas fa-clock mr-1"></i> {{ post.create_at.strftime('%Y年%m月%d日 %H:%M') }}</span>
     </div>
 
-    <!-- 記事画像表示エリア -->
-    <div class="mb-8">
-        {% if post.public_id %}
-            <!-- Cloudinaryに public_id が存在する場合、画像を表示 -->
-            <!-- 幅768pxで自動的なクロップと品質最適化を設定 -->
-            <img src="{{ get_cloudinary_url(post.public_id, width=768, crop='limit', quality='auto', fetch_format='auto')[0] }}" 
-                 alt="{{ post.title }}の画像" 
-                 class="w-full h-auto object-cover max-h-96 rounded-xl shadow-lg border border-gray-200">
-        {% else %}
-            <!-- 画像がない場合、プレースホルダーを表示 -->
-            <div class="w-full h-64 sm:h-96 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-2xl font-bold border border-dashed border-gray-300">
-                <i class="fas fa-image mr-2"></i> No Image Available
-            </div>
-        {% endif %}
+    <!-- 記事画像表示 -->
+    {% set image_url = get_cloudinary_url(post.public_id, width=800, crop="limit") %}
+    {% if image_url %}
+    <div class="mb-8 w-full">
+        <img src="{{ image_url }}" 
+             alt="{{ post.title }} のメイン画像" 
+             class="rounded-lg shadow-lg max-w-full h-auto mx-auto" />
     </div>
-
-    <!-- 記事本文 -->
-    <!-- proseクラスを使用することで、自動的に見出しや段落が美しいデザインになる -->
-    <div class="prose prose-lg max-w-none text-gray-700 leading-relaxed mb-10 pb-5 border-b">
-        {{ post.content | safe }}
-    </div>
-
-    <!-- 編集・削除ボタン (自分の記事の場合のみ表示) -->
-    {% if current_user.is_authenticated and current_user.id == post.user_id %}
-        <div class="flex space-x-4">
-            <a href="{{ url_for('update', post_id=post.id) }}" class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out">
-                <i class="fas fa-edit mr-2"></i> 編集
-            </a>
-            <!-- 削除フォーム (非推奨のJS alert/confirmを使用しているため、将来的にはカスタムモーダルに置き換えることを推奨) -->
-            <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" onsubmit="return confirm('本当にこの記事を削除しますか？\nこの操作は元に戻せません。');">
-                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out">
-                    <i class="fas fa-trash-alt mr-2"></i> 削除
-                </button>
-            </form>
-        </div>
     {% endif %}
 
-    <!-- 戻るボタン -->
-    <div class="mt-8">
-        <a href="{{ url_for('index') }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out font-medium">
-            <i class="fas fa-arrow-left mr-2"></i> ホームに戻る
-        </a>
+    <!-- 記事本文 -->
+    <div class="prose max-w-none text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
+        {{ post.content }}
     </div>
+
+    <!-- 編集・削除ボタン -->
+    {% if current_user.is_authenticated and (current_user.id == post.user_id or current_user.is_admin) %}
+    <div class="mt-10 pt-6 border-t flex space-x-4">
+        <a href="{{ url_for('update', post_id=post.id) }}" 
+           class="py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition">
+            <i class="fas fa-edit"></i> 編集
+        </a>
+        <form method="POST" action="{{ url_for('delete', post_id=post.id) }}" class="inline" onsubmit="return confirm('本当にこの記事を削除しますか？');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" 
+                    class="py-2 px-4 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 transition">
+                <i class="fas fa-trash-alt"></i> 削除
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</article>
+<div class="mt-8 text-center">
+    <a href="{{ url_for('index') }}" class="text-indigo-600 hover:text-indigo-800 transition text-lg font-medium">
+        <i class="fas fa-arrow-left mr-1"></i> 記事一覧に戻る
+    </a>
+</div>
+
 </div>
 {% endblock %}
