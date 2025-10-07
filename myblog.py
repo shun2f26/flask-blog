@@ -173,7 +173,7 @@ class User(UserMixin, db.Model):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f"User('{self.username}', '{self.id}', admin={self.is_admin})"<br>
+        return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
 class Post(db.Model):
     """記事モデル"""
     __tablename__ = 'posts'
