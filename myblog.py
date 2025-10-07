@@ -143,6 +143,7 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=now)
     posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
 
+    # トークンによるリセット機能は削除されましたが、DBスキーマを維持するためフィールドは残します
     reset_token = db.Column(db.String(256), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
 
@@ -177,7 +178,7 @@ class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
                             validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                               validators=[DataRequired(message='パスワードは必須です。'),
@@ -215,7 +216,7 @@ class PostForm(FlaskForm):
 class RequestResetForm(FlaskForm):
     """パスワードリセット要求用のフォームクラス"""
     username = StringField('ユーザー名', validators=[DataRequired()])
-    submit = SubmitField('リセットリンクを送信')
+    submit = SubmitField('パスワードリセットに進む') # 文言を変更
 
 class ResetPasswordForm(FlaskForm):
     """パスワードリセット（新しいパスワード設定）用のフォームクラス"""
@@ -283,9 +284,9 @@ def user_blog(username):
     ).scalars().all()
 
     return render_template('user_blog.html',
-                           title=f'{username} のブログ',
-                           target_user=target_user,
-                           posts=posts)
+                            title=f'{username} のブログ',
+                            target_user=target_user,
+                            posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -367,36 +368,72 @@ def logout():
     return redirect(url_for('index'))
 
 # -----------------------------------------------
-# パスワードリセット関連 (ダミー実装)
+# パスワードリセット関連 (メール機能削除、即時リセット実装)
 # -----------------------------------------------
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
-    """パスワードリセット要求ページ"""
+    """
+    パスワードリセット要求ページ: ユーザー名を検証し、即時リセットページへリダイレクト。
+    メール送信ロジックは削除されました。
+    """
+    if current_user.is_authenticated:
+        # ログインしている場合はダッシュボードへ
+        return redirect(url_for('dashboard'))
+
     form = RequestResetForm()
 
     if form.validate_on_submit():
-        flash(f'ユーザー名 "{form.username.data}" にリセットリンクを送信しました。(※ダミー)', 'info')
-        # TODO: 実際にはリセットトークンを生成し、メールを送信する
-        return redirect(url_for('login'))
+        user = db.session.execute(
+            db.select(User).filter_by(username=form.username.data)
+        ).scalar_one_or_none()
+
+        if user:
+            # メール送信ロジックを削除し、代わりにユーザーIDを含む即時リセットページへリダイレクト
+            flash(f'ユーザー "{user.username}" のパスワードをリセットします。新しいパスワードを設定してください。', 'info')
+            return redirect(url_for('reset_password_immediate', user_id=user.id))
+        else:
+            # ユーザーが見つからない場合
+            flash('ユーザー名が見つかりませんでした。', 'danger')
 
     return render_template('forgot_password.html', title='パスワードを忘れた場合', form=form)
 
 
-@app.route('/reset_password/<path:token>', methods=['GET', 'POST'])
-def reset_password(token):
-    """パスワードリセット実行ページ"""
-    # TODO: 実際にはここでトークンの検証を行う
+@app.route('/reset_password_immediate/<int:user_id>', methods=['GET', 'POST'])
+def reset_password_immediate(user_id):
+    """
+    ユーザーIDを使用してパスワードを即時リセットするページ（トークン検証をスキップ）。
+    元の reset_password/<path:token> ルートの代替です。
+    """
+    user = db.session.get(User, user_id)
+
+    if not user:
+        flash('無効なユーザーIDです。', 'danger')
+        return redirect(url_for('login'))
+
+    # 既にログインしている場合は、そのアカウントのリセットでない限りアクセスを拒否
+    if current_user.is_authenticated and current_user.id != user_id:
+        flash('別のアカウントのパスワードをリセットすることはできません。', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # リセットフォームを表示する前にログアウトさせる（セキュリティ対策）
+    if current_user.is_authenticated:
+        logout_user()
+
     form = ResetPasswordForm()
 
     if form.validate_on_submit():
-        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。(※ダミー)', 'success')
-        # TODO: 実際にはここでユーザーのパスワードを更新する
+        # パスワードを更新
+        user.set_password(form.password.data)
+        # トークンフィールドは使わないが、念のためクリア（既存スキーマ維持のため）
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.session.commit()
+
+        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
         return redirect(url_for('login'))
 
-    print(f"Received reset token: {token}", file=sys.stderr)
-
-    return render_template('reset_password.html', title='パスワードリセット', form=form)
+    return render_template('reset_password.html', title=f'{user.username} のパスワードリセット', form=form)
 
 
 # -----------------------------------------------
@@ -414,8 +451,8 @@ def dashboard():
     ).scalars().all()
 
     return render_template('dashboard.html',
-                           title=f'{current_user.username} のダッシュボード',
-                           posts=posts)
+                            title=f'{current_user.username} のダッシュボード',
+                            posts=posts)
 
 
 # -----------------------------------------------
@@ -454,10 +491,10 @@ def create():
              flash('新しい記事が正常に投稿されました。', 'success')
 
         new_post = Post(title=title,
-                        content=content,
-                        user_id=current_user.id,
-                        public_id=public_id,
-                        create_at=now())
+                         content=content,
+                         user_id=current_user.id,
+                         public_id=public_id,
+                         create_at=now())
         db.session.add(new_post)
         db.session.commit()
         
@@ -537,10 +574,10 @@ def update(post_id):
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
-                           post=post,
-                           title='記事編集',
-                           form=form,
-                           current_image_url=current_image_url)
+                            post=post,
+                            title='記事編集',
+                            form=form,
+                            current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -602,8 +639,8 @@ def admin():
         })
 
     return render_template('admin.html',
-                           users=users,
-                           title='管理者ダッシュボード')
+                            users=users,
+                            title='管理者ダッシュボード')
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
@@ -683,5 +720,3 @@ def internal_error(error):
     """500エラーハンドラ (内部サーバーエラー)"""
     db.session.rollback()
     return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
-
-# GunicornなどのWSGIサーバーはこの 'app' オブジェクトをエクスポートして使用します。
