@@ -4,108 +4,179 @@
 
 {% block content %}
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div class="flex flex-wrap justify-between items-center mb-8 border-b-4 border-indigo-500 pb-2">
+        <div class="flex flex-wrap justify-between items-center mb-8 border-b-4 border-red-500 pb-2">
             <h1 class="text-4xl font-extrabold text-gray-900 mb-4 sm:mb-0">最新のブログ記事</h1>
-            <!-- 「新規記事を投稿」ボタン: Jinja2構文はそのまま残します -->
-            <a href="{{ url_for('create') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-md text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 ease-in-out">
-                <i data-lucide="plus-circle" class="w-4 h-4 mr-2"></i> 新規記事を投稿
+            <!-- 「新規記事を投稿」ボタン: 認証済みユーザーのみに表示するロジックはbase.htmlに依存 -->
+            <a href="{{ url_for('create') }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-md text-white bg-red-600 hover:bg-red-700 transition duration-150 ease-in-out">
+                <i class="fas fa-plus-circle mr-2"></i> 新規記事を投稿
             </a>
         </div>
         
+        <!-- 記事検索バーの追加 -->
+        <div class="mb-8">
+            <div class="relative">
+                <!-- 検索入力フィールド -->
+                <input type="text" id="search-input" placeholder="記事をキーワードで検索（タイトル、本文、著者名）..."
+                       class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 shadow-sm transition duration-150 ease-in-out">
+                <!-- 検索アイコン -->
+                <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+            </div>
+        </div>
+
         <!-- 記事グリッドコンテナ (JavaScriptによって内容が挿入されます) -->
         <div id="posts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <!-- 記事データがここに挿入されます -->
         </div>
 
         <!-- 記事がない場合の代替表示 (JavaScriptによって制御されます) -->
-        <div id="no-posts-message" class="hidden col-span-full bg-white p-8 rounded-xl shadow-2xl text-center border border-gray-100">
-            <p class="text-gray-500 text-xl font-semibold mb-4"><i data-lucide="package-open" class="w-6 h-6 inline-block mr-2 text-gray-400"></i> まだ記事が投稿されていません。</p>
+        <div id="no-posts-message" class="hidden col-span-full bg-white p-8 rounded-xl shadow-2xl text-center border border-dashed border-gray-300">
+            <p class="text-gray-500 text-xl font-semibold mb-4"><i class="fas fa-box-open w-6 h-6 inline-block mr-2 text-gray-400"></i> まだ記事が投稿されていません。</p>
             <p class="mt-4">
-                <!-- 最初の記事を投稿リンク: Jinja2構文はそのまま残します -->
-                <a href="{{ url_for('create') }}" class="inline-flex items-center text-white bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium transition duration-150 ease-in-out">
-                    <i data-lucide="pen-tool" class="w-4 h-4 mr-2"></i> 最初の記事を投稿しましょう！
+                <!-- 最初の記事を投稿リンク -->
+                <a href="{{ url_for('create') }}" class="inline-flex items-center text-white bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700 font-medium transition duration-150 ease-in-out">
+                    <i class="fas fa-pen-nib w-4 h-4 mr-2"></i> 最初の記事を投稿しましょう！
                 </a>
             </p>
         </div>
+        
+        <!-- 検索結果がない場合のメッセージ -->
+        <div id="no-results-message" class="hidden col-span-full bg-yellow-50 p-6 rounded-xl shadow-md text-center border border-yellow-300">
+            <p class="text-yellow-700 text-lg font-semibold"><i class="fas fa-exclamation-triangle w-5 h-5 inline-block mr-2"></i> 検索条件に一致する記事は見つかりませんでした。</p>
+        </div>
+
     </div>
 {% endblock %}
 
 {% block scripts %}
     {{ super() }} <!-- base.htmlのスクリプト（lucide.createIcons()）を継承 -->
     <script>
-        // 実際のアプリケーションでは、この 'posts' 変数に、
-        // サーバーまたはAPIから取得した記事データの配列を代入してください。
-        // 例: const posts = JSON.parse('{{ posts | tojson | safe }}');
-        const posts = []; // 現状は空の配列としておきます
+        // サーバーから渡された全ての記事データ（オリジナルのデータ）を格納します。
+        // [修正点]: posts変数が未定義またはNoneの場合に、tojsonフィルターを適用する前に空のリスト[]をデフォルト値として使用するように修正しました。
+        const allPosts = JSON.parse('{{ posts|default([], true)|tojson|safe }}');
 
-        // 記事一覧の描画関数
+        /**
+         * 記事一覧をレンダリングする関数
+         * @param {Array} posts - 表示する記事データの配列
+         */
         function renderPosts(posts) {
             const grid = document.getElementById('posts-grid');
             const noPostsMessage = document.getElementById('no-posts-message');
+            const noResultsMessage = document.getElementById('no-results-message');
+            const searchInput = document.getElementById('search-input');
+            const currentQuery = searchInput ? searchInput.value.trim() : '';
+
             grid.innerHTML = ''; // グリッドをクリア
 
-            if (posts.length === 0) {
-                noPostsMessage.classList.remove('hidden');
+            // postsがnullの場合（JSON.parse('null')の結果）は空の配列として扱う
+            const currentPosts = posts || [];
+
+            if (currentPosts.length === 0) {
+                // 検索クエリがある場合は「結果なし」メッセージを表示
+                if (currentQuery !== '') {
+                    noPostsMessage.classList.add('hidden');
+                    noResultsMessage.classList.remove('hidden');
+                } else {
+                    // クエリがなく、記事が一つもない場合は「記事なし」メッセージを表示
+                    noPostsMessage.classList.remove('hidden');
+                    noResultsMessage.classList.add('hidden');
+                }
                 return;
-            } else {
-                noPostsMessage.classList.add('hidden');
-            }
+            } 
+            
+            // 記事がある場合は両方のメッセージを非表示にする
+            noPostsMessage.classList.add('hidden');
+            noResultsMessage.classList.add('hidden');
 
-            posts.forEach(post => {
-                // 画像URLの生成（モックとしてPlacehold.coを使用）
-                const imageUrl = post.public_id 
-                    ? `https://placehold.co/400x300/e0e7ff/4338ca?text=Post+${post.id}` 
-                    : null;
-
-                // 記事詳細へのリンクを JavaScriptのテンプレートリテラルで生成
-                // FlaskのURL構造に合わせて '/post/<id>' と仮定します
+            // グリッドに記事を挿入
+            grid.innerHTML = currentPosts.map(post => {
                 const detailUrl = `/post/${post.id}`;
+                
+                const imageUrl = post.image_url 
+                    ? post.image_url 
+                    : `https://placehold.co/400x300/FEE2E2/EF4444?text=No+Image`;
+                
+                // 記事作成日時のフォーマット（サーバー側でフォーマットされていない場合を想定）
+                // post.create_atがISO 8601形式の文字列であると仮定
+                const formattedDate = post.create_at ? new Date(post.create_at).toLocaleDateString('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }) : 'YYYY/MM/DD';
 
-                const cardHtml = `
+                // 記事の概要 (100文字に切り詰める)
+                const summary = post.summary ? post.summary : (post.content ? (post.content.substring(0, 100).trim() + (post.content.length > 100 ? '...' : '')) : '記事の内容がありません。');
+
+
+                return `
                     <div class="bg-white shadow-xl rounded-xl overflow-hidden flex flex-col hover:shadow-2xl transition duration-300 transform hover:scale-[1.01] min-h-[400px]">
                         <!-- サムネイル画像エリア -->
-                        <div class="h-48 w-full bg-gray-100 overflow-hidden">
-                            ${imageUrl 
-                                ? `<img src="${imageUrl}" alt="${post.title}の画像" class="w-full h-full object-cover transition duration-300 hover:opacity-90">`
-                                : `<div class="w-full h-full flex flex-col items-center justify-center text-gray-400 text-lg font-bold border border-dashed border-gray-300 p-4">
-                                        <i data-lucide="image" class="w-8 h-8 mr-2 text-gray-300 mb-2"></i> No Image
-                                    </div>`
-                            }
-                        </div>
+                        <a href="${detailUrl}" class="h-48 w-full bg-gray-100 overflow-hidden">
+                            <img src="${imageUrl}" alt="${post.title}の画像" 
+                                 class="w-full h-full object-cover transition duration-300 hover:opacity-90"
+                                 onerror="this.onerror=null; this.src='https://placehold.co/400x300/FEE2E2/EF4444?text=No+Image';">
+                        </a>
 
                         <div class="p-6 flex flex-col flex-grow">
                             <div class="text-sm text-gray-500 mb-3 flex items-center justify-between">
-                                <span class="flex items-center">
-                                    <i data-lucide="calendar" class="w-3 h-3 mr-1"></i> ${post.create_at || 'YYYY/MM/DD'}
+                                <span class="flex items-center text-xs">
+                                    <i class="far fa-calendar-alt w-3 h-3 mr-1"></i> ${formattedDate}
                                 </span>
-                                <span class="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
-                                    <i data-lucide="user" class="w-3 h-3 mr-1"></i> ${post.author ? post.author.username : '匿名ユーザー'}
+                                <span class="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full">
+                                    <i class="far fa-user w-3 h-3 mr-1"></i> ${post.author ? post.author.username : '匿名ユーザー'}
                                 </span>
                             </div>
-                            <h2 class="text-xl font-bold text-gray-900 mb-3 line-clamp-2">${post.title || 'タイトルなし'}</h2>
-                            <p class="text-gray-600 mb-4 text-sm line-clamp-3 flex-grow">
-                                ${post.content ? (post.content.substring(0, 100).trim() + (post.content.length > 100 ? '...' : '')) : '記事の内容がありません。'}
-                            </p>
+                            <h2 class="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
+                                <a href="${detailUrl}" class="hover:text-red-600 transition">${post.title || 'タイトルなし'}</a>
+                            </h2>
+                            <p class="text-gray-600 mb-4 text-sm line-clamp-3 flex-grow">${summary}</p>
                             
-                            <!-- 修正された「続きを読む」リンク: JavaScript変数を使用 -->
-                            <a href="${detailUrl}" class="mt-4 text-indigo-600 font-medium hover:text-indigo-800 transition duration-150 ease-in-out flex items-center self-start">
+                            <!-- 「続きを読む」リンク -->
+                            <a href="${detailUrl}" class="mt-auto text-red-600 font-medium hover:text-red-800 transition duration-150 ease-in-out flex items-center self-start">
                                 続きを読む
-                                <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
+                                <i class="fas fa-arrow-right w-4 h-4 ml-2"></i>
                             </a>
                         </div>
                     </div>
                 `;
-                grid.innerHTML += cardHtml;
-            });
-            
-            // 新しく追加されたアイコンをレンダリング
-            lucide.createIcons();
+            }).join('');
         }
 
-        // ページロード時に記事をレンダリング
+        /**
+         * 検索クエリに基づいて記事をフィルタリングする関数
+         * @param {string} query - 検索キーワード
+         * @returns {Array} - フィルタリングされた記事データの配列
+         */
+        function filterPosts(query) {
+            const lowerCaseQuery = query.toLowerCase().trim();
+            if (lowerCaseQuery === '') {
+                return allPosts;
+            }
+
+            return allPosts.filter(post => {
+                const title = (post.title || '').toLowerCase();
+                const content = (post.content || '').toLowerCase();
+                const author = (post.author?.username || '').toLowerCase();
+                // 記事のタイトル、本文、著者名のいずれかにキーワードが含まれているかチェック
+                return title.includes(lowerCaseQuery) || 
+                       content.includes(lowerCaseQuery) || 
+                       author.includes(lowerCaseQuery);
+            });
+        }
+
+        // ページロード時の初期設定
         document.addEventListener('DOMContentLoaded', () => {
-            // データがない状態（空の配列）で初期表示します
-            renderPosts(posts);
+            // 1. 初期表示は全記事
+            renderPosts(allPosts);
+            
+            // 2. 検索バーにイベントリスナーを設定
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (event) => {
+                    const query = event.target.value;
+                    const filtered = filterPosts(query);
+                    renderPosts(filtered);
+                });
+            }
         });
     </script>
 {% endblock %}
