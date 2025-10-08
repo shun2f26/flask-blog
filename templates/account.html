@@ -17,9 +17,8 @@ body { font-family: "Inter", sans-serif; }
         </h1>
         <p class="text-sm text-gray-500 mb-6">ユーザー情報とパスワードを変更できます。</p>
 
-        <!-- 修正箇所: url_for('update') から url_for('account_update') へ変更しました。 -->
-        <!-- アカウント更新処理のエンドポイントが 'account_update' であると仮定します。 -->
-        <form action="{{ url_for('account_update') }}" method="POST" class="space-y-6">
+        <!-- 修正箇所: エンドポイント 'account' (POST) を指定 -->
+        <form action="{{ url_for('account') }}" method="POST" class="space-y-6">
             
             <!-- 1. CSRFトークンの埋め込み (重要!) -->
             {% if form %}
