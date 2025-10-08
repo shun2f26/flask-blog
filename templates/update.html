@@ -18,6 +18,7 @@ body { font-family: "Inter", sans-serif; }
 </h1>
 <p class="text-sm text-gray-500 mb-6">既存の投稿内容（「{{ post.title }}」）を変更し、更新します。</p>
 
+    <!-- PostFormの定義（title, content, image, submit）に合わせて修正 -->
     <form id="postForm" class="space-y-6" action="{{ url_for('update', post_id=post.id) }}" method="POST" enctype="multipart/form-data">
         
         <!-- 1. CSRFトークンの埋め込み (重要!) -->
@@ -44,10 +45,9 @@ body { font-family: "Inter", sans-serif; }
         <div>
             <label for="content" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
             
-            <!-- ★ 修正箇所1: form.body.errors を form.content.errors に変更 ★ -->
             {% if form and form.content.errors %}
             <ul class="text-red-500 text-sm mb-1 space-y-1">
-                <!-- エラーメッセージは body ではなく content のものを表示 -->
+                <!-- content フィールドのエラーを表示 -->
                 {% for error in form.content.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
             </ul>
             {% endif %}
@@ -56,28 +56,15 @@ body { font-family: "Inter", sans-serif; }
                         class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
                         placeholder="投稿の本文を記述してください。">
                         
-                        <!-- ★ 修正箇所2: form.body.data を form.content.data に変更 ★ -->
-                        <!-- post.body が使用されているため、これも post.content に変更することを推奨します。 -->
+                        <!-- form.content.data があれば優先、なければ post.content を使用 (post.bodyから修正) -->
                         {{ form.content.data if form and form.content.data is not none else post.content if post.content is not none else '' }}
                         
             </textarea>
         </div>
 
-        <!-- カテゴリ選択 -->
-        <div>
-            <label for="category" class="block text-lg font-medium text-gray-700 mb-2">カテゴリ (オプション)</label>
-            {% set current_category = form.category.data if form and form.category.data is not none else post.category if post.category is not none else '' %}
-            
-            <select id="category" name="category"
-                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base">
-                <option value="" {% if current_category == '' %}selected{% endif %}>カテゴリを選択</option>
-                <option value="Tech" {% if current_category == 'Tech' %}selected{% endif %}>テクノロジー</option>
-                <option value="Life" {% if current_category == 'Life' %}selected{% endif %}>ライフスタイル</option>
-                <option value="Food" {% if current_category == 'Food' %}selected{% endif %}>食べ物</option>
-                <!-- その他のカテゴリがある場合はここに追加 -->
-            </select>
-        </div>
-
+        <!-- カテゴリ選択: PostFormにcategoryがないため、このブロック全体を削除しました。 -->
+        <!-- もしカテゴリ機能が必要な場合は、Python側のPostFormクラスにCategoryFieldを追加する必要があります。 -->
+        
         <!-- 画像ファイル入力 (既存の画像表示と新規アップロード) -->
         <div>
             <label class="block text-lg font-medium text-gray-700 mb-2">現在の画像</label>
@@ -111,6 +98,7 @@ body { font-family: "Inter", sans-serif; }
         
         <!-- 送信ボタン -->
         <div class="flex space-x-4 pt-4 border-t border-gray-200">
+            <!-- form.submit()ではなく、手動でボタンをレンダリングし、スタイルを適用 -->
             <button type="submit" id="submitButton"
                     class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
                 <i class="fas fa-save mr-2"></i> 変更を保存
