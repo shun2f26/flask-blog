@@ -444,6 +444,7 @@ def reset_password_immediate(user_id):
         return redirect(url_for('admin'))
     
     # リセットフォームを表示する前にログアウトさせる（セキュリティ対策）
+    # ただし、リセット処理後にログイン状態を保持したい場合はこの行をコメントアウト
     if current_user.is_authenticated:
         logout_user()
 
@@ -459,8 +460,14 @@ def reset_password_immediate(user_id):
         flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
         return redirect(url_for('login'))
 
-    return render_template('reset_password.html', title=f'{user.username} のパスワードリセット', form=form)
-
+    # テンプレートに必要な user_id と user_name を追加してレンダリング
+    return render_template(
+        'reset_password.html', 
+        title=f'{user.username} のパスワードリセット', 
+        form=form,
+        user_id=user_id,          # フォームのアクション（url_for）用
+        user_name=user.username   # テンプレートの表示用
+    )
 
 # -----------------------------------------------
 # 記事作成・編集・削除
