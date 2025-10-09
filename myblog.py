@@ -103,6 +103,14 @@ if uri and uri.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# ---------------------------------------------
+# ★追加: セッション非アクティブタイムアウトの設定 (30分)
+# このタイムアウトは、サーバーサイドでのみ適用され、ユーザーが最後にリクエストを
+# 送ってからこの時間が経過した場合にログアウトされます。
+# ---------------------------------------------
+SESSION_INACTIVITY_TIMEOUT = timedelta(minutes=30) 
+app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_INACTIVITY_TIMEOUT # セッション自体の寿命も設定
+
 # --- SQLAlchemy/Migrate / WTF の遅延初期化 (Lazy Init) ---
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -127,7 +135,7 @@ login_manager.login_message_category = 'info'
 
 # --- タイムゾーン設定 (日本時間) ---
 def now():
-    """現在の日本時間 (JST) を返すヘルパー関数"""
+    """現在の日本時間 (JST) を返すヘルパー関数 (タイムゾーンアウェア)"""
     return datetime.now(timezone(timedelta(hours=9)))
 
 # --- カスタムJinjaフィルターの定義と登録 ---
@@ -196,7 +204,7 @@ class Post(db.Model):
         return f"Post('{self.title}', '{self.created_at}')"
 
 
-# --- フォーム定義 ---
+# --- フォーム定義 (変更なし) ---
 
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
@@ -209,8 +217,8 @@ class RegistrationForm(FlaskForm):
                                           Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                      validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                  EqualTo('password', message='パスワードが一致しません。')])
+                                     validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                 EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -264,6 +272,51 @@ def inject_globals():
 def load_user(user_id):
     """Flask-LoginがセッションからユーザーIDをロードするためのコールバック"""
     return db.session.get(User, int(user_id))
+
+
+# ---------------------------------------------
+# ★追加: セッション非アクティブタイムアウト処理
+# ---------------------------------------------
+@app.before_request
+def before_request_session_check():
+    """
+    ユーザーが非アクティブな状態が続いた場合に自動的にログアウトさせる。
+    すべてのリクエスト（@login_required以外も含む）でチェックを行います。
+    """
+    if current_user.is_authenticated:
+        current_time = now() 
+        last_activity_str = session.get('last_activity')
+        
+        # 最後に活動した時刻をセッションから取得
+        if last_activity_str:
+            # 文字列からdatetimeオブジェクトに変換
+            try:
+                # fromisoformatはタイムゾーン情報を含む文字列を正しくパース
+                last_activity = datetime.fromisoformat(last_activity_str)
+            except ValueError:
+                # パースエラーの場合は、安全のためにログアウトせず、現在の時刻をセット
+                last_activity = current_time 
+
+            # タイムアウトチェック
+            if (current_time - last_activity) > SESSION_INACTIVITY_TIMEOUT:
+                # Flask-Loginのログアウト処理
+                logout_user() 
+                # セッションから活動時刻を削除
+                session.pop('last_activity', None) 
+                
+                flash('非アクティブな状態が続いたため、自動的にログアウトしました。', 'info')
+                
+                # リダイレクト後のページをログイン前に試みていたページに設定
+                return redirect(url_for('login', next=request.path))
+
+        # ログイン継続中の場合、最後に活動した時刻を更新
+        # タイムゾーン情報を含めてISOフォーマットの文字列で保存
+        session['last_activity'] = current_time.isoformat()
+        
+    # ログインしていないユーザーの場合、過去のセッション情報をクリア
+    elif 'last_activity' in session:
+        session.pop('last_activity', None)
+
 
 # --- デコレータ ---
 
@@ -345,6 +398,10 @@ def login():
 
         if user and user.check_password(password):
             login_user(user, remember=form.remember_me.data)
+            
+            # ★変更: ログイン成功時、セッションに最終活動時刻を記録
+            session['last_activity'] = now().isoformat()
+            
             next_page = request.args.get('next')
             flash(f'ログインに成功しました！ようこそ、{user.username}さん。', 'success')
             # ログイン後はコンテンツ管理ページへリダイレクト
@@ -392,11 +449,15 @@ def signup():
 def logout():
     """ログアウト処理"""
     logout_user()
+    
+    # ★変更: ログアウト時、セッションから最終活動時刻を削除
+    session.pop('last_activity', None) 
+    
     flash('ログアウトしました。', 'info')
     return redirect(url_for('index'))
 
 # -----------------------------------------------
-# パスワードリセット関連 (メール機能削除、即時リセット実装)
+# パスワードリセット関連 (変更なし)
 # -----------------------------------------------
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
@@ -465,12 +526,12 @@ def reset_password_immediate(user_id):
         'reset_password.html', 
         title=f'{user.username} のパスワードリセット', 
         form=form,
-        user_id=user_id,          # フォームのアクション（url_for）用
-        user_name=user.username    # テンプレートの表示用
+        user_id=user_id,     # フォームのアクション（url_for）用
+        user_name=user.username  # テンプレートの表示用
     )
 
 # -----------------------------------------------
-# 記事作成・編集・削除
+# 記事作成・編集・削除 (変更なし)
 # -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -618,7 +679,7 @@ def delete(post_id):
 
 
 # -----------------------------------------------
-# コンテンツ管理・管理者機能関連のルーティング
+# コンテンツ管理・管理者機能関連のルーティング (変更なし)
 # -----------------------------------------------
 
 @app.route('/admin')
@@ -705,7 +766,7 @@ def toggle_admin(user_id):
 
 
 # -----------------------------------------------
-# その他ユーティリティ (エラーハンドリングを含む)
+# その他ユーティリティ (エラーハンドリングを含む) (変更なし)
 # -----------------------------------------------
 
 # エンドポイント名を 'db_clear' から 'db_clear_data' に変更
