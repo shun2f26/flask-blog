@@ -80,7 +80,7 @@
             {% if current_user.is_authenticated %}
                 {% if current_user.is_admin %}
                     <!-- 管理者権限を持つユーザーは「管理者」ページへのリンクを表示 -->
-                    <a href="{{ url_for('admin') }}" class="flex items-center text-red-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
+                    <a href="{{ url_for('admin') }}" class="flex items-center text-blue-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
                         <i class="fa-solid fa-user-gear mr-1 text-sm"></i>管理者ページへ
                     </a>
                 {% else %}
