@@ -61,13 +61,11 @@ overflow: hidden;
                 </span>
                 
                 <!-- 作成者バッジ (ここが修正された部分です) -->
-                {% if post.author %}
-                <a href="{{ url_for('user_blog', username=post.author.username) }}" 
+                {% if post.author %} 
                    class="flex items-center font-medium text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full text-xs hover:bg-teal-200 transition duration-150 shadow-sm"
                    title="{{ post.author.username }}が投稿">
                     <i class="fas fa-user-edit mr-1"></i>
                     {{ post.author.username }}
-                </a>
                 {% endif %}
             </p>
             
