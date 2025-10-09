@@ -24,7 +24,7 @@ from flask_wtf.file import FileField, FileAllowed
 # --- Cloudinary設定と依存性チェック ---
 CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
 API_KEY = os.environ.get('CLOUDINARY_API_KEY')
-API_SECRET = os.environ.get('CLOUDINARY_API_SECRET') # CLOUD_SECRETから一般的な名前に戻しました
+API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
 
 CLOUDINARY_AVAILABLE = False
 cloudinary = None
@@ -201,8 +201,8 @@ class Post(db.Model):
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                            validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                             validators=[DataRequired(message='ユーザー名は必須です。'),
+                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                               validators=[DataRequired(message='パスワードは必須です。'),
@@ -310,9 +310,9 @@ def user_blog(username):
     ).scalars().all()
 
     return render_template('user_blog.html',
-                            title=f'{username} のブログ',
-                            target_user=target_user,
-                            posts=posts)
+                           title=f'{username} のブログ',
+                           target_user=target_user,
+                           posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -466,7 +466,7 @@ def reset_password_immediate(user_id):
         title=f'{user.username} のパスワードリセット', 
         form=form,
         user_id=user_id,          # フォームのアクション（url_for）用
-        user_name=user.username   # テンプレートの表示用
+        user_name=user.username    # テンプレートの表示用
     )
 
 # -----------------------------------------------
@@ -587,10 +587,10 @@ def update(post_id):
     current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
 
     return render_template('update.html',
-                            post=post,
-                            title='記事編集',
-                            form=form,
-                            current_image_url=current_image_url)
+                           post=post,
+                           title='記事編集',
+                           form=form,
+                           current_image_url=current_image_url)
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
@@ -673,10 +673,10 @@ def admin():
 
 
     return render_template('admin.html',
-                            users=users, # 管理者のみ使用
-                            posts=posts, # ログインユーザーの記事一覧として使用
-                            is_admin_view=current_user.is_admin, # テンプレートで出し分け用
-                            title=title)
+                           users=users, # 管理者のみ使用
+                           posts=posts, # ログインユーザーの記事一覧として使用
+                           is_admin_view=current_user.is_admin, # テンプレートで出し分け用
+                           title=title)
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
