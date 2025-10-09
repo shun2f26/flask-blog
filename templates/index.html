@@ -40,7 +40,10 @@
                     <span><i class="fas fa-user mr-1"></i> <a href="{{ url_for('user_blog', username=post.author.username) }}" class="hover:underline">{{ post.author.username }}</a></span>
                     {% endif %}
                 </p>
-                
+                <span class="flex items-center font-medium text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full text-xs">
+                                    <i class="fas fa-user-edit mr-1"></i>
+                                    {{ post.author.username if post.author else '不明な作成者' }}
+                </span>
                 <p class="text-gray-700 leading-relaxed mb-4">
                     {{ post.content | truncate(200, True) }}
                 </p>
