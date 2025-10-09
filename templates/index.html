@@ -6,113 +6,70 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
-/* 記事カードのホバーエフェクト /
-.post-card {
-transition: all 0.3s ease-in-out;
-}
-.post-card:hover {
-box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-transform: translateY(-2px);
-}
-/ 記事の抜粋の行数制限 /
+/* 記事の抜粋の行数制限 /
 .line-clamp-3 {
 display: -webkit-box;
 -webkit-box-orient: vertical;
 overflow: hidden;
 -webkit-line-clamp: 3;
-height: 3.9em; / 行の高さに合わせて調整 */
+/ height: 3.9em; /* 行の高さに合わせて調整 */
 }
 </style>
 
 <div class="container mx-auto px-4 py-8 max-w-4xl font-['Inter']">
-<h1 class="text-3xl font-bold mb-8 text-gray-800 border-b pb-2">
-<i class="fas fa-list-alt text-indigo-600 mr-2"></i>
-最新の投稿
-</h1>
+<h1 class="text-3xl font-bold mb-6 text-gray-800">最新の投稿</h1>
 <div class="space-y-8">
 {% for post in posts %}
-<!-- flexアイテムを配置し、カードの角を丸く、影を付ける -->
-<div class="post-card bg-white p-6 rounded-xl shadow-lg flex flex-col md:flex-row gap-6 border-l-4 border-indigo-500">
+<div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col md:flex-row gap-6">
 
-        <!-- 画像表示エリア (左側: 1/3の幅) -->
-        <!-- 確保されたスペースに画像またはプレースホルダーを表示し、テキスト情報のレイアウトに影響を与えないようにします -->
-        <div class="md:w-1/3 w-full flex-shrink-0">
+        <!-- 画像表示エリア -->
+        <div class="md:w-1/3 flex-shrink-0">
             {% if post.public_id %}
                 <!-- Cloudinaryから画像を読み込み -->
-                {% set img_url = '' %}
-                
-                {% if post.id == 1 %}
-                    <!-- id=1: width=400を明示的に指定 -->
-                    {% set img_url = get_cloudinary_url(post.public_id, width=400, height=250, crop='fill', gravity='auto') %}
-                {% else %}
-                    <!-- id=2: デフォルト値が適用 -->
-                    {% set img_url = get_cloudinary_url(post.public_id) %}
-                {% endif %}
-                
-                {% if img_url %}
+                {% set img_url = get_cloudinary_url(post.public_id, width=400, height=250, crop='fill', gravity='auto') %}
                 <img 
                     src="{{ img_url }}" 
                     alt="{{ post.title }} の画像" 
                     class="w-full h-auto rounded-lg object-cover shadow-md"
                     style="aspect-ratio: 16 / 10;"
-                    onerror="this.onerror=null; this.src='https://placehold.co/400x250/F87171/FFFFFF?text=IMAGE+ERROR'; this.alt='画像URLの生成に失敗しました'; console.error('Cloudinary URLのロードに失敗:', '{{ img_url }}');"
+                    onerror="this.onerror=null; this.src='https://placehold.co/400x250/F87171/FFFFFF?text=NO+IMAGE'; this.alt='画像が見つかりません';"
                 >
-                {% else %}
-                <!-- public_idは存在するが、URL生成が抑制された場合のフォールバック -->
-                <div class="bg-yellow-100 rounded-lg w-full h-full flex items-center justify-center text-yellow-700 text-lg shadow-inner" style="aspect-ratio: 16 / 10;">
-                    <i class="fas fa-exclamation-triangle text-3xl"></i>
-                    <span class="ml-2 text-base">Cloudinary未設定</span>
-                </div>
-                {% endif %}
-
-                <!-- デバッグ情報 -->
-                <p class="text-xs text-gray-400 mt-1 truncate" title="Cloudinary Public ID">
-                    ID: {{ post.public_id }}
-                    <br>
-                    URL: <span class="text-blue-500 text-[10px]">{{ img_url | truncate(50, True) }}</span>
-                </p>
-
             {% else %}
-                <!-- public_idがない場合のプレースホルダー (画像なし投稿) -->
+                <!-- 画像がない場合のプレースホルダー -->
                 <div class="bg-gray-200 rounded-lg w-full h-full flex items-center justify-center text-gray-500 text-lg shadow-inner" style="aspect-ratio: 16 / 10;">
-                    <i class="fas fa-image text-3xl"></i>
-                    <span class="ml-2 text-base">画像なし</span>
+                    画像なし
                 </div>
             {% endif %}
         </div>
 
-        <!-- 記事情報エリア (右側: 2/3の幅) -->
-        <div class="md:w-2/3 w-full">
-            <!-- タイトル -->
-            <h2 class="text-2xl font-semibold text-indigo-600 mb-3">
-                <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800 transition duration-150">
+        <!-- 記事情報エリア -->
+        <div class="md:w-2/3">
+            <h2 class="text-2xl font-semibold text-indigo-600 mb-2">
+                <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800">
                     {{ post.title }}
                 </a>
             </h2>
             
-            <!-- 投稿日時と作成者 -->
-            <div class="flex flex-wrap items-center text-sm text-gray-500 mb-4 space-x-4">
+            <!-- 作成者バッジを含むメタ情報 -->
+            <p class="text-sm text-gray-500 mb-4 flex flex-wrap items-center space-x-4">
+                <!-- 投稿日 -->
                 <span class="flex items-center">
-                    <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i>
+                    <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i> 
                     {{ post.created_at | datetimeformat('%Y-%m-%d') }}
                 </span>
                 
+                <!-- 作成者バッジ (ここが修正された部分です) -->
                 {% if post.author %}
-                    <a href="{{ url_for('user_blog', username=post.author.username) }}" 
-                       class="flex items-center font-medium text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full text-xs hover:bg-teal-200 transition duration-150 shadow-sm"
-                       title="{{ post.author.username }}が投稿">
-                        <i class="fas fa-user-edit mr-1"></i>
-                        {{ post.author.username }}
-                    </a>
-                {% else %}
-                    <span class="flex items-center text-xs text-gray-400">
-                        <i class="fas fa-user-slash mr-1"></i>
-                        不明な作成者
-                    </span>
+                <a href="{{ url_for('user_blog', username=post.author.username) }}" 
+                   class="flex items-center font-medium text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full text-xs hover:bg-teal-200 transition duration-150 shadow-sm"
+                   title="{{ post.author.username }}が投稿">
+                    <i class="fas fa-user-edit mr-1"></i>
+                    {{ post.author.username }}
+                </a>
                 {% endif %}
-            </div>
+            </p>
             
-            <!-- 記事の抜粋 -->
+            <!-- 抜粋テキスト。line-clamp-3で3行に制限 -->
             <p class="text-gray-700 leading-relaxed mb-4 line-clamp-3">
                 {{ post.content | striptags | truncate(200, True) }}
             </p>
@@ -125,13 +82,9 @@ height: 3.9em; / 行の高さに合わせて調整 */
             </div>
         </div>
     </div>
+    {% else %}
+    <p class="text-gray-600">まだ投稿はありません。</p>
     {% endfor %}
-    {% if not posts %}
-    <div class="text-center p-8 bg-white rounded-xl shadow-lg border-2 border-dashed border-gray-300">
-        <i class="fas fa-inbox text-5xl text-gray-400 mb-4"></i>
-        <p class="text-lg font-medium text-gray-600">まだ投稿はありません。</p>
-    </div>
-    {% endif %}
 </div>
 
 </div>
