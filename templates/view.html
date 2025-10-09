@@ -4,72 +4,99 @@
 
 {% block content %}
 
-<div class="py-12 px-4 sm:px-6 lg:px-8">
-<div class="max-w-4xl mx-auto">
-<!-- 投稿カード (Post Content Area) -->
-<article class="bg-white shadow-xl rounded-xl p-8 md:p-10">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+/* 投稿本文のフォントと行間を調整 */
+.prose {
+    font-family: "Inter", sans-serif;
+    line-height: 1.8;
+}
+/* コードブロックの見た目を調整 */
+.prose pre {
+    background-color: #1f2937; /* Gray-800 */
+    color: #f3f4f6; /* Gray-100 */
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+}
+</style>
 
-    <!-- 投稿ヘッダー (タイトルとメタ情報) -->
-    <div class="border-b pb-6 mb-6">
-        
-        <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-snug mb-4">
-            {{ post.title }}
-        </h1>
-        
-        <!-- メタ情報 -->
-        <div class="text-sm text-gray-500 flex flex-wrap items-center space-x-3 sm:space-x-4">
-            
-            <!-- 作成者 -->
-            <p class="flex items-center">
-                <i class="fas fa-user-circle mr-1 text-gray-400"></i>
-                作成者: <span class="font-semibold text-gray-700 ml-1">{{ post.author.username }}</span>
-            </p>
-            
-            <!-- 作成日 (datetimeformat に修正) -->
-            <p class="flex items-center">
-                <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
-                <!-- dateformat を datetimeformat に修正 -->
-                <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat('%Y-%m-%d') }}</time>
-            </p>
-            
-            <!-- カテゴリ (post.category はモデルに存在しないため削除またはコメントアウト) -->
-            <!--
-            {% if post.category %}
-            <span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 mt-2 md:mt-0">
-                {{ post.category }}
-            </span>
+<div class="py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto">
+        <!-- 投稿カード (Post Content Area) -->
+        <article class="bg-white shadow-2xl rounded-xl p-8 md:p-10 border-t-4 border-indigo-600">
+
+            <!-- 投稿ヘッダー (タイトルとメタ情報) -->
+            <div class="border-b pb-6 mb-6">
+                
+                <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-snug mb-4">
+                    {{ post.title }}
+                </h1>
+                
+                <!-- メタ情報 -->
+                <div class="text-sm text-gray-500 flex flex-wrap items-center space-x-4">
+                    
+                    <!-- 作成者 (リンク付きバッジに変更) -->
+                    {% if post.author %}
+                        <a href="{{ url_for('user_blog', username=post.author.username) }}"
+                           class="flex items-center font-medium text-teal-600 bg-teal-100 px-3 py-1 rounded-full text-sm hover:bg-teal-200 transition duration-150 shadow-sm"
+                           title="{{ post.author.username }}の他の投稿を見る">
+                            <i class="fas fa-user-edit mr-2"></i>
+                            {{ post.author.username }}
+                        </a>
+                    {% endif %}
+                    
+                    <!-- 作成日 -->
+                    <p class="flex items-center">
+                        <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
+                        <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat('%Y年%m月%d日') }}</time>
+                    </p>
+                    
+                    <!-- 更新日（あれば追加） -->
+                    {% if post.updated_at and post.updated_at != post.created_at %}
+                    <p class="flex items-center text-xs text-gray-400">
+                        <i class="fas fa-redo mr-1"></i>
+                        更新日: <time datetime="{{ post.updated_at | datetimeformat }}">{{ post.updated_at | datetimeformat('%Y-%m-%d') }}</time>
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 投稿画像 (Cloudinary表示ロジックを実装) -->
+            {% if post.public_id and CLOUDINARY_AVAILABLE %}
+            <figure class="mb-8">
+                <!-- get_cloudinary_url を使用して画像URLを生成 -->
+                {% set img_url = get_cloudinary_url(post.public_id, width=800, crop='limit', fetch_format='auto', quality='auto') %}
+                <img 
+                    src="{{ img_url }}" 
+                    alt="{{ post.title }}" 
+                    class="w-full h-auto max-h-[500px] object-contain rounded-xl shadow-lg border border-gray-100">
+            </figure>
+            {% elif post.public_id %}
+            <!-- Cloudinary設定がない場合でも画像IDがあればメッセージを表示 -->
+            <div class="mb-8 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-lg" role="alert">
+                <p class="font-bold">画像表示エラー</p>
+                <p>Cloudinaryの設定が完了していないため、画像を読み込めませんでした。</p>
+            </div>
             {% endif %}
-            -->
+
+            <!-- 投稿本文 -->
+            <div class="prose prose-lg max-w-none text-gray-800 break-words">
+                <!-- post.content を安全に出力 (jinjaの autoescape が有効な場合) -->
+                <div class="whitespace-pre-wrap">{{ post.content }}</div>
+            </div>
+            
+        </article>
+        
+        <!-- 戻るボタン -->
+        <div class="mt-8 text-center">
+            <a href="{{ url_for('index') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition duration-150">
+                <i class="fas fa-arrow-left mr-3"></i>
+                投稿一覧に戻る
+            </a>
         </div>
+        
     </div>
-
-    <!-- 投稿画像 (Cloudinary表示ロジックを実装) -->
-    {% if post.public_id and CLOUDINARY_AVAILABLE %}
-    <figure class="mb-8">
-        <!-- get_cloudinary_url を使用して画像URLを生成 -->
-        {% set img_url = get_cloudinary_url(post.public_id, width=800, crop='limit', fetch_format='auto', quality='auto') %}
-        <img 
-            src="{{ img_url }}" 
-            alt="{{ post.title }}" 
-            class="w-full h-auto max-h-[500px] object-contain rounded-xl shadow-lg border border-gray-100">
-    </figure>
-    {% elif post.public_id %}
-    <!-- Cloudinary設定がない場合でも画像IDがあればメッセージを表示 -->
-    <div class="mb-8 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-lg" role="alert">
-        <p class="font-bold">画像表示エラー</p>
-        <p>Cloudinaryの設定が完了していないため、画像を読み込めませんでした。</p>
-    </div>
-    {% endif %}
-
-    <!-- 投稿本文 -->
-    <div class="prose prose-lg max-w-none text-gray-800 break-words">
-        <!-- post.body を post.content に修正 -->
-        <div class="whitespace-pre-wrap">{{ post.content }}</div>
-    </div>
-    
-</article>
-    
-</div>
-
 </div>
 {% endblock %}
