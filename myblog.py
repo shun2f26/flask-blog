@@ -197,26 +197,47 @@ class Post(db.Model):
     public_id = db.Column(db.String(100), nullable=True) # Cloudinary Public ID
     created_at = db.Column(db.DateTime, nullable=False, default=now) # フィールド名を created_at に統一
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
+    
+    # 記事に紐づくコメント (Post -> Comment)
+    comments = relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan") 
 
     def __repr__(self):
         return f"Post('{self.title}', '{self.created_at}')"
 
+class Comment(db.Model):
+    """コメントモデル (匿名投稿対応)"""
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+    # ログインユーザーのID (匿名の場合はNoneを許可)
+    author_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=True) 
+    # 匿名コメント用の名前（ログインユーザーの場合もユーザー名が入る）
+    name = db.Column(db.String(50), nullable=False) # ニックネームは必須とする
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=now) # 投稿日時
 
-# --- フォーム定義 (変更なし) ---
+    # リレーションは Post モデル側で定義済み
+    # author = relationship('User', backref='user_comments') # UserモデルとCommentモデルが関連付けられる
+
+    def __repr__(self):
+        return f"Comment('{self.name}', Post ID: {self.post_id}, User ID: {self.author_id})"
+
+
+# --- フォーム定義 ---
 
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
-                             validators=[DataRequired(message='ユーザー名は必須です。'),
-                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                            validators=[DataRequired(message='ユーザー名は必須です。'),
+                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                             validators=[DataRequired(message='パスワードは必須です。'),
-                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                            validators=[DataRequired(message='パスワードは必須です。'),
+                                        Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                   validators=[DataRequired(message='パスワード確認は必須です。'),
-                                               EqualTo('password', message='パスワードが一致しません。')])
+                                    validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -242,6 +263,15 @@ class PostForm(FlaskForm):
         FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみをアップロードできます')
     ])
     submit = SubmitField('更新')
+
+class CommentForm(FlaskForm):
+    """コメント投稿用のフォームクラス (匿名投稿対応)"""
+    # 匿名ユーザー向けの名前フィールド (ログイン/非ログインに関わらず必須)
+    name = StringField('ニックネーム', 
+                       validators=[DataRequired(message='ニックネームは必須です。'), 
+                                   Length(min=1, max=50, message='ニックネームは1文字以上50文字以内で入力してください。')])
+    content = TextAreaField('コメント', validators=[DataRequired(message='コメント内容は必須です。')])
+    submit = SubmitField('コメントを送信')
 
 class RequestResetForm(FlaskForm):
     """パスワードリセット要求用のフォームクラス"""
@@ -341,7 +371,7 @@ def index():
 
 
 # -----------------------------------------------
-# 公開ブログ閲覧ページ
+# 公開ブログ閲覧ページとコメント機能
 # -----------------------------------------------
 
 @app.route("/blog/<username>")
@@ -367,12 +397,104 @@ def user_blog(username):
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
-    """個別の記事を表示するページ"""
+    """個別の記事とコメントを表示するページ"""
     post = db.session.get(Post, post_id)
     if not post:
         abort(404)
 
-    return render_template('view.html', post=post, title=post.title)
+    # コメントフォームをインスタンス化
+    comment_form = CommentForm()
+    
+    # 記事に紐づくコメントを日時順で取得
+    comments = db.session.execute(
+        post.comments.order_by(Comment.created_at.asc())
+    ).scalars().all()
+
+    # ログインユーザーがフォームにアクセスした場合、名前フィールドにユーザー名を設定（任意）
+    if current_user.is_authenticated:
+        # 匿名コメントフォームにログインユーザー名を設定して手間を減らす
+        comment_form.name.data = current_user.username
+        
+    return render_template('view.html', 
+                           post=post, 
+                           title=post.title, 
+                           comments=comments, # コメントリストを渡す
+                           comment_form=comment_form) # フォームを渡す
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+def post_comment(post_id):
+    """コメント投稿処理"""
+    post = db.session.get(Post, post_id)
+    if not post:
+        abort(404)
+
+    form = CommentForm()
+
+    if form.validate_on_submit():
+        comment_content = form.content.data
+        comment_name = form.name.data # 匿名/ログインに関わらずこの名前を使用
+        author_id = None
+
+        if current_user.is_authenticated:
+            # ログイン済みユーザーの場合、author_idをセット
+            author_id = current_user.id
+            # 匿名投稿を許可するため、nameフィールドはユーザー入力の値をそのまま使用（またはユーザー名で上書きしても良いが、ここでは入力値を尊重）
+            
+        elif not comment_name:
+            # 匿名ユーザーの場合、nameフィールドはフォームバリデーションで必須チェック済みだが、念のため。
+            flash('コメントを投稿するにはニックネームが必要です。', 'danger')
+            return redirect(url_for('view', post_id=post_id))
+
+        new_comment = Comment(
+            post_id=post_id,
+            author_id=author_id,
+            name=comment_name,
+            content=comment_content,
+            created_at=now()
+        )
+        
+        db.session.add(new_comment)
+        db.session.commit()
+        
+        flash('コメントが正常に投稿されました。', 'success')
+        # コメント欄までスクロールさせるためにフラグメントを設定
+        return redirect(url_for('view', post_id=post_id) + '#comments')
+
+    # バリデーションエラーがあった場合、フォームデータを保持して記事ページに戻る
+    flash('コメントの投稿に失敗しました。すべての必須フィールドが入力されているか確認してください。', 'danger')
+    return redirect(url_for('view', post_id=post_id))
+
+
+@app.route('/delete_comment/<int:comment_id>', methods=['POST'])
+@login_required # ログインユーザーのみ削除可能とする
+def delete_comment(comment_id):
+    """コメント削除処理"""
+    comment = db.session.get(Comment, comment_id)
+    if not comment:
+        flash('コメントが見つかりませんでした。', 'danger')
+        # 削除前のページ（request.referrer）が不明な場合はインデックスにリダイレクト
+        return redirect(request.referrer or url_for('index'))
+
+    # 記事の作成者、管理者、またはコメントの作成者（ログインユーザーであるコメントのみ）のみ削除可能
+    can_delete = False
+    if comment.post.user_id == current_user.id:
+        # 記事の作成者
+        can_delete = True
+    elif comment.author_id == current_user.id:
+        # コメントの作成者
+        can_delete = True
+        
+    if not can_delete and not current_user.is_admin:
+        flash('このコメントを削除する権限がありません。', 'danger')
+        abort(403)
+        
+    post_id = comment.post_id # リダイレクト用に取得
+    
+    db.session.delete(comment)
+    db.session.commit()
+    
+    flash('コメントが削除されました。', 'success')
+    return redirect(url_for('view', post_id=post_id) + '#comments')
 
 
 # -----------------------------------------------
@@ -524,8 +646,8 @@ def reset_password_immediate(user_id):
         'reset_password.html', 
         title=f'{user.username} のパスワードリセット', 
         form=form,
-        user_id=user_id,     # フォームのアクション（url_for）用
-        user_name=user.username  # テンプレートの表示用
+        user_id=user_id,    # フォームのアクション（url_for）用
+        user_name=user.username # テンプレートの表示用
     )
 
 # -----------------------------------------------
@@ -667,7 +789,7 @@ def delete(post_id):
     if post.public_id and CLOUDINARY_AVAILABLE:
         delete_cloudinary_image(post.public_id)
 
-    # データベースから記事を削除
+    # データベースから記事を削除 (カスケード削除によりコメントも削除されます)
     db.session.delete(post)
     db.session.commit()
     flash('記事が正常に削除されました。', 'success')
@@ -778,7 +900,8 @@ def db_clear_data():
             
             # 生のSQLを使用してテーブルを強制削除 (PostgreSQLで特に必要)
             # db.drop_all() を使用する前に、念のため生のSQLで依存関係を考慮して削除
-            # Alembicテーブルの削除も含める
+            # コメントテーブル、ユーザーテーブル、記事テーブル、Alembicテーブルの削除
+            db.session.execute(text("DROP TABLE IF EXISTS comments CASCADE;"))
             db.session.execute(text("DROP TABLE IF EXISTS posts CASCADE;"))
             db.session.execute(text("DROP TABLE IF EXISTS blog_users CASCADE;"))
             db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
