@@ -105,8 +105,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # ---------------------------------------------
 # ★追加: セッション非アクティブタイムアウトの設定 (30分)
-# このタイムアウトは、サーバーサイドでのみ適用され、ユーザーが最後にリクエストを
-# 送ってからこの時間が経過した場合にログアウトされます。
 # ---------------------------------------------
 SESSION_INACTIVITY_TIMEOUT = timedelta(minutes=30) 
 app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_INACTIVITY_TIMEOUT # セッション自体の寿命も設定
@@ -213,12 +211,12 @@ class RegistrationForm(FlaskForm):
                                          Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
-                              validators=[DataRequired(message='パスワードは必須です。'),
-                                          Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                             validators=[DataRequired(message='パスワードは必須です。'),
+                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                     validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                 EqualTo('password', message='パスワードが一致しません。')])
+                                   validators=[DataRequired(message='パスワード確認は必須です。'),
+                                               EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -281,7 +279,7 @@ def load_user(user_id):
 def before_request_session_check():
     """
     ユーザーが非アクティブな状態が続いた場合に自動的にログアウトさせる。
-    すべてのリクエスト（@login_required以外も含む）でチェックを行います。
+    すべてのアクティビティでチェックを行い、タイムアウト後はログインページにリダイレクト。
     """
     if current_user.is_authenticated:
         current_time = now() 
@@ -566,7 +564,7 @@ def create():
             
         
         # flashメッセージのロジックを調整: 画像が試行されなかった、または画像アップロードに成功しなかった場合（画像なしの成功）
-        if not is_image_uploaded:
+        if not is_image_uploaded and image_file.filename == '':
             flash('新しい記事が正常に投稿されました。', 'success')
 
 
@@ -610,12 +608,12 @@ def update(post_id):
             if delete_cloudinary_image(post.public_id):
                 post.public_id = None
                 flash('画像が削除されました。', 'info')
-                image_action_performed = True
             else:
                 flash('画像の削除に失敗しました。', 'danger')
+            image_action_performed = True
 
         # 2. 新規画像アップロード処理
-        if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
+        elif image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             # 既存の画像を削除
             if post.public_id: 
                 delete_cloudinary_image(post.public_id)
@@ -629,10 +627,10 @@ def update(post_id):
                 post.public_id = upload_result.get('public_id')
             
                 flash('新しい画像が正常にアップロードされました。', 'success')
-                image_action_performed = True
             except Exception as e:
                 flash(f'新しい画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary upload error: {e}", file=sys.stderr)
+            image_action_performed = True
         
         # 3. 画像操作が行われず、記事の内容のみ更新された場合
         if not image_action_performed:
@@ -851,3 +849,13 @@ def internal_error(error):
     """500エラーハンドラ (内部サーバーエラー)"""
     db.session.rollback()
     return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
+
+if __name__ == '__main__':
+    # 開発環境で実行する場合の初期設定
+    with app.app_context():
+        # データベースが存在しない場合は作成
+        if not os.path.exists('myblog.db'):
+            db.create_all()
+            print("SQLite database 'myblog.db' created.")
+    
+    app.run(debug=True)
