@@ -101,11 +101,11 @@ body { font-family: "Inter", sans-serif; }
                             <!-- 記事のサムネイル、タイトル、日時コンテナ -->
                             <div class="flex items-start w-full sm:w-2/3 mb-3 sm:mb-0">
                                 
-                                <!-- ★★★ 投稿画像/動画のサムネイルロジック (更新箇所) ★★★ -->
+                                <!-- ★★★ 投稿画像/動画のサムネイルロジック ★★★ -->
                                 {% if post.public_id %}
                                     {# public_idから拡張子を推測するロジック #}
-                                    {% set filename = post.public_id.split('/')[-1] %}
-                                    {% set extension = filename.split('.')[-1] | lower %}
+                                    {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
+                                    {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else '' %}
                                     {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
                                     
                                     {% if extension in video_extensions %}
