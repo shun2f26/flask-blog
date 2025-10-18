@@ -15,6 +15,24 @@ display: -webkit-box;
 overflow: hidden;
 -webkit-line-clamp: 3;
 }
+/* 動画のアスペクト比を保ちつつ、レスポンシブに対応 */
+.video-container {
+    position: relative;
+    width: 100%;
+    /* 16:10 のアスペクト比を維持 */
+    padding-bottom: 62.5%; 
+    height: 0;
+}
+.video-container video, 
+.video-container img,
+.video-container .placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 </style>
 
 <div class="container mx-auto px-4 py-8 max-w-4xl font-['Inter']">
@@ -23,15 +41,15 @@ overflow: hidden;
     <!-- ★★★ 検索バーの追加 ★★★ -->
     <div class="mb-8">
         <!-- 検索フォーム: GETメソッドを使用し、現在のURLへ 'q' パラメータを付けて送信 -->
-        <form action="{{ url_for('index') }}" method="GET" class="flex rounded-xl shadow-md overflow-hidden">
+        <form action="{{ url_for('index') }}" method="GET" class="flex rounded-xl shadow-lg overflow-hidden border border-gray-200">
             <input 
                 type="text" 
                 name="q" 
                 placeholder="記事のタイトルや内容を検索..." 
                 value="{{ request.args.get('q', '') }}"
-                class="w-full px-5 py-3 border-none focus:ring-0 focus:outline-none text-gray-700 placeholder-gray-400 text-base"
+                class="w-full px-5 py-3 border-none focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-700 placeholder-gray-400 text-base"
             >
-            <button type="submit" class="bg-indigo-600 text-white px-5 py-3 hover:bg-indigo-700 transition duration-150 flex items-center justify-center">
+            <button type="submit" class="bg-indigo-600 text-white px-5 py-3 hover:bg-indigo-700 transition duration-150 flex items-center justify-center flex-shrink-0">
                 <i class="fas fa-search mr-2"></i>
                 検索
             </button>
@@ -40,27 +58,36 @@ overflow: hidden;
 
     <div class="space-y-8">
         {% for post in posts %}
-        <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col md:flex-row gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col md:flex-row gap-6 border-t-4 border-gray-100 hover:border-indigo-400">
 
             <!-- 画像/動画表示エリア -->
             <div class="md:w-1/3 flex-shrink-0">
+                <a href="{{ url_for('view', post_id=post.id) }}" class="block">
                 {% if post.public_id %}
                     {# public_idから拡張子を推測するロジック #}
-                    {% set filename = post.public_id.split('/')[-1] %}
-                    {% set extension = filename.split('.')[-1] | lower %}
-                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv'] %}
+                    {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
+                    {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else '' %}
+                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
                     
                     {% if extension in video_extensions %}
                         {# 動画の場合: <video> タグで表示 #}
-                        <div class="relative w-full overflow-hidden rounded-lg shadow-md" style="aspect-ratio: 16 / 10;">
-                            <video controls preload="metadata" class="w-full h-full object-cover">
-                                <source src="{{ 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + post.public_id }}" type="video/{{ extension }}">
-                                お使いのブラウザは動画タグをサポートしていません。
-                            </video>
+                        <div class="video-container rounded-lg shadow-md overflow-hidden">
+                            {# Cloudinaryの動画サムネイルを取得するための設定 (f_jpgで最初のフレームを画像として取得) #}
+                            {% set thumbnail_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_400,h_250,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
+                            <img 
+                                src="{{ thumbnail_url }}" 
+                                alt="{{ post.title }} の動画サムネイル" 
+                                class="w-full h-full object-cover"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x250/374151/FFFFFF?text=VIDEO+THUMBNAIL';"
+                            >
+                            {# 再生アイコンのオーバーレイ #}
+                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                                <i class="fas fa-play-circle text-white text-5xl opacity-80"></i>
+                            </div>
                         </div>
                     {% else %}
-                        {# 画像の場合: <img> タグで表示 (以前のロジックを応用) #}
-                        {# width/heightを固定せず、w_auto,f_auto,q_autoでレスポンシブな画像を取得 #}
+                        {# 画像の場合: <img> タグで表示 #}
+                        {# w_400, h_250 でサムネイルを生成 #}
                         {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_400,h_250,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
                         <img 
                             src="{{ img_url }}" 
@@ -72,16 +99,17 @@ overflow: hidden;
                     {% endif %}
                 {% else %}
                     <!-- 画像/動画がない場合のプレースホルダー -->
-                    <div class="bg-gray-200 rounded-lg w-full h-full flex items-center justify-center text-gray-500 text-lg shadow-inner" style="aspect-ratio: 16 / 10;">
+                    <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
                         メディアなし
                     </div>
                 {% endif %}
+                </a>
             </div>
 
             <!-- 記事情報エリア -->
             <div class="md:w-2/3">
                 <h2 class="text-2xl font-semibold text-indigo-600 mb-2">
-                    <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800">
+                    <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800 transition duration-150">
                         {{ post.title }}
                     </a>
                 </h2>
@@ -119,7 +147,7 @@ overflow: hidden;
             </div>
         </div>
         {% else %}
-        <p class="text-gray-600 p-6 bg-white rounded-xl shadow-lg">まだ投稿はありません。</p>
+        <p class="text-gray-600 p-6 bg-white rounded-xl shadow-lg border border-gray-200 text-center">まだ投稿はありません。</p>
         {% endfor %}
     </div>
 
