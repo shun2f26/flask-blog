@@ -15,12 +15,12 @@ display: -webkit-box;
 overflow: hidden;
 -webkit-line-clamp: 3;
 }
-/* 動画のアスペクト比を保ちつつ、レスポンシブに対応 */
+/* 動画/画像のサムネイルアスペクト比を保ちつつ、レスポンシブに対応 */
 .video-container {
     position: relative;
     width: 100%;
-    /* 16:10 のアスペクト比を維持 */
-    padding-bottom: 62.5%; 
+    /* 16:9 のアスペクト比を維持 (9 / 16 = 0.5625 = 56.25%) */
+    padding-bottom: 56.25%; /* 16:9 に変更 */
     height: 0;
 }
 .video-container video, 
@@ -38,7 +38,7 @@ overflow: hidden;
 <div class="container mx-auto px-4 py-8 max-w-4xl font-['Inter']">
     <h1 class="text-3xl font-bold mb-6 text-gray-800">最新の投稿</h1>
 
-    <!-- ★★★ 検索バーの追加 ★★★ -->
+    <!-- 検索バー -->
     <div class="mb-8">
         <!-- 検索フォーム: GETメソッドを使用し、現在のURLへ 'q' パラメータを付けて送信 -->
         <form action="{{ url_for('index') }}" method="GET" class="flex rounded-xl shadow-lg overflow-hidden border border-gray-200">
@@ -70,15 +70,16 @@ overflow: hidden;
                     {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
                     
                     {% if extension in video_extensions %}
-                        {# 動画の場合: <video> タグで表示 #}
+                        {# 動画の場合: <video> タグのサムネイルとして表示 #}
                         <div class="video-container rounded-lg shadow-md overflow-hidden">
                             {# Cloudinaryの動画サムネイルを取得するための設定 (f_jpgで最初のフレームを画像として取得) #}
-                            {% set thumbnail_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_400,h_250,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
+                            {# w_400, h_225 は 16:9 のアスペクト比 #}
+                            {% set thumbnail_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_400,h_225,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
                             <img 
                                 src="{{ thumbnail_url }}" 
                                 alt="{{ post.title }} の動画サムネイル" 
                                 class="w-full h-full object-cover"
-                                onerror="this.onerror=null; this.src='https://placehold.co/400x250/374151/FFFFFF?text=VIDEO+THUMBNAIL';"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/374151/FFFFFF?text=VIDEO+THUMBNAIL';"
                             >
                             {# 再生アイコンのオーバーレイ #}
                             <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
@@ -86,16 +87,17 @@ overflow: hidden;
                             </div>
                         </div>
                     {% else %}
-                        {# 画像の場合: <img> タグで表示 #}
-                        {# w_400, h_250 でサムネイルを生成 #}
-                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_400,h_250,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
-                        <img 
-                            src="{{ img_url }}" 
-                            alt="{{ post.title }} の画像" 
-                            class="w-full h-auto rounded-lg object-cover shadow-md"
-                            style="aspect-ratio: 16 / 10;"
-                            onerror="this.onerror=null; this.src='https://placehold.co/400x250/F87171/FFFFFF?text=NO+IMAGE'; this.alt='画像が見つかりません';"
-                        >
+                        {# 画像の場合: <img> タグで表示。アスペクト比をvideo-containerに合わせるためラップ #}
+                        <div class="video-container rounded-lg shadow-md overflow-hidden">
+                            {# w_400, h_225 でサムネイルを生成 (16:9) #}
+                            {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
+                            <img 
+                                src="{{ img_url }}" 
+                                alt="{{ post.title }} の画像" 
+                                class="w-full h-full object-cover"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/F87171/FFFFFF?text=NO+IMAGE'; this.alt='画像が見つかりません';"
+                            >
+                        </div>
                     {% endif %}
                 {% else %}
                     <!-- 画像/動画がない場合のプレースホルダー -->
@@ -151,7 +153,7 @@ overflow: hidden;
         {% endfor %}
     </div>
 
-    <!-- ★★★ ページネーションの追加 ★★★ -->
+    <!-- ページネーションの追加 -->
     <!-- pagination変数が存在し、ページが2ページ以上ある場合に表示 -->
     {% if pagination and pagination.pages > 1 %}
     <nav class="mt-10 flex justify-center" aria-label="ページネーション">
