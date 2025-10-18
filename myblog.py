@@ -259,8 +259,8 @@ class PostForm(FlaskForm):
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
     # FileFieldはバリデーションでサイズチェックはしませんが、FileAllowedでMIMEタイプをチェックします
-    image = FileField('画像をアップロード (任意)', validators=[
-        FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみをアップロードできます')
+    image = FileField('画像/動画をアップロード (任意)', validators=[
+        FileAllowed(['jpg', 'png', 'jpeg', 'gif','mp4'], '画像ファイル (JPG, PNG, GIF) ,動画ファイル（MP4）をアップロードできます')
     ])
     submit = SubmitField('更新')
 
