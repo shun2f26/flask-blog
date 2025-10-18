@@ -1035,7 +1035,7 @@ def toggle_admin(user_id):
 # -----------------------------------------------
 # その他ユーティリティ (エラーハンドリングを含む) (変更なし)
 # -----------------------------------------------
-@app.route('/update_db', methods=['POST'])
+@app.route('/update_db', methods=['GET'])
 def update_db():
     try:
         # db.create_all() は、まだ存在しないテーブルのみをデータベースに作成します。
@@ -1047,13 +1047,13 @@ def update_db():
             db.create_all()
         
         flash('データベースの初期化/更新が完了しました。（既存のデータは保持されます）', 'success')
-        return redirect(url_for('admin')) # 管理者ページへリダイレクト
+        return redirect(url_for('index')) # 管理者ページへリダイレクト
 
     except Exception as e:
         flash(f'データベースの更新中にエラーが発生しました: {e}', 'danger')
         # 詳細なエラーはログに記録
         print(f"DB Update Error: {e}")
-        return redirect(url_for('admin'))
+        return redirect(url_for('index'))
 # エンドポイント名を 'db_clear' から 'db_clear_data' に変更
 @app.route("/db_clear", methods=["GET"])
 def db_clear_data():
