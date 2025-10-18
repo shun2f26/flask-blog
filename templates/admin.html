@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block title %}管理者ダッシュボード{% endblock %}
@@ -102,19 +101,34 @@ body { font-family: "Inter", sans-serif; }
                             <!-- 記事のサムネイル、タイトル、日時コンテナ -->
                             <div class="flex items-start w-full sm:w-2/3 mb-3 sm:mb-0">
                                 
-                                <!-- 投稿画像サムネイルまたはプレースホルダー -->
-                                {% if post.public_id and CLOUDINARY_AVAILABLE %}
-                                    <!-- サムネイル用に80x80でトリミング (crop='fill') -->
-                                    {% set thumb_url = get_cloudinary_url(post.public_id, width=80, height=80, crop='fill', fetch_format='auto', quality='auto') %}
-                                    <img src="{{ thumb_url }}" 
-                                        alt="{{ post.title }}" 
-                                        class="w-20 h-20 object-cover rounded-xl shadow-md flex-shrink-0 mr-4 border border-gray-200">
+                                <!-- ★★★ 投稿画像/動画のサムネイルロジック (更新箇所) ★★★ -->
+                                {% if post.public_id %}
+                                    {# public_idから拡張子を推測するロジック #}
+                                    {% set filename = post.public_id.split('/')[-1] %}
+                                    {% set extension = filename.split('.')[-1] | lower %}
+                                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
+                                    
+                                    {% if extension in video_extensions %}
+                                        <!-- 動画の場合: 動画アイコンを表示 -->
+                                        <div class="w-20 h-20 flex items-center justify-center bg-purple-100 rounded-xl shadow-md flex-shrink-0 mr-4 border-2 border-purple-300">
+                                            <i class="fas fa-video text-3xl text-purple-600"></i>
+                                        </div>
+                                    {% else %}
+                                        <!-- 画像の場合: サムネイルを表示 -->
+                                        {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.public_id %}
+                                        <img src="{{ thumb_url }}" 
+                                            alt="{{ post.title }}" 
+                                            class="w-20 h-20 object-cover rounded-xl shadow-md flex-shrink-0 mr-4 border border-gray-200"
+                                            onerror="this.onerror=null; this.src='https://placehold.co/80x80/6B7280/FFFFFF?text=FAIL'; this.alt='読み込みエラー';">
+                                    {% endif %}
+                                    
                                 {% else %}
-                                    <!-- 画像がない場合のプレースホルダー -->
+                                    <!-- 画像/動画がない場合のプレースホルダー -->
                                     <div class="w-20 h-20 flex items-center justify-center bg-gray-200 rounded-xl shadow-md flex-shrink-0 mr-4">
                                         <i class="fas fa-image text-3xl text-gray-500"></i>
                                     </div>
                                 {% endif %}
+                                <!-- ★★★ ロジック終了 ★★★ -->
 
                                 <!-- タイトル、投稿日時、作成者 -->
                                 <div class="flex flex-col justify-center flex-grow min-w-0">
@@ -129,7 +143,7 @@ body { font-family: "Inter", sans-serif; }
                                             <i class="far fa-clock mr-1"></i>
                                             {{ post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else '日時不明' }}
                                         </span>
-                                        <!-- 作成者名 (追加・修正部分) -->
+                                        <!-- 作成者名 -->
                                         {% if post.author %}
                                             <span class="flex items-center font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full text-xs shadow-sm">
                                                 <i class="fas fa-user-edit mr-1"></i>
