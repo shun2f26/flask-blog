@@ -1,3 +1,4 @@
+
 import os
 import sys
 import time
@@ -285,15 +286,11 @@ class PostForm(FlaskForm):
     image = FileField('画像をアップロード (任意)', validators=[
         FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみアップロードできます')
     ])
-    # ★追加: 既存画像を削除するためのチェックボックス
-    delete_image = BooleanField('既存の画像を削除する')
     
     # ★追加: 動画専用フィールド
     video = FileField('動画をアップロード (任意)', validators=[
         FileAllowed(['mp4', 'mov', 'avi', 'webm'], '動画ファイル (MP4, MOV, AVI, WEBM) のみアップロードできます')
     ])
-    # ★追加: 既存動画を削除するためのチェックボックス
-    delete_video = BooleanField('既存の動画を削除する')
     
     submit = SubmitField('更新')
 
@@ -772,8 +769,6 @@ def create():
         title = form.title.data
         content = form.content.data
         
-        # FileField.dataは、ファイルが存在しない場合は 'None' ではなく 'FileStorage' オブジェクトだが、
-        # request.files.get()の方がシンプル
         image_file = request.files.get(form.image.name)
         video_file = request.files.get(form.video.name)
         
@@ -835,8 +830,7 @@ def create():
         
         return redirect(url_for('admin')) 
 
-    # 'create.html'は編集時にも流用するが、新規作成時は 'post' オブジェクトは不要
-    return render_template('create.html', title='新規投稿', form=form, post=None)
+    return render_template('create.html', title='新規投稿', form=form)
 
 
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
@@ -850,155 +844,222 @@ def update(post_id):
         flash('編集権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
 
-    # obj=postで既存のタイトルと本文をフォームにロード
     form = PostForm(obj=post)
 
     if form.validate_on_submit():
         post.title = form.title.data
         post.content = form.content.data
 
-        image_file = request.files.get(form.image.name)
-        video_file = request.files.get(form.video.name)
-
-        upload_image_success = False
-        upload_video_success = False
+        delete_image = request.form.get('delete_image') == 'on'
+        delete_video = request.form.get('delete_video') == 'on' # ★追加
         
-        # --- 画像更新/削除ロジック ---
-        # 1. 画像のアップロード (新しいファイルがあれば古いものを置き換える)
-        if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
-            if post.image_public_id:
+        image_file = request.files.get(form.image.name)
+        video_file = request.files.get(form.video.name) # ★追加
+        
+        media_action_performed = False
+
+        # --- 1. 画像削除処理 ---
+        if delete_image and post.image_public_id and CLOUDINARY_AVAILABLE:
+            if delete_cloudinary_media(post.image_public_id, resource_type="image"):
+                post.image_public_id = None
+                flash('画像が削除されました。', 'info')
+            else:
+                flash('画像の削除に失敗しました。', 'danger')
+            media_action_performed = True
+
+        # --- 2. 動画削除処理 ---
+        if delete_video and post.video_public_id and CLOUDINARY_AVAILABLE:
+            if delete_cloudinary_media(post.video_public_id, resource_type="video"):
+                post.video_public_id = None
+                flash('動画が削除されました。', 'info')
+            else:
+                flash('動画の削除に失敗しました。', 'danger')
+            media_action_performed = True
+
+        # --- 3. 新規画像アップロード処理 ---
+        # 画像削除がチェックされておらず、新しい画像ファイルが提供された場合
+        if not delete_image and image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
+            # 既存の画像を削除
+            if post.image_public_id: 
                 delete_cloudinary_media(post.image_public_id, resource_type="image")
-            
+
             try:
                 upload_result = cloudinary.uploader.upload(
                     image_file, 
-                    folder=f"flask_blog_images/{current_user.username}", 
+                    folder=f"flask_blog_images/{current_user.username}",
                     resource_type="image"
                 )
                 post.image_public_id = upload_result.get('public_id')
-                upload_image_success = True
+                
+                flash('新しい画像が正常にアップロードされました。', 'success')
             except Exception as e:
-                flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
+                flash(f'新しい画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary image upload error: {e}", file=sys.stderr)
+            media_action_performed = True
 
-        # 2. 画像の明示的な削除 (新しいファイルがない、かつ削除チェックボックスがオン)
-        elif form.delete_image.data and post.image_public_id and CLOUDINARY_AVAILABLE:
-            if delete_cloudinary_media(post.image_public_id, resource_type="image"):
-                post.image_public_id = None
-                flash('既存の画像が削除されました。', 'info')
-        
-        # --- 動画更新/削除ロジック ---
-        # 1. 動画のアップロード (新しいファイルがあれば古いものを置き換える)
-        if video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
-            if post.video_public_id:
+        # --- 4. 新規動画アップロード処理 ---
+        # 動画削除がチェックされておらず、新しい動画ファイルが提供された場合
+        if not delete_video and video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
+            # 既存の動画を削除
+            if post.video_public_id: 
                 delete_cloudinary_media(post.video_public_id, resource_type="video")
 
             try:
                 upload_result = cloudinary.uploader.upload(
                     video_file, 
-                    folder=f"flask_blog_videos/{current_user.username}", 
-                    resource_type="video" 
+                    folder=f"flask_blog_videos/{current_user.username}",
+                    resource_type="video" # resource_typeをvideoに設定
                 )
                 post.video_public_id = upload_result.get('public_id')
-                upload_video_success = True
+                
+                flash('新しい動画が正常にアップロードされました。', 'success')
             except Exception as e:
-                flash(f'動画のアップロード中にエラーが発生しました: {e}', 'danger')
+                flash(f'新しい動画のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary video upload error: {e}", file=sys.stderr)
-
-        # 2. 動画の明示的な削除 (新しいファイルがない、かつ削除チェックボックスがオン)
-        elif form.delete_video.data and post.video_public_id and CLOUDINARY_AVAILABLE:
-            if delete_cloudinary_media(post.video_public_id, resource_type="video"):
-                post.video_public_id = None
-                flash('既存の動画が削除されました。', 'info')
-
-
-        # 総合的な成功メッセージ
-        media_updates = []
-        if upload_image_success: media_updates.append('画像')
-        if upload_video_success: media_updates.append('動画')
+            media_action_performed = True
         
-        if media_updates:
-            flash(f'記事とメディア({", ".join(media_updates)})が正常に更新されました。', 'success')
-        else:
+        # 5. メディア操作が行われず、記事の内容のみ更新された場合
+        if not media_action_performed:
             flash('記事が正常に更新されました。', 'success')
         
         db.session.commit()
-        return redirect(url_for('view', post_id=post.id))
+        
+        return redirect(url_for('admin'))
 
-    # GETリクエスト、またはバリデーション失敗時
-    # テンプレート側で既存のメディア情報（post.image_public_id/video_public_id）を表示できるように、postオブジェクトを渡す
-    return render_template('create.html', title='記事編集', form=form, post=post)
-
+    # GETリクエストの場合、またはバリデーションエラーの場合
+    # ★修正: ここでコードが途切れていた部分を完成させる
+    current_image_url = get_safe_cloudinary_url(post.image_public_id) if post.image_public_id else None
+    current_video_url = get_safe_cloudinary_video_url(post.video_public_id) if post.video_public_id else None
+    
+    # create.html を流用して編集フォームをレンダリング
+    return render_template('create.html', 
+                           title=f'記事の編集: {post.title}', 
+                           form=form, 
+                           post=post, # 既存の記事情報をテンプレートに渡す
+                           current_image_url=current_image_url, # 現在の画像URL
+                           current_video_url=current_video_url, # 現在の動画URL
+                           is_edit=True) # 編集モードであることをテンプレートに伝える
+                           
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
-def delete(post_id):
-    """記事削除処理 (画像・動画も削除)"""
+def delete_post(post_id):
+    """記事削除処理 (画像と動画の削除も含む)"""
     post = db.session.get(Post, post_id)
-    
+
     # 記事の作成者、または管理者のみ削除可能
     if not post or (post.user_id != current_user.id and not current_user.is_admin):
         flash('削除権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
 
-    # 1. Cloudinaryメディアの削除
+    # Cloudinaryメディアの削除
+    media_deleted = False
     if post.image_public_id:
-        delete_cloudinary_media(post.image_public_id, resource_type="image")
-    if post.video_public_id:
-        delete_cloudinary_media(post.video_public_id, resource_type="video")
+        if delete_cloudinary_media(post.image_public_id, resource_type="image"):
+            media_deleted = True
         
-    # 2. データベースから記事を削除 (Commentsはcascadeで自動削除される)
+    if post.video_public_id:
+        if delete_cloudinary_media(post.video_public_id, resource_type="video"):
+            media_deleted = True
+
+    # 記事と関連するコメントを削除
     db.session.delete(post)
     db.session.commit()
-    
-    flash(f'記事 "{post.title}" が正常に削除されました。', 'success')
+
+    if media_deleted:
+        flash(f'記事 "{post.title}" と関連するメディアが正常に削除されました。', 'success')
+    else:
+        flash(f'記事 "{post.title}" が正常に削除されました。', 'success')
+
     return redirect(url_for('admin'))
 
+
+# -----------------------------------------------
+# 管理・ダッシュボード
+# -----------------------------------------------
 
 @app.route('/admin')
 @login_required
 def admin():
-    """ユーザーのコンテンツ管理ページ"""
-    
-    # 管理者であれば全ての記事、そうでなければ自分の記事のみを表示
-    if current_user.is_admin:
-        # 管理者は全記事を降順で取得
-        posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
-        # 全ユーザー情報も取得
-        users = db.session.execute(db.select(User).order_by(User.username.asc())).scalars().all()
-        # 管理者コメント権限
-        comments = db.session.execute(db.select(Comment).order_by(Comment.created_at.desc())).scalars().all()
-        
-        return render_template('admin.html', 
-                               title='管理者ダッシュボード', 
-                               posts=posts, 
-                               users=users, 
-                               comments=comments,
-                               is_admin_view=True)
-    else:
-        # 一般ユーザーは自分の記事のみを降順で取得
-        posts = db.session.execute(
-            db.select(Post)
-            .filter_by(user_id=current_user.id)
-            .order_by(Post.created_at.desc())
-        ).scalars().all()
-        
-        return render_template('admin.html', 
-                               title='コンテンツ管理', 
-                               posts=posts, 
-                               is_admin_view=False)
+    """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
+    # 記事を新しい順に取得 (ログインユーザーの記事のみ)
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=current_user.id)
+        .order_by(Post.created_at.desc())
+    ).scalars().all()
 
+    # コメント数集計
+    # サブクエリを使用して各記事のコメント数を計算
+    comment_count_stmt = db.select(
+        Comment.post_id,
+        func.count(Comment.id).label('comment_count')
+    ).group_by(Comment.post_id).subquery()
+
+    # 記事とコメント数を結合
+    posts_with_comments_stmt = db.select(Post, comment_count_stmt.c.comment_count) \
+        .outerjoin(comment_count_stmt, Post.id == comment_count_stmt.c.post_id) \
+        .filter(Post.user_id == current_user.id) \
+        .order_by(Post.created_at.desc())
+
+    post_data = db.session.execute(posts_with_comments_stmt).all()
+    
+    # ユーザー全体に関する統計情報 (管理者向け)
+    total_users = 0
+    total_posts = 0
+    total_comments = 0
+    if current_user.is_admin:
+        total_users = db.session.scalar(db.select(func.count(User.id)))
+        total_posts = db.session.scalar(db.select(func.count(Post.id)))
+        total_comments = db.session.scalar(db.select(func.count(Comment.id)))
+
+    return render_template('admin.html',
+                           title='コンテンツ管理',
+                           posts=posts,
+                           post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
+                           total_users=total_users,
+                           total_posts=total_posts,
+                           total_comments=total_comments)
+
+
+# -----------------------------------------------
+# エラーハンドリング
+# -----------------------------------------------
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html', title='ページが見つかりません'), 404
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('403.html', title='アクセス禁止'), 403
+
+@app.errorhandler(413) # Payload Too Large
+def payload_too_large_error(error):
+    flash('アップロードされたファイルが大きすぎます。ファイルサイズの上限は100MBです。', 'danger')
+    # 可能な限りアップロードを試みたページに戻る
+    return redirect(request.referrer or url_for('admin'))
+
+# -----------------------------------------------
+# アプリケーションの初期化と実行
+# -----------------------------------------------
+
+# データベースの初期設定と管理者ユーザーの作成（開発環境でのみ推奨）
+# 本番環境ではmigrateで対応
+@app.cli.command("initdb")
+def initdb_command():
+    """データベースを初期化し、テーブルを作成します。"""
+    with app.app_context():
+        db.create_all()
+        # 初期管理者ユーザーの作成 (必要な場合のみ)
+        if db.session.scalar(db.select(User).limit(1)) is None:
+            admin_user = User(username='admin')
+            admin_user.set_password('adminpassword') # 適切なパスワードに変更してください
+            admin_user.is_admin = True
+            db.session.add(admin_user)
+            db.session.commit()
+            print('Admin user "admin" created.')
+        print("Initialized the database.")
 
 if __name__ == '__main__':
-    # データベースの初期化とテーブル作成は、通常は外部のスクリプトで行いますが、
-    # 開発環境のためにここで実行することもできます。
-    with app.app_context():
-        # db.create_all() # マイグレーションを使用するためコメントアウト
-        # マイグレーションが初期化されていない場合は警告を出す
-        try:
-            from flask_migrate import current as current_revision
-            # current_revision() # マイグレーションの状態をチェック
-        except Exception:
-            print("Warning: Database migrations might not be initialized. Run 'flask db init/migrate/upgrade' if needed.")
-
-    # 開発サーバーを実行
+    # 開発環境で実行する場合
     app.run(debug=True)
