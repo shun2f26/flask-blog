@@ -104,7 +104,7 @@ body { font-family: "Inter", sans-serif; }
                                 <!-- ★★★ 投稿画像/動画のサムネイルロジック (image_public_id, video_public_idに対応) ★★★ -->
                                 {% if post.video_public_id %}
                                     {# 動画の場合: Cloudinaryでサムネイル画像（最初のフレーム）を生成して表示 #}
-                                    {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.video_public_id + '.jpg' %}
+                                    {% set thumb_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.video_public_id + '.jpg' %}
                                     <div class="relative w-20 h-20 flex-shrink-0 mr-4">
                                         <img src="{{ thumb_url }}" 
                                             alt="{{ post.title }} の動画サムネイル" 
@@ -114,7 +114,7 @@ body { font-family: "Inter", sans-serif; }
                                     </div>
                                 {% elif post.image_public_id %}
                                     {# 画像の場合: サムネイルを表示 #}
-                                    {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.image_public_id %}
+                                    {% set thumb_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.image_public_id %}
                                     <img src="{{ thumb_url }}" 
                                         alt="{{ post.title }}" 
                                         class="w-20 h-20 object-cover rounded-xl shadow-md flex-shrink-0 mr-4 border border-gray-200"
