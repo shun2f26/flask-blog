@@ -1109,7 +1109,25 @@ def toggle_admin(user_id):
 # -----------------------------------------------
 # その他ユーティリティ (エラーハンドリングを含む) (変更なし)
 # -----------------------------------------------
+@app.route('/update_db', methods=['POST'])
+def update_db():
+    try:
+        # db.create_all() は、まだ存在しないテーブルのみをデータベースに作成します。
+        # 既存のデータやテーブルには影響しませんが、新しいカラムの追加などは
+        # Flask-Migrate (Alembic) の機能であり、この関数単独では行いません。
+        # 警告: 開発環境での初期セットアップには便利ですが、本番環境では
+        # Flask-Migrate/Alembicの正式なアップグレード手順を推奨します。
+        with app.app_context():
+            db.create_all()
+        
+        flash('データベースの初期化/更新が完了しました。（既存のデータは保持されます）', 'success')
+        return redirect(url_for('admin')) # 管理者ページへリダイレクト
 
+    except Exception as e:
+        flash(f'データベースの更新中にエラーが発生しました: {e}', 'danger')
+        # 詳細なエラーはログに記録
+        print(f"DB Update Error: {e}")
+        return redirect(url_for('admin'))
 # エンドポイント名を 'db_clear' から 'db_clear_data' に変更
 @app.route("/db_clear", methods=["GET"])
 def db_clear_data():
