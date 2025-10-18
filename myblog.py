@@ -1,4 +1,3 @@
-
 import os
 import sys
 import time
@@ -972,7 +971,11 @@ def delete_post(post_id):
 
     return redirect(url_for('admin'))
 
-
+@app.route('/account', methods=['GET', 'POST'])
+@login_required
+def account():
+    # account.html をレンダリング
+    return render_template('account.html', title='アカウント設定')
 # -----------------------------------------------
 # 管理・ダッシュボード
 # -----------------------------------------------
