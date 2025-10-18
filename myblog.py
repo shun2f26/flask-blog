@@ -3,7 +3,8 @@ import sys
 import time
 from io import BytesIO
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
+# ★修正: Responseとrequestsをインポートリストに追加
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response 
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -13,6 +14,9 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import func, select
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
+
+# ★追加: requestsはダウンロード機能に必要です
+import requests
 
 # WTForms関連のインポート
 from flask_wtf import FlaskForm
@@ -35,6 +39,7 @@ try:
         import cloudinary as actual_cloudinary # 実際のモジュールを別名でインポート
         import cloudinary.uploader
         import cloudinary.utils
+        import cloudinary.api # ★修正: API呼び出しのために明示的にインポート
         actual_cloudinary.config(
             cloud_name=CLOUD_NAME,
             api_key=API_KEY,
@@ -246,15 +251,15 @@ class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
     username = StringField('ユーザー名',
                             validators=[DataRequired(message='ユーザー名は必須です。'),
-                                        Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
+                                         Length(min=2, max=20, message='ユーザー名は2文字以上20文字以内で入力してください。')])
 
     password = PasswordField('パスワード',
                             validators=[DataRequired(message='パスワードは必須です。'),
-                                        Length(min=6, message='パスワードは6文字以上で設定してください。')])
+                                         Length(min=6, message='パスワードは6文字以上で設定してください。')])
 
     confirm_password = PasswordField('パスワード（確認用）',
-                                    validators=[DataRequired(message='パスワード確認は必須です。'),
-                                                EqualTo('password', message='パスワードが一致しません。')])
+                                     validators=[DataRequired(message='パスワード確認は必須です。'),
+                                                 EqualTo('password', message='パスワードが一致しません。')])
 
     submit = SubmitField('サインアップ')
 
@@ -292,8 +297,8 @@ class CommentForm(FlaskForm):
     """コメント投稿用のフォームクラス (匿名投稿対応)"""
     # 匿名ユーザー向けの名前フィールド (ログイン/非ログインに関わらず必須)
     name = StringField('ニックネーム', 
-                       validators=[DataRequired(message='ニックネームは必須です。'), 
-                                   Length(min=1, max=50, message='ニックネームは1文字以上50文字以内で入力してください。')])
+                        validators=[DataRequired(message='ニックネームは必須です。'), 
+                                     Length(min=1, max=50, message='ニックネームは1文字以上50文字以内で入力してください。')])
     content = TextAreaField('コメント', validators=[DataRequired(message='コメント内容は必須です。')])
     submit = SubmitField('コメントを送信')
 
@@ -317,7 +322,7 @@ def inject_globals():
     return {
         'now': now,
         'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE,
-        'get_cloudinary_url': get_safe_cloudinary_url,       # 画像専用ヘルパー関数を注入
+        'get_cloudinary_url': get_safe_cloudinary_url,      # 画像専用ヘルパー関数を注入
         'get_cloudinary_video_url': get_safe_cloudinary_video_url # 動画専用ヘルパー関数を注入
     }
 
@@ -341,8 +346,13 @@ def download_file(public_id):
     #     flash('このファイルをダウンロードする権限がありません。', 'danger')
     #     return redirect(url_for('admin'))
     
+    if not CLOUDINARY_AVAILABLE:
+        flash('ファイルストレージサービスが利用できません。', 'danger')
+        return redirect(url_for('admin'))
+    
     try:
         # 1. Cloudinary APIを使用してファイルの情報を取得
+        # Cloudinary APIのインポートを冒頭で修正済み
         resource_info = cloudinary.api.resource(public_id, all=True)
         
         if not resource_info or 'url' not in resource_info:
@@ -350,6 +360,8 @@ def download_file(public_id):
             return redirect(url_for('admin'))
 
         file_url = resource_info['url']
+        
+        # オリジナルファイル名を取得。タグがない場合は public_id の最後の部分を使用
         original_filename = resource_info.get('original_filename', public_id.split('/')[-1])
         
         # Cloudinaryのフォーマット情報から拡張子を取得し、元のファイル名に追加
@@ -761,7 +773,10 @@ def create():
         
         image_public_id = None
         video_public_id = None
-        upload_success = False
+        
+        # フラッシュメッセージの制御用
+        upload_image_success = False
+        upload_video_success = False
 
         # 画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
@@ -772,8 +787,7 @@ def create():
                     resource_type="image"
                 )
                 image_public_id = upload_result.get('public_id')
-                flash('画像が正常にアップロードされました。', 'success')
-                upload_success = True
+                upload_image_success = True
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary image upload error: {e}", file=sys.stderr)
@@ -787,15 +801,21 @@ def create():
                     resource_type="video" # resource_typeをvideoに設定
                 )
                 video_public_id = upload_result.get('public_id')
-                flash('動画が正常にアップロードされました。', 'success')
-                upload_success = True
+                upload_video_success = True
             except Exception as e:
                 flash(f'動画のアップロード中にエラーが発生しました: {e}', 'danger')
                 print(f"Cloudinary video upload error: {e}", file=sys.stderr)
 
-        # メディアのアップロードが試行されなかった、または両方のアップロードに成功/失敗した場合
-        if not upload_success and image_file.filename == '' and video_file.filename == '':
-            flash('新しい記事が正常に投稿されました。', 'success')
+        # 総合的な成功メッセージ
+        if upload_image_success or upload_video_success:
+             media_type = []
+             if upload_image_success:
+                 media_type.append('画像')
+             if upload_video_success:
+                 media_type.append('動画')
+             flash(f'新しい記事とメディア({", ".join(media_type)})が正常に投稿されました。', 'success')
+        else:
+             flash('新しい記事が正常に投稿されました。', 'success')
 
 
         new_post = Post(title=title,
@@ -856,7 +876,8 @@ def update(post_id):
             media_action_performed = True
 
         # --- 3. 新規画像アップロード処理 ---
-        elif image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
+        # 画像削除がチェックされておらず、新しい画像ファイルが提供された場合
+        if not delete_image and image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             # 既存の画像を削除
             if post.image_public_id: 
                 delete_cloudinary_media(post.image_public_id, resource_type="image")
@@ -876,7 +897,8 @@ def update(post_id):
             media_action_performed = True
 
         # --- 4. 新規動画アップロード処理 ---
-        elif video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
+        # 動画削除がチェックされておらず、新しい動画ファイルが提供された場合
+        if not delete_video and video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
             # 既存の動画を削除
             if post.video_public_id: 
                 delete_cloudinary_media(post.video_public_id, resource_type="video")
@@ -888,7 +910,7 @@ def update(post_id):
                     resource_type="video" # resource_typeをvideoに設定
                 )
                 post.video_public_id = upload_result.get('public_id')
-            
+                
                 flash('新しい動画が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'新しい動画のアップロード中にエラーが発生しました: {e}', 'danger')
@@ -904,23 +926,23 @@ def update(post_id):
         return redirect(url_for('admin'))
 
     # GETリクエストの場合、またはバリデーションエラーの場合
-    current_image_url = get_safe_cloudinary_url(post.image_public_id, width=300, crop="limit")
-    # ★追加: 動画のURLも取得
-    current_video_url = get_safe_cloudinary_video_url(post.video_public_id, width=300, crop="limit")
-
-
-    return render_template('update.html',
-                            post=post,
-                            title='記事編集',
-                            form=form,
-                            current_image_url=current_image_url,
-                            current_video_url=current_video_url) # ★追加
-
-
+    # ★修正: ここでコードが途切れていた部分を完成させる
+    current_image_url = get_safe_cloudinary_url(post.image_public_id) if post.image_public_id else None
+    current_video_url = get_safe_cloudinary_video_url(post.video_public_id) if post.video_public_id else None
+    
+    # create.html を流用して編集フォームをレンダリング
+    return render_template('create.html', 
+                           title=f'記事の編集: {post.title}', 
+                           form=form, 
+                           post=post, # 既存の記事情報をテンプレートに渡す
+                           current_image_url=current_image_url, # 現在の画像URL
+                           current_video_url=current_video_url, # 現在の動画URL
+                           is_edit=True) # 編集モードであることをテンプレートに伝える
+                           
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
-def delete(post_id):
-    """記事削除処理 (修正: 画像と動画の両方を削除)"""
+def delete_post(post_id):
+    """記事削除処理 (画像と動画の削除も含む)"""
     post = db.session.get(Post, post_id)
 
     # 記事の作成者、または管理者のみ削除可能
@@ -928,222 +950,115 @@ def delete(post_id):
         flash('削除権限がありません、または記事が見つかりません。', 'danger')
         abort(403)
 
-    # Cloudinaryから画像を削除
-    if post.image_public_id and CLOUDINARY_AVAILABLE:
-        delete_cloudinary_media(post.image_public_id, resource_type="image")
+    # Cloudinaryメディアの削除
+    media_deleted = False
+    if post.image_public_id:
+        if delete_cloudinary_media(post.image_public_id, resource_type="image"):
+            media_deleted = True
         
-    # Cloudinaryから動画を削除 (★追加)
-    if post.video_public_id and CLOUDINARY_AVAILABLE:
-        delete_cloudinary_media(post.video_public_id, resource_type="video")
+    if post.video_public_id:
+        if delete_cloudinary_media(post.video_public_id, resource_type="video"):
+            media_deleted = True
 
-    # データベースから記事を削除 (カスケード削除によりコメントも削除されます)
+    # 記事と関連するコメントを削除
     db.session.delete(post)
     db.session.commit()
-    flash('記事が正常に削除されました。', 'success')
 
-    # 常に管理ページへリダイレクト
+    if media_deleted:
+        flash(f'記事 "{post.title}" と関連するメディアが正常に削除されました。', 'success')
+    else:
+        flash(f'記事 "{post.title}" が正常に削除されました。', 'success')
+
     return redirect(url_for('admin'))
 
 
 # -----------------------------------------------
-# コンテンツ管理・管理者機能関連のルーティング (変更なし)
+# 管理・ダッシュボード
 # -----------------------------------------------
 
 @app.route('/admin')
 @login_required
 def admin():
-    """
-    全ログインユーザーのためのコンテンツ管理ビュー。（エンドポイント名: admin）
-    管理者は全ユーザーのリストと全記事を見る。一般ユーザーは自分の記事のみ見る。
-    """
+    """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
+    # 記事を新しい順に取得 (ログインユーザーの記事のみ)
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=current_user.id)
+        .order_by(Post.created_at.desc())
+    ).scalars().all()
+
+    # コメント数集計
+    # サブクエリを使用して各記事のコメント数を計算
+    comment_count_stmt = db.select(
+        Comment.post_id,
+        func.count(Comment.id).label('comment_count')
+    ).group_by(Comment.post_id).subquery()
+
+    # 記事とコメント数を結合
+    posts_with_comments_stmt = db.select(Post, comment_count_stmt.c.comment_count) \
+        .outerjoin(comment_count_stmt, Post.id == comment_count_stmt.c.post_id) \
+        .filter(Post.user_id == current_user.id) \
+        .order_by(Post.created_at.desc())
+
+    post_data = db.session.execute(posts_with_comments_stmt).all()
     
-    users = None
-    
+    # ユーザー全体に関する統計情報 (管理者向け)
+    total_users = 0
+    total_posts = 0
+    total_comments = 0
     if current_user.is_admin:
-        # 管理者: 全ユーザーのデータと記事数を取得
-        post_count_sq = db.session.query(
-            Post.user_id,
-            func.count(Post.id).label('post_count')
-        ).group_by(Post.user_id).subquery()
-
-        users_with_count_stmt = db.select(
-            User,
-            post_count_sq.c.post_count
-        ).outerjoin(
-            post_count_sq,
-            User.id == post_count_sq.c.user_id
-        ).order_by(User.created_at.desc())
-
-        users_data = db.session.execute(users_with_count_stmt).all()
-
-        users = []
-        for user_obj, post_count in users_data:
-            users.append({
-                'user': user_obj,
-                'post_count': post_count or 0,
-            })
-            
-        # 管理者は全記事も取得
-        # 修正: Post.created_at.desc() に変更
-        posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
-        title = '管理者ダッシュボード'
-        
-    else:
-        # 一般ユーザー: 自分の記事のみ取得
-        # 修正: Post.created_at.desc() に変更
-        posts = db.session.execute(
-            db.select(Post)
-            .filter_by(user_id=current_user.id)
-            .order_by(Post.created_at.desc())
-        ).scalars().all()
-        
-        title = f'{current_user.username} のコンテンツ管理'
-
+        total_users = db.session.scalar(db.select(func.count(User.id)))
+        total_posts = db.session.scalar(db.select(func.count(Post.id)))
+        total_comments = db.session.scalar(db.select(func.count(Comment.id)))
 
     return render_template('admin.html',
-                           users=users, # 管理者のみ使用
-                           posts=posts, # ログインユーザーの記事一覧として使用
-                           is_admin_view=current_user.is_admin, # テンプレートで出し分け用
-                           title=title)
-
-
-@app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
-@login_required
-@admin_required
-def toggle_admin(user_id):
-    """指定したユーザーの管理者権限をトグルする (管理者専用)"""
-    if user_id == current_user.id:
-        flash('自分自身の管理者ステータスを変更することはできません。', 'danger')
-        return redirect(url_for('admin'))
-
-    user = db.session.get(User, user_id)
-    if not user:
-        flash('ユーザーが見つかりませんでした。', 'danger')
-        return redirect(url_for('admin'))
-
-    user.is_admin = not user.is_admin
-    db.session.commit()
-
-    if user.is_admin:
-        flash(f'ユーザー "{user.username}" を管理者に設定しました。', 'success')
-    else:
-        flash(f'ユーザー "{user.username}" の管理者権限を解除しました。', 'info')
-
-    return redirect(url_for('admin'))
+                           title='コンテンツ管理',
+                           posts=posts,
+                           post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
+                           total_users=total_users,
+                           total_posts=total_posts,
+                           total_comments=total_comments)
 
 
 # -----------------------------------------------
-# その他ユーティリティ (エラーハンドリングを含む) (変更なし)
+# エラーハンドリング
 # -----------------------------------------------
-@app.route('/update_db', methods=['GET'])
-def update_db():
-    try:
-        # db.create_all() は、まだ存在しないテーブルのみをデータベースに作成します。
-        # 既存のデータやテーブルには影響しませんが、新しいカラムの追加などは
-        # Flask-Migrate (Alembic) の機能であり、この関数単独では行いません。
-        # 警告: 開発環境での初期セットアップには便利ですが、本番環境では
-        # Flask-Migrate/Alembicの正式なアップグレード手順を推奨します。
-        with app.app_context():
-            db.create_all()
-        
-        flash('データベースの初期化/更新が完了しました。（既存のデータは保持されます）', 'success')
-        return redirect(url_for('index')) # 管理者ページへリダイレクト
-
-    except Exception as e:
-        flash(f'データベースの更新中にエラーが発生しました: {e}', 'danger')
-        # 詳細なエラーはログに記録
-        print(f"DB Update Error: {e}")
-        return redirect(url_for('index'))
-# エンドポイント名を 'db_clear' から 'db_clear_data' に変更
-@app.route("/db_clear", methods=["GET"])
-def db_clear_data():
-    """データベースの全テーブルを削除し、再作成する（確認なし）"""
-    try:
-        with app.app_context():
-            # セッションを閉じる
-            db.session.close()
-            
-            # 生のSQLを使用してテーブルを強制削除 (PostgreSQLで特に必要)
-            # db.drop_all() を使用する前に、念のため生のSQLで依存関係を考慮して削除
-            # コメントテーブル、ユーザーテーブル、記事テーブル、Alembicテーブルの削除
-            db.session.execute(text("DROP TABLE IF EXISTS comments CASCADE;"))
-            db.session.execute(text("DROP TABLE IF EXISTS posts CASCADE;"))
-            db.session.execute(text("DROP TABLE IF EXISTS blog_users CASCADE;"))
-            db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
-            
-            db.session.commit() # 削除をコミット
-            
-            # 再度すべてのテーブルを作成
-            db.create_all()
-            
-            flash("データベースの全データが削除され、テーブルが正常に再作成されました。", 'success')
-            print("Database cleared and recreated successfully.")
-            return redirect(url_for('index'))
-    except Exception as e:
-        db.session.rollback()
-        error_message = f"データベースのクリーンアップ中にエラーが発生しました: {e}"
-        print(error_message, file=sys.stderr)
-        flash(error_message, 'danger')
-        return redirect(url_for('index'))
-
-
-# 修正: methods=["POST"] に変更し、内部のメソッドチェックとGETでの実行ロジックを削除しました。
-@app.route("/db_reset", methods=["POST"])
-def db_reset():
-    """データベーステーブルのリセット（開発/テスト用）。POSTリクエストでのみ実行可能。"""
-    # プロダクション環境では注意が必要
-    try:
-        with app.app_context():
-            # **注意: db_clear と同じロジックをよりシンプルに実行**
-            db.session.close()
-            db.drop_all()
-            
-            if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgresql'):
-                # PostgreSQLでalembic_versionテーブルの削除が必要になる場合がある
-                db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
-                db.session.commit()
-                
-            db.create_all()
-                
-            flash("データベースのテーブルが正常に削除・再作成されました。サインアップで管理者アカウントを作成してください。", 'success')
-            return redirect(url_for('index'))
-    except Exception as e:
-        db.session.rollback()
-        print(f"データベースリセット中にエラーが発生しました: {e}", file=sys.stderr)
-        flash(f"データベースリセット中にエラーが発生しました: {e}", 'danger')
-        return redirect(url_for('index'))
-
-
-@app.route('/account', methods=['GET', 'POST'])
-@login_required
-def account():
-    # account.html をレンダリング
-    return render_template('account.html', title='アカウント設定')
-
-# カスタムエラーハンドラ
 
 @app.errorhandler(404)
 def not_found_error(error):
-    """404エラーハンドラ"""
-    return render_template('404.html', title='404 Not Found'), 404
+    return render_template('404.html', title='ページが見つかりません'), 404
 
 @app.errorhandler(403)
 def forbidden_error(error):
-    """403エラーハンドラ (権限なし)"""
-    return render_template('error_page.html', title='403 Forbidden', error_code=403, message='このリソースにアクセスする権限がありません。'), 403
+    return render_template('403.html', title='アクセス禁止'), 403
 
-@app.errorhandler(500)
-def internal_error(error):
-    """500エラーハンドラ (内部サーバーエラー)"""
-    db.session.rollback()
-    return render_template('error_page.html', title='サーバーエラー', error_code=500, message='サーバー内部でエラーが発生しました。しばらくしてからお試しください。'), 500
+@app.errorhandler(413) # Payload Too Large
+def payload_too_large_error(error):
+    flash('アップロードされたファイルが大きすぎます。ファイルサイズの上限は100MBです。', 'danger')
+    # 可能な限りアップロードを試みたページに戻る
+    return redirect(request.referrer or url_for('admin'))
+
+# -----------------------------------------------
+# アプリケーションの初期化と実行
+# -----------------------------------------------
+
+# データベースの初期設定と管理者ユーザーの作成（開発環境でのみ推奨）
+# 本番環境ではmigrateで対応
+@app.cli.command("initdb")
+def initdb_command():
+    """データベースを初期化し、テーブルを作成します。"""
+    with app.app_context():
+        db.create_all()
+        # 初期管理者ユーザーの作成 (必要な場合のみ)
+        if db.session.scalar(db.select(User).limit(1)) is None:
+            admin_user = User(username='admin')
+            admin_user.set_password('adminpassword') # 適切なパスワードに変更してください
+            admin_user.is_admin = True
+            db.session.add(admin_user)
+            db.session.commit()
+            print('Admin user "admin" created.')
+        print("Initialized the database.")
 
 if __name__ == '__main__':
-    # 開発環境で実行する場合の初期設定
-    with app.app_context():
-        # データベースが存在しない場合は作成
-        if not os.path.exists('myblog.db'):
-            db.create_all()
-            print("SQLite database 'myblog.db' created.")
-    
+    # 開発環境で実行する場合
     app.run(debug=True)
