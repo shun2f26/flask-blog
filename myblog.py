@@ -90,7 +90,7 @@ def delete_cloudinary_image(public_id):
 
 # Flaskアプリのインスタンス作成
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 1000 * 1000 * 1000
+app.config['MAX_CONTENT_LENGTH'] = 1000 * 1000 * 1000 * 1000
 
 # --- アプリ設定 ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key')
