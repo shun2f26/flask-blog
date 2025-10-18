@@ -56,41 +56,53 @@ except Exception as e:
 # --- 画像URL生成の安全なヘルパー関数 ---
 def get_safe_cloudinary_url(public_id, **kwargs):
     """
-    Cloudinaryが利用可能かチェックし、可能であればURLを生成して返す。
+    Cloudinaryが利用可能かチェックし、可能であれば画像URLを生成して返す。
     利用不可な場合は空の文字列を返す。
     """
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     
-    # デフォルトの変換オプションを適用 (Web最適化)
+    # デフォルトの画像変換オプションを適用
     kwargs.setdefault('width', 600)
     kwargs.setdefault('crop', 'limit')
     kwargs.setdefault('fetch_format', 'auto')
     kwargs.setdefault('quality', 'auto')
     
-    # cloudinary.utils は CLOUDINARY_AVAILABLE が True のときのみ安全にアクセスされる
-    return cloudinary.utils.cloudinary_url(public_id, **kwargs)[0]
+    return cloudinary.utils.cloudinary_url(public_id, resource_type="image", **kwargs)[0]
 
-def delete_cloudinary_image(public_id):
-    """Cloudinaryから指定された画像を削除する"""
+def get_safe_cloudinary_video_url(public_id, **kwargs):
+    """
+    Cloudinaryが利用可能かチェックし、可能であれば動画URLを生成して返す。
+    利用不可な場合は空の文字列を返す。
+    """
+    if not public_id or not CLOUDINARY_AVAILABLE:
+        return ""
+        
+    # 動画URLの生成
+    kwargs.setdefault('format', 'mp4') # ブラウザ互換性のためにmp4を推奨
+    
+    return cloudinary.utils.cloudinary_url(public_id, resource_type="video", **kwargs)[0]
+
+def delete_cloudinary_media(public_id, resource_type="image"):
+    """Cloudinaryから指定されたメディアを削除する"""
     if CLOUDINARY_AVAILABLE and public_id:
         try:
             # uploader は CLOUDINARY_AVAILABLE が True のときのみ安全にアクセスされる
-            result = cloudinary.uploader.destroy(public_id)
+            result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
             if result.get('result') == 'ok':
-                print(f"Cloudinary image deleted successfully: {public_id}")
+                print(f"Cloudinary {resource_type} deleted successfully: {public_id}")
                 return True
             else:
-                print(f"Cloudinary deletion failed for {public_id}: {result.get('result')}", file=sys.stderr)
+                print(f"Cloudinary deletion failed for {public_id} ({resource_type}): {result.get('result')}", file=sys.stderr)
                 return False
         except Exception as e:
-            print(f"Error deleting Cloudinary image {public_id}: {e}", file=sys.stderr)
+            print(f"Error deleting Cloudinary {resource_type} {public_id}: {e}", file=sys.stderr)
             return False
     return False
 
 # Flaskアプリのインスタンス作成
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 1000 * 1000 * 1000 * 1000
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 # --- アプリ設定 ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key')
@@ -190,13 +202,16 @@ class User(UserMixin, db.Model):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
         
 class Post(db.Model):
-    """記事モデル"""
+    """記事モデル (修正: public_idを画像と動画で分割)"""
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    public_id = db.Column(db.String(100), nullable=True) # Cloudinary Public ID
-    created_at = db.Column(db.DateTime, nullable=False, default=now) # フィールド名を created_at に統一
+    # ★修正: 画像専用のCloudinary Public ID
+    image_public_id = db.Column(db.String(100), nullable=True) 
+    # ★追加: 動画専用のCloudinary Public ID
+    video_public_id = db.Column(db.String(100), nullable=True) 
+    created_at = db.Column(db.DateTime, nullable=False, default=now) 
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
     
     # 記事に紐づくコメント (Post -> Comment)
@@ -256,13 +271,20 @@ class LoginForm(FlaskForm):
     submit = SubmitField('ログイン')
 
 class PostForm(FlaskForm):
-    """記事投稿・編集用のフォームクラス (画像ファイルフィールドを追加)"""
+    """記事投稿・編集用のフォームクラス (画像と動画を分割)"""
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
-    # FileFieldはバリデーションでサイズチェックはしませんが、FileAllowedでMIMEタイプをチェックします
-    image = FileField('画像/動画をアップロード (任意)', validators=[
-        FileAllowed(['jpg', 'png', 'jpeg', 'gif','mp4'], '画像ファイル (JPG, PNG, GIF) ,動画ファイル（MP4）をアップロードできます')
+    
+    # ★修正: 画像専用フィールド
+    image = FileField('画像をアップロード (任意)', validators=[
+        FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみアップロードできます')
     ])
+    
+    # ★追加: 動画専用フィールド
+    video = FileField('動画をアップロード (任意)', validators=[
+        FileAllowed(['mp4', 'mov', 'avi', 'webm'], '動画ファイル (MP4, MOV, AVI, WEBM) のみアップロードできます')
+    ])
+    
     submit = SubmitField('更新')
 
 class CommentForm(FlaskForm):
@@ -294,7 +316,8 @@ def inject_globals():
     return {
         'now': now,
         'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE,
-        'get_cloudinary_url': get_safe_cloudinary_url # 安全なヘルパー関数を注入
+        'get_cloudinary_url': get_safe_cloudinary_url,       # 画像専用ヘルパー関数を注入
+        'get_cloudinary_video_url': get_safe_cloudinary_video_url # 動画専用ヘルパー関数を注入
     }
 
 @login_manager.user_loader
@@ -652,13 +675,87 @@ def reset_password_immediate(user_id):
     )
 
 # -----------------------------------------------
-# 記事作成・編集・削除 (変更なし)
+# 記事作成・編集・削除
+# -----------------------------------------------
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    """
+    パスワードリセット要求ページ: ユーザー名を検証し、即時リセットページへリダイレクト。
+    メール送信ロジックは削除されました。
+    """
+    if current_user.is_authenticated:
+        # ログインしている場合はコンテンツ管理ページへ
+        return redirect(url_for('admin'))
+
+    form = RequestResetForm()
+
+    if form.validate_on_submit():
+        user = db.session.execute(
+            db.select(User).filter_by(username=form.username.data)
+        ).scalar_one_or_none()
+
+        if user:
+            # メール送信ロジックを削除し、代わりにユーザーIDを含む即時リセットページへリダイレクト
+            flash(f'ユーザー "{user.username}" のパスワードをリセットします。新しいパスワードを設定してください。', 'info')
+            return redirect(url_for('reset_password_immediate', user_id=user.id))
+        else:
+            # ユーザーが見つからない場合
+            flash('ユーザー名が見つかりませんでした。', 'danger')
+
+    return render_template('forgot_password.html', title='パスワードを忘れた場合', form=form)
+
+
+@app.route('/reset_password_immediate/<int:user_id>', methods=['GET', 'POST'])
+def reset_password_immediate(user_id):
+    """
+    ユーザーIDを使用してパスワードを即時リセットするページ（トークン検証をスキップ）。
+    """
+    user = db.session.get(User, user_id)
+
+    if not user:
+        flash('無効なユーザーIDです。', 'danger')
+        return redirect(url_for('login'))
+
+    # 既にログインしている場合は、そのアカウントのリセットでない限りアクセスを拒否
+    if current_user.is_authenticated and current_user.id != user_id:
+        flash('別のアカウントのパスワードをリセットすることはできません。', 'danger')
+        return redirect(url_for('admin'))
+    
+    # リセットフォームを表示する前にログアウトさせる（セキュリティ対策）
+    # ただし、リセット処理後にログイン状態を保持したい場合はこの行をコメントアウト
+    if current_user.is_authenticated:
+        logout_user()
+
+    form = ResetPasswordForm()
+
+    if form.validate_on_submit():
+        # パスワードを更新
+        user.set_password(form.password.data)
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.session.commit()
+
+        flash('パスワードが正常にリセットされました。新しいパスワードでログインしてください。', 'success')
+        return redirect(url_for('login'))
+
+    # テンプレートに必要な user_id と user_name を追加してレンダリング
+    return render_template(
+        'reset_password.html', 
+        title=f'{user.username} のパスワードリセット', 
+        form=form,
+        user_id=user_id,    # フォームのアクション（url_for）用
+        user_name=user.username # テンプレートの表示用
+    )
+
+# -----------------------------------------------
+# 記事作成・編集・削除 (大幅修正)
 # -----------------------------------------------
 
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
-    """新規記事投稿ページ"""
+    """新規記事投稿ページ (修正: 画像と動画のアップロードを分離)"""
     form = PostForm()
 
     if form.validate_on_submit():
@@ -666,40 +763,57 @@ def create():
         content = form.content.data
         
         image_file = request.files.get(form.image.name)
-        public_id = None
+        video_file = request.files.get(form.video.name)
         
-        is_image_uploaded = False
-        
+        image_public_id = None
+        video_public_id = None
+        upload_success = False
+
+        # 画像アップロード処理
         if image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             try:
-                # Cloudinaryにアップロード
                 upload_result = cloudinary.uploader.upload(
                     image_file, 
-                    folder=f"flask_blog_images/{current_user.username}", # ユーザーごとにフォルダ分け
+                    folder=f"flask_blog_images/{current_user.username}", 
                     resource_type="image"
                 )
-                public_id = upload_result.get('public_id')
-                is_image_uploaded = True
-                flash('記事と画像が正常に投稿されました。', 'success')
+                image_public_id = upload_result.get('public_id')
+                flash('画像が正常にアップロードされました。', 'success')
+                upload_success = True
             except Exception as e:
                 flash(f'画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                print(f"Cloudinary upload error: {e}", file=sys.stderr)
-            
+                print(f"Cloudinary image upload error: {e}", file=sys.stderr)
         
-        # flashメッセージのロジックを調整: 画像が試行されなかった、または画像アップロードに成功しなかった場合（画像なしの成功）
-        if not is_image_uploaded and image_file.filename == '':
+        # 動画アップロード処理 (画像アップロードとは独立)
+        if video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
+            try:
+                upload_result = cloudinary.uploader.upload(
+                    video_file, 
+                    folder=f"flask_blog_videos/{current_user.username}", 
+                    resource_type="video" # resource_typeをvideoに設定
+                )
+                video_public_id = upload_result.get('public_id')
+                flash('動画が正常にアップロードされました。', 'success')
+                upload_success = True
+            except Exception as e:
+                flash(f'動画のアップロード中にエラーが発生しました: {e}', 'danger')
+                print(f"Cloudinary video upload error: {e}", file=sys.stderr)
+
+        # メディアのアップロードが試行されなかった、または両方のアップロードに成功/失敗した場合
+        if not upload_success and image_file.filename == '' and video_file.filename == '':
             flash('新しい記事が正常に投稿されました。', 'success')
 
 
         new_post = Post(title=title,
                         content=content,
                         user_id=current_user.id,
-                        public_id=public_id,
-                        created_at=now()) # フィールド名を created_at に修正
+                        image_public_id=image_public_id, # ★変更
+                        video_public_id=video_public_id, # ★追加
+                        created_at=now()) 
         db.session.add(new_post)
         db.session.commit()
         
-        return redirect(url_for('admin')) # 管理ページへリダイレクト
+        return redirect(url_for('admin')) 
 
     return render_template('create.html', title='新規投稿', form=form)
 
@@ -707,7 +821,7 @@ def create():
 @app.route('/update/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 def update(post_id):
-    """記事編集ページ"""
+    """記事編集ページ (修正: 画像と動画の編集・削除を分離)"""
     post = db.session.get(Post, post_id)
 
     # 記事の作成者、または管理者のみ編集可能
@@ -722,24 +836,36 @@ def update(post_id):
         post.content = form.content.data
 
         delete_image = request.form.get('delete_image') == 'on'
-        image_file = request.files.get(form.image.name)
+        delete_video = request.form.get('delete_video') == 'on' # ★追加
         
-        image_action_performed = False
+        image_file = request.files.get(form.image.name)
+        video_file = request.files.get(form.video.name) # ★追加
+        
+        media_action_performed = False
 
-        # 1. 画像削除処理
-        if delete_image and post.public_id and CLOUDINARY_AVAILABLE:
-            if delete_cloudinary_image(post.public_id):
-                post.public_id = None
+        # --- 1. 画像削除処理 ---
+        if delete_image and post.image_public_id and CLOUDINARY_AVAILABLE:
+            if delete_cloudinary_media(post.image_public_id, resource_type="image"):
+                post.image_public_id = None
                 flash('画像が削除されました。', 'info')
             else:
                 flash('画像の削除に失敗しました。', 'danger')
-            image_action_performed = True
+            media_action_performed = True
 
-        # 2. 新規画像アップロード処理
+        # --- 2. 動画削除処理 ---
+        if delete_video and post.video_public_id and CLOUDINARY_AVAILABLE:
+            if delete_cloudinary_media(post.video_public_id, resource_type="video"):
+                post.video_public_id = None
+                flash('動画が削除されました。', 'info')
+            else:
+                flash('動画の削除に失敗しました。', 'danger')
+            media_action_performed = True
+
+        # --- 3. 新規画像アップロード処理 ---
         elif image_file and image_file.filename != '' and CLOUDINARY_AVAILABLE:
             # 既存の画像を削除
-            if post.public_id: 
-                delete_cloudinary_image(post.public_id)
+            if post.image_public_id: 
+                delete_cloudinary_media(post.image_public_id, resource_type="image")
 
             try:
                 upload_result = cloudinary.uploader.upload(
@@ -747,38 +873,60 @@ def update(post_id):
                     folder=f"flask_blog_images/{current_user.username}",
                     resource_type="image"
                 )
-                post.public_id = upload_result.get('public_id')
-            
+                post.image_public_id = upload_result.get('public_id')
+                
                 flash('新しい画像が正常にアップロードされました。', 'success')
             except Exception as e:
                 flash(f'新しい画像のアップロード中にエラーが発生しました: {e}', 'danger')
-                print(f"Cloudinary upload error: {e}", file=sys.stderr)
-            image_action_performed = True
+                print(f"Cloudinary image upload error: {e}", file=sys.stderr)
+            media_action_performed = True
+
+        # --- 4. 新規動画アップロード処理 ---
+        elif video_file and video_file.filename != '' and CLOUDINARY_AVAILABLE:
+            # 既存の動画を削除
+            if post.video_public_id: 
+                delete_cloudinary_media(post.video_public_id, resource_type="video")
+
+            try:
+                upload_result = cloudinary.uploader.upload(
+                    video_file, 
+                    folder=f"flask_blog_videos/{current_user.username}",
+                    resource_type="video" # resource_typeをvideoに設定
+                )
+                post.video_public_id = upload_result.get('public_id')
+            
+                flash('新しい動画が正常にアップロードされました。', 'success')
+            except Exception as e:
+                flash(f'新しい動画のアップロード中にエラーが発生しました: {e}', 'danger')
+                print(f"Cloudinary video upload error: {e}", file=sys.stderr)
+            media_action_performed = True
         
-        # 3. 画像操作が行われず、記事の内容のみ更新された場合
-        if not image_action_performed:
+        # 5. メディア操作が行われず、記事の内容のみ更新された場合
+        if not media_action_performed:
             flash('記事が正常に更新されました。', 'success')
         
         db.session.commit()
         
-        # 常に管理ページへリダイレクト
         return redirect(url_for('admin'))
 
     # GETリクエストの場合、またはバリデーションエラーの場合
-    # current_image_url はテンプレートで使用するために作成 (update.htmlで利用)
-    current_image_url = get_safe_cloudinary_url(post.public_id, width=300, crop="limit")
+    current_image_url = get_safe_cloudinary_url(post.image_public_id, width=300, crop="limit")
+    # ★追加: 動画のURLも取得
+    current_video_url = get_safe_cloudinary_video_url(post.video_public_id, width=300, crop="limit")
+
 
     return render_template('update.html',
-                           post=post,
-                           title='記事編集',
-                           form=form,
-                           current_image_url=current_image_url)
+                            post=post,
+                            title='記事編集',
+                            form=form,
+                            current_image_url=current_image_url,
+                            current_video_url=current_video_url) # ★追加
 
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
 def delete(post_id):
-    """記事削除処理"""
+    """記事削除処理 (修正: 画像と動画の両方を削除)"""
     post = db.session.get(Post, post_id)
 
     # 記事の作成者、または管理者のみ削除可能
@@ -787,8 +935,12 @@ def delete(post_id):
         abort(403)
 
     # Cloudinaryから画像を削除
-    if post.public_id and CLOUDINARY_AVAILABLE:
-        delete_cloudinary_image(post.public_id)
+    if post.image_public_id and CLOUDINARY_AVAILABLE:
+        delete_cloudinary_media(post.image_public_id, resource_type="image")
+        
+    # Cloudinaryから動画を削除 (★追加)
+    if post.video_public_id and CLOUDINARY_AVAILABLE:
+        delete_cloudinary_media(post.video_public_id, resource_type="video")
 
     # データベースから記事を削除 (カスケード削除によりコメントも削除されます)
     db.session.delete(post)
