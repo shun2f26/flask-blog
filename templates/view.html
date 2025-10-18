@@ -92,17 +92,17 @@
             </div>
 
             <!-- ★★★ 投稿画像/動画の表示ロジック (Cloudinary対応) ★★★ -->
-            {% if post.public_id %}
+            {% if post.video_public_id or post.image_public_id %}
                 <figure class="mb-8">
-                    {# public_idから拡張子を推測するロジック #}
-                    {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
-                    {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else '' %}
-                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
                     
-                    {% if extension in video_extensions %}
-                        {# 動画の場合: <video> タグで表示 #}
+                    {% if post.video_public_id %}
+                        {# 動画の場合: <video> タグで表示 (動画IDが存在する場合を優先) #}
+                        {% set public_id = post.video_public_id %}
+                        {% set filename_parts = public_id.split('/')[-1].split('.') %}
+                        {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else 'mp4' %}
+                        
                         <div class="relative w-full overflow-hidden rounded-xl shadow-lg border border-gray-100">
-                            {% set video_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + post.public_id %}
+                            {% set video_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + public_id %}
                             <video controls preload="metadata" class="w-full h-auto object-contain">
                                 <source src="{{ video_url }}" type="video/{{ extension }}">
                                 お使いのブラウザは動画タグをサポートしていません。
@@ -111,15 +111,16 @@
 
                         {# ダウンロードボタンの追加 #}
                         <div class="video-download-area text-center">
-                            <a href="{{ url_for('download_file', public_id=post.public_id) }}" 
+                            <a href="{{ url_for('download_file', public_id=public_id) }}" 
                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150"
                                download>
                                 <i class="fas fa-download mr-2"></i> 動画ファイルをダウンロード ({{ extension | upper }})
                             </a>
                         </div>
-                    {% else %}
+                    {% elif post.image_public_id %}
                         {# 画像の場合: <img> タグで表示 #}
-                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + post.public_id %}
+                        {% set public_id = post.image_public_id %}
+                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + public_id %}
                         <img 
                             src="{{ img_url }}" 
                             alt="{{ post.title }}" 
@@ -195,8 +196,12 @@
                             {# comment.name があればそれを優先して表示。なければログインユーザー名を表示 #}
                             {% if comment.name %}
                                 {{ comment.name }}
-                            {% else %}
-                                {{ comment.author.username }}
+                            {% else %}<span class="text-xs text-red-500 font-normal">[ログインユーザー名なし]</span>
+                                {% if comment.author and comment.author.username %}
+                                    {{ comment.author.username }}
+                                {% else %}
+                                    [名無し]
+                                {% endif %}
                             {% endif %}
                         </span>
                         
