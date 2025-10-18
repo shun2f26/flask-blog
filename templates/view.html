@@ -30,6 +30,15 @@
     margin-bottom: 1rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
+/* 記事内の動画にもスタイルを適用 */
+.prose video {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
 </style>
 
 <div class="py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
@@ -75,25 +84,36 @@
                 </div>
             </div>
 
-            <!-- 投稿画像 (Cloudinary表示ロジックを実装) -->
-            {% if post.public_id and CLOUDINARY_AVAILABLE %}
-            <figure class="mb-8">
-                <!-- get_cloudinary_url を使用して画像URLを生成 -->
-                {% set img_url = get_cloudinary_url(post.public_id, width=800, crop='limit', fetch_format='auto', quality='auto') %}
-                <img 
-                    src="{{ img_url }}" 
-                    alt="{{ post.title }}" 
-                    class="w-full h-auto max-h-[500px] object-contain rounded-xl shadow-lg border border-gray-100"
-                    onerror="this.onerror=null; this.src='https://placehold.co/800x500/F87171/FFFFFF?text=IMAGE+LOADING+ERROR'; this.alt='画像読み込みエラー';"
-                >
-            </figure>
-            {% elif post.public_id %}
-            <!-- Cloudinary設定がない場合でも画像IDがあればメッセージを表示 -->
-            <div class="mb-8 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-lg" role="alert">
-                <p class="font-bold">画像表示エラー</p>
-                <p>Cloudinaryの設定が完了していないため、画像を読み込めませんでした。</p>
-            </div>
+            <!-- ★★★ 投稿画像/動画の表示ロジック (Cloudinary対応) ★★★ -->
+            {% if post.public_id %}
+                <figure class="mb-8">
+                    {# public_idから拡張子を推測するロジック #}
+                    {% set filename = post.public_id.split('/')[-1] %}
+                    {% set extension = filename.split('.')[-1] | lower %}
+                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
+                    
+                    {% if extension in video_extensions %}
+                        {# 動画の場合: <video> タグで表示 #}
+                        <div class="relative w-full overflow-hidden rounded-xl shadow-lg border border-gray-100">
+                            {% set video_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + post.public_id %}
+                            <video controls preload="metadata" class="w-full h-auto object-contain">
+                                <source src="{{ video_url }}" type="video/{{ extension }}">
+                                お使いのブラウザは動画タグをサポートしていません。
+                            </video>
+                        </div>
+                    {% else %}
+                        {# 画像の場合: <img> タグで表示 #}
+                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + post.public_id %}
+                        <img 
+                            src="{{ img_url }}" 
+                            alt="{{ post.title }}" 
+                            class="w-full h-auto max-h-[500px] object-contain rounded-xl shadow-lg border border-gray-100"
+                            onerror="this.onerror=null; this.src='https://placehold.co/800x500/F87171/FFFFFF?text=IMAGE+LOADING+ERROR'; this.alt='画像読み込みエラー';"
+                        >
+                    {% endif %}
+                </figure>
             {% endif %}
+            <!-- ★★★ 投稿画像/動画の表示ロジック 終了 ★★★ -->
 
             <!-- 投稿本文 -->
             <div class="prose prose-lg max-w-none text-gray-800 break-words">
