@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from io import BytesIO
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
 from flask_sqlalchemy import SQLAlchemy
@@ -324,6 +325,73 @@ def inject_globals():
 def load_user(user_id):
     """Flask-LoginがセッションからユーザーIDをロードするためのコールバック"""
     return db.session.get(User, int(user_id))
+
+@app.route('/download/<path:public_id>', methods=['GET'])
+@login_required # ダウンロードはログインユーザーに限定
+def download_file(public_id):
+    """
+    Cloudinaryに保存されているファイルをストリーミングダウンロードします。
+    requestsを使ってファイルをチャンクに分け、メモリ効率を高めます。
+    public_idは、'uploads/image_name.jpg' のようなパス全体を受け取ります。
+    """
+    # 実際には、ここで post_id などを使って、
+    # ユーザーがそのファイルをダウンロードする権限があるかを確認するロジックが必要です。
+    # 例: post = Post.query.filter_by(public_id=public_id).first()
+    # if not post or post.author != current_user:
+    #     flash('このファイルをダウンロードする権限がありません。', 'danger')
+    #     return redirect(url_for('admin'))
+    
+    try:
+        # 1. Cloudinary APIを使用してファイルの情報を取得
+        resource_info = cloudinary.api.resource(public_id, all=True)
+        
+        if not resource_info or 'url' not in resource_info:
+            flash('指定されたファイルが見つかりません。', 'danger')
+            return redirect(url_for('admin'))
+
+        file_url = resource_info['url']
+        original_filename = resource_info.get('original_filename', public_id.split('/')[-1])
+        
+        # Cloudinaryのフォーマット情報から拡張子を取得し、元のファイル名に追加
+        content_format = resource_info.get('format', None)
+        if content_format and not original_filename.lower().endswith(f".{content_format.lower()}"):
+             original_filename = f"{original_filename}.{content_format}"
+        
+        # 2. ファイルをストリーミングダウンロード開始
+        # stream=Trueを設定し、ファイル全体をメモリにロードしないようにする
+        response = requests.get(file_url, stream=True)
+        
+        if response.status_code != 200:
+            flash('ファイルの取得中にエラーが発生しました。', 'danger')
+            return redirect(url_for('admin'))
+
+        # 3. ジェネレータ関数を定義して、チャンクごとにデータを送信
+        def generate():
+            # iter_content()を使って、requestsの応答をチャンクに分割
+            for chunk in response.iter_content(chunk_size=4096):
+                if chunk: # フィルタリングアウト keep-alive chunks
+                    yield chunk
+        
+        # FlaskのResponseオブジェクトを使ってストリーミングレスポンスを作成
+        # Content-Dispositionヘッダーを設定してダウンロード時のファイル名を指定
+        return Response(
+            generate(),
+            mimetype=response.headers.get('Content-Type', 'application/octet-stream'),
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{original_filename}\"",
+                # ファイルサイズがわかっている場合はContent-Lengthを設定すると良い
+                "Content-Length": response.headers.get('Content-Length')
+            }
+        )
+
+    except cloudinary.api.NotFound:
+        flash('指定された public_id のファイルはCloudinaryに見つかりませんでした。', 'danger')
+        return redirect(url_for('admin'))
+    except Exception as e:
+        # 詳細なエラーはログに記録
+        print(f"ファイルダウンロードエラー: {e}")
+        flash('ファイルダウンロード中に予期せぬエラーが発生しました。', 'danger')
+        return redirect(url_for('admin'))
 
 
 # ---------------------------------------------
