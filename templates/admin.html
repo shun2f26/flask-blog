@@ -101,27 +101,24 @@ body { font-family: "Inter", sans-serif; }
                             <!-- 記事のサムネイル、タイトル、日時コンテナ -->
                             <div class="flex items-start w-full sm:w-2/3 mb-3 sm:mb-0">
                                 
-                                <!-- ★★★ 投稿画像/動画のサムネイルロジック ★★★ -->
-                                {% if post.public_id %}
-                                    {# public_idから拡張子を推測するロジック #}
-                                    {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
-                                    {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else '' %}
-                                    {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
-                                    
-                                    {% if extension in video_extensions %}
-                                        <!-- 動画の場合: 動画アイコンを表示 -->
-                                        <div class="w-20 h-20 flex items-center justify-center bg-purple-100 rounded-xl shadow-md flex-shrink-0 mr-4 border-2 border-purple-300">
-                                            <i class="fas fa-video text-3xl text-purple-600"></i>
-                                        </div>
-                                    {% else %}
-                                        <!-- 画像の場合: サムネイルを表示 -->
-                                        {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.public_id %}
+                                <!-- ★★★ 投稿画像/動画のサムネイルロジック (image_public_id, video_public_idに対応) ★★★ -->
+                                {% if post.video_public_id %}
+                                    {# 動画の場合: Cloudinaryでサムネイル画像（最初のフレーム）を生成して表示 #}
+                                    {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.video_public_id + '.jpg' %}
+                                    <div class="relative w-20 h-20 flex-shrink-0 mr-4">
                                         <img src="{{ thumb_url }}" 
-                                            alt="{{ post.title }}" 
-                                            class="w-20 h-20 object-cover rounded-xl shadow-md flex-shrink-0 mr-4 border border-gray-200"
-                                            onerror="this.onerror=null; this.src='https://placehold.co/80x80/6B7280/FFFFFF?text=FAIL'; this.alt='読み込みエラー';">
-                                    {% endif %}
-                                    
+                                            alt="{{ post.title }} の動画サムネイル" 
+                                            class="w-full h-full object-cover rounded-xl shadow-md border border-gray-200"
+                                            onerror="this.onerror=null; this.src='https://placehold.co/80x80/9333ea/FFFFFF?text=VIDEO'; this.alt='動画サムネイル読み込みエラー';">
+                                        <i class="fas fa-play-circle absolute inset-0 m-auto text-3xl text-white/80 backdrop-blur-sm"></i>
+                                    </div>
+                                {% elif post.image_public_id %}
+                                    {# 画像の場合: サムネイルを表示 #}
+                                    {% set thumb_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_80,h_80,c_fill,f_auto,q_auto/' + post.image_public_id %}
+                                    <img src="{{ thumb_url }}" 
+                                        alt="{{ post.title }}" 
+                                        class="w-20 h-20 object-cover rounded-xl shadow-md flex-shrink-0 mr-4 border border-gray-200"
+                                        onerror="this.onerror=null; this.src='https://placehold.co/80x80/6B7280/FFFFFF?text=FAIL'; this.alt='読み込みエラー';">
                                 {% else %}
                                     <!-- 画像/動画がない場合のプレースホルダー -->
                                     <div class="w-20 h-20 flex items-center justify-center bg-gray-200 rounded-xl shadow-md flex-shrink-0 mr-4">
