@@ -523,7 +523,9 @@ def view(post_id):
                            post=post, 
                            title=post.title, 
                            comments=comments, # コメントリストを渡す
-                           comment_form=comment_form) # フォームを渡す
+                           comment_form=comment_form,
+                           config=current_app.config
+                           ) # フォームを渡す
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
 def post_comment(post_id):
