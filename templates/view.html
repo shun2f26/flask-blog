@@ -1,254 +1,130 @@
-
 {% extends "base.html" %}
 
 {% block title %}{{ post.title }}{% endblock %}
 
 {% block content %}
-
 <script src="https://cdn.tailwindcss.com"></script>
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-/* 投稿本文のフォントと行間を調整 */
-.prose {
-    font-family: "Inter", sans-serif;
-    line-height: 1.8;
-}
-/* コードブロックの見た目を調整 */
-.prose pre {
-    background-color: #1f2937; /* Gray-800 */
-    color: #f3f4f6; /* Gray-100 */
-    border-radius: 0.5rem;
-    padding: 1rem;
-    overflow-x: auto;
-}
-/* 記事内の画像がコンテナからはみ出さないように */
-.prose img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.5rem;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-}
-/* 記事内の動画にもスタイルを適用 */
-.prose video {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.5rem;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-}
 
-/* 動画ダウンロードエリアのスタイル */
-.video-download-area {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #e5e7eb;
-}
-</style>
+<!-- moment.jsのロード（Flaskでjinja2-momentを使用している前提） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/locale/ja.min.js"></script>
+<script>
+    moment.locale('ja');
+</script>
 
-<div class="py-12 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-    <div class="max-w-4xl mx-auto">
-        <!-- 投稿カード (Post Content Area) -->
-        <article class="bg-white shadow-2xl rounded-xl p-8 md:p-10 border-t-4 border-indigo-600 mb-10">
+<div class="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
 
-            <!-- 投稿ヘッダー (タイトルとメタ情報) -->
-            <div class="border-b pb-6 mb-6">
-                
-                <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-snug mb-2">
-                    {{ post.title }}
-                </h1>
-                
-                <!-- 作成者名 (タイトルの下に配置) -->
-                {% if post.author %}
-                <p class="text-lg text-gray-700 font-semibold mb-4 flex items-center">
-                    <span class="mr-2 text-gray-500">by</span>
-                    <a href="{{ url_for('login') }}"
-                        class="flex items-center font-bold text-teal-700 hover:text-teal-500 transition duration-150">
-                        <i class="fas fa-feather-alt mr-2 text-teal-500"></i>
-                        {{ post.author.username }}
-                    </a>
-                </p>
-                {% endif %}
-
-                <!-- メタ情報 -->
-                <div class="text-sm text-gray-500 flex flex-wrap items-center space-x-4">
-                    
-                    <!-- 作成日 -->
-                    <p class="flex items-center">
-                        <i class="fas fa-calendar-alt mr-1 text-gray-400"></i>
-                        <time datetime="{{ post.created_at | datetimeformat }}">{{ post.created_at | datetimeformat('%Y年%m月%d日') }}</time>
-                    </p>
-                    
-                    <!-- 更新日（あれば追加） -->
-                    {% if post.updated_at and post.updated_at != post.created_at %}
-                    <p class="flex items-center text-xs text-gray-400">
-                        <i class="fas fa-redo mr-1"></i>
-                        更新日: <time datetime="{{ post.updated_at | datetimeformat }}">{{ post.updated_at | datetimeformat('%Y-%m-%d') }}</time>
-                    </p>
-                    {% endif %}
-                </div>
+    <!-- 記事コンテナ -->
+    <article class="bg-white shadow-2xl rounded-2xl p-6 sm:p-10 transition duration-300 hover:shadow-3xl">
+        
+        <!-- 記事タイトル -->
+        <header class="mb-6 pb-4 border-b border-gray-200">
+            <h1 class="text-4xl font-extrabold text-gray-900 leading-tight mb-4">
+                {{ post.title }}
+            </h1>
+            <!-- 記事メタ情報 -->
+            <div class="flex flex-wrap items-center text-sm text-gray-500 space-x-3">
+                <span class="mb-1"><i class="fas fa-user mr-1 text-primary"></i> 投稿者: {{ post.author.username }}</span>
+                <span class="hidden sm:inline">|</span>
+                <span class="mb-1"><i class="fas fa-clock mr-1 text-primary"></i> 投稿日時: {{ moment(post.timestamp).format('LL') }}</span>
             </div>
+        </header>
 
-            <!-- ★★★ 投稿画像/動画の表示ロジック (Cloudinary対応) ★★★ -->
-            {% if post.video_public_id or post.image_public_id %}
-                <figure class="mb-8">
-                    
-                    {% if post.video_public_id %}
-                        {# 動画の場合: <video> タグで表示 (動画IDが存在する場合を優先) #}
-                        {% set public_id = post.video_public_id %}
-                        {% set filename_parts = public_id.split('/')[-1].split('.') %}
-                        {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else 'mp4' %}
-                        
-                        <div class="relative w-full overflow-hidden rounded-xl shadow-lg border border-gray-100">
-                            {% set video_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + public_id %}
-                            <video controls preload="metadata" class="w-full h-auto object-contain">
-                                <source src="{{ video_url }}" type="video/{{ extension }}">
-                                お使いのブラウザは動画タグをサポートしていません。
-                            </video>
-                        </div>
-
-                        {# ダウンロードボタンの追加 #}
-                        <div class="video-download-area text-center">
-                            <a href="{{ url_for('download_file', public_id=public_id) }}" 
-                               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150"
-                               download>
-                                <i class="fas fa-download mr-2"></i> 動画ファイルをダウンロード ({{ extension | upper }})
-                            </a>
-                        </div>
-                    {% elif post.image_public_id %}
-                        {# 画像の場合: <img> タグで表示 #}
-                        {% set public_id = post.image_public_id %}
-                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + public_id %}
-                        <img 
-                            src="{{ img_url }}" 
-                            alt="{{ post.title }}" 
-                            class="w-full h-auto max-h-[500px] object-contain rounded-xl shadow-lg border border-gray-100"
-                            onerror="this.onerror=null; this.src='https://placehold.co/800x500/F87171/FFFFFF?text=IMAGE+LOADING+ERROR'; this.alt='画像読み込みエラー';"
-                        >
-                    {% endif %}
-                </figure>
+        <!-- 画像/動画表示エリア (Optional) -->
+        <div class="mb-8">
+            {% if post.image_url %}
+            <figure class="rounded-xl overflow-hidden shadow-lg border border-gray-100">
+                <!-- URL for image should be generated via url_for('static', filename=...) if files are served from static folder -->
+                <img src="{{ url_for('static', filename=post.image_url) }}" alt="{{ post.title }}の画像" class="w-full h-auto object-cover max-h-96">
+                <figcaption class="p-2 text-sm text-gray-600 text-center bg-gray-50 border-t border-gray-100">メイン画像</figcaption>
+            </figure>
+            {% elif post.video_url %}
+            <div class="relative pb-[56.25%] h-0 overflow-hidden rounded-xl shadow-lg border border-gray-100">
+                <!-- 16:9のアスペクト比を維持 -->
+                <!-- URL for video should be generated via url_for('static', filename=...) -->
+                <video controls class="absolute top-0 left-0 w-full h-full object-cover bg-black">
+                    <source src="{{ url_for('static', filename=post.video_url) }}" type="video/mp4">
+                    申し訳ありませんが、お使いのブラウザは動画タグをサポートしていません。
+                </video>
+            </div>
             {% endif %}
-            <!-- ★★★ 投稿画像/動画の表示ロジック 終了 ★★★ -->
-
-            <!-- 投稿本文 -->
-            <div class="prose prose-lg max-w-none text-gray-800 break-words">
-                <!-- post.content を安全に出力 -->
-                <div class="whitespace-pre-wrap">{{ post.content | safe }}</div>
-            </div>
-            
-        </article>
-
-        <!-- ★★★ コメントセクションの開始 ★★★ -->
-        <section id="comments" class="mt-10 bg-white p-8 rounded-xl shadow-2xl">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-3 flex items-center">
-                <i class="fas fa-comments text-indigo-600 mr-3"></i>
-                コメント ({{ comments | length }})
-            </h2>
-
-            <!-- 1. コメント投稿フォーム (ログイン有無にかかわらず常に表示) -->
-            <div class="mb-10 border-2 border-indigo-200 bg-indigo-50 p-6 rounded-xl shadow-inner">
-                <h3 class="text-xl font-semibold text-indigo-800 mb-4">コメントを投稿する</h3>
-                
-                <!-- フォームの action は、記事IDを含めてコメント処理ルートへ送る必要があります -->
-                <form method="POST" action="{{ url_for('post_comment', post_id=post.id) }}" class="space-y-4">
-                    
-                    <!-- CSRFトークン (フォームオブジェクトから取得) -->
-                    {{ comment_form.hidden_tag() }}
-
-                    <!-- 名前フィールドを追加 (comment_formにnameフィールドが定義されていることを想定) -->
-                    <div>
-                        {{ comment_form.name.label(class_="block text-sm font-medium text-gray-700 mb-1") }}
-                        {# nameフィールドが必須であることを示唆 #}
-                        {{ comment_form.name(class_="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-base", placeholder="ニックネームを入力 (必須)") }}
-                        {% for error in comment_form.name.errors %}
-                            <p class="mt-1 text-xs text-red-600">{{ error }}</p>
-                        {% endfor %}
-                    </div>
-                    
-                    <!-- コメント内容フィールド -->
-                    <div>
-                        {{ comment_form.content.label(class_="block text-sm font-medium text-gray-700 mb-1") }}
-                        {{ comment_form.content(class_="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-base", rows=4, placeholder="記事に関する意見や感想を共有しましょう...") }}
-                        {% for error in comment_form.content.errors %}
-                            <p class="mt-1 text-xs text-red-600">{{ error }}</p>
-                        {% endfor %}
-                    </div>
-
-                    <!-- 送信ボタン -->
-                    <div>
-                        {{ comment_form.submit(class_="inline-flex items-center px-6 py-2 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out cursor-pointer") }}
-                    </div>
-                </form>
-            </div>
-
-
-            <!-- 2. コメントリスト -->
-            <div class="space-y-6">
-                {% for comment in comments %}
-                <div class="p-5 border border-gray-200 rounded-xl bg-gray-100 shadow-sm">
-                    
-                    <!-- コメントヘッダー (ユーザー名/名前と日付/時刻) -->
-                    <div class="flex items-center justify-between pb-2 border-b border-gray-200 mb-3">
-                        <span class="font-bold text-gray-800 flex items-center text-sm">
-                            <i class="fas fa-user-circle mr-2 text-indigo-600 text-lg"></i>
-                            {# comment.name があればそれを優先して表示。なければログインユーザー名を表示 #}
-                            {% if comment.name %}
-                                {{ comment.name }}
-                            {% else %}<span class="text-xs text-red-500 font-normal">[ログインユーザー名なし]</span>
-                                {% if comment.author and comment.author.username %}
-                                    {{ comment.author.username }}
-                                {% else %}
-                                    [名無し]
-                                {% endif %}
-                            {% endif %}
-                        </span>
-                        
-                        {# 投稿日時を表示 #}
-                        <span class="text-xs text-gray-500 flex items-center">
-                            <i class="fas fa-clock mr-1"></i>
-                            <time datetime="{{ comment.created_at | datetimeformat }}">{{ comment.created_at | datetimeformat('%Y/%m/%d %H:%M') }}</time>
-                        </span>
-                    </div>
-                    
-                    <!-- コメント内容 -->
-                    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap">{{ comment.content }}</p>
-                    
-                    <!-- 削除ボタン（コメント投稿者と記事投稿者のみ表示を想定） -->
-                    {% if current_user.is_authenticated and (current_user.id == comment.author_id or current_user.id == post.author_id) %}
-                    <div class="mt-4 text-right">
-                        <form method="POST" action="{{ url_for('delete_comment', comment_id=comment.id) }}" class="inline-block">
-                            <!-- コメント削除用のCSRFトークンが必要です -->
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                            <button type="submit" 
-                                    onclick="return confirm('本当にこのコメントを削除しますか？')" 
-                                    class="text-red-500 hover:text-red-700 text-xs font-medium transition duration-150 flex items-center justify-end ml-auto">
-                                <i class="fas fa-trash-alt mr-1"></i>削除
-                            </button>
-                        </form>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-                
-                {% if not comments %}
-                <p class="text-gray-500 italic p-4 bg-white rounded-lg border border-gray-200 text-center">まだコメントはありません。最初のコメントをしてみましょう！</p>
-                {% endif %}
-            </div>
-
-        </section>
-        <!-- コメントセクションの終了 -->
-        
-        <!-- 戻るボタン -->
-        <div class="mt-10 text-center">
-            <a href="{{ url_for('index') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-indigo-700 bg-indigo-100 hover:bg-indigo-200 transition duration-150">
-                <i class="fas fa-arrow-left mr-3"></i>
-                投稿一覧に戻る
-            </a>
         </div>
+
+        <!-- 記事本文 -->
+        <section class="prose prose-lg max-w-none text-gray-700 leading-relaxed">
+            <!-- post.content はMarkdownなどで記述されていることを想定し、
+                 Flask側でHTMLに変換された安全な内容として | safe を使用します。 -->
+            {{ post.content | safe }} 
+        </section>
+
+        <!-- 編集・削除ボタン (認証・権限チェック) -->
+        {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == post.user_id) %}
+        <footer class="mt-10 pt-6 border-t border-gray-200 flex justify-end space-x-4">
+            
+            <!-- 編集ボタン -->
+            <!-- 修正点: post_id を _id に変更 -->
+            <a href="{{ url_for('edit_post', _id=post.id) }}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150 transform hover:scale-105">
+                <i class="fas fa-edit mr-2"></i>
+                記事を編集
+            </a>
+            
+            <!-- 削除ボタン (モーダルをトリガー) -->
+            <button onclick="document.getElementById('delete-modal').classList.remove('hidden')" 
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-red-500 hover:bg-red-600 transition duration-150 transform hover:scale-105">
+                <i class="fas fa-trash-alt mr-2"></i>
+                削除
+            </button>
+        </footer>
+        {% endif %}
+
+    </article>
+
+    <!-- 記事一覧へ戻るリンク -->
+    <div class="mt-8 text-center">
+        <a href="{{ url_for('index') }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition duration-150 p-3 rounded-full bg-white shadow-xl hover:shadow-2xl hover:bg-indigo-50/50">
+            <i class="fas fa-arrow-circle-left text-lg mr-2"></i>
+            記事一覧に戻る
+        </a>
+    </div>
+
+</div>
+
+<!-- 削除確認モーダル (alert/confirm禁止のためカスタム実装) -->
+<div id="delete-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-[1001] flex items-center justify-center transition-opacity duration-300">
+    <div class="bg-white rounded-xl p-8 w-full max-w-sm shadow-2xl transform scale-100 transition-transform duration-300">
+        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center border-b pb-2">
+            <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+            削除の確認
+        </h3>
+        <p class="text-gray-600 mb-6">本当にこの投稿を削除しますか？この操作は元に戻せません。</p>
         
+        <div class="flex justify-end space-x-3">
+            <!-- キャンセルボタン -->
+            <button onclick="document.getElementById('delete-modal').classList.add('hidden')" 
+                    class="px-5 py-2 border border-gray-300 rounded-full text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150 shadow-md">
+                キャンセル
+            </button>
+            
+            <!-- 削除実行ボタン (フォーム送信) -->
+            <!-- 修正点: post_id を _id に変更 -->
+            <form action="{{ url_for('delete_post', _id=post.id) }}" method="POST" class="inline">
+                <button type="submit" class="px-5 py-2 border border-transparent rounded-full text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition duration-150 shadow-lg shadow-red-200/50">
+                    <i class="fas fa-trash-alt mr-1"></i>
+                    完全に削除
+                </button>
+            </form>
+        </div>
     </div>
 </div>
+
+<script>
+    // モーダル外クリックで閉じる機能
+    document.getElementById('delete-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.add('hidden');
+        }
+    });
+</script>
+
 {% endblock %}
