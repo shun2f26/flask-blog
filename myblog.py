@@ -3,7 +3,7 @@ import sys
 import time
 from io import BytesIO
 from functools import wraps
-# 修正: Responseとrequestsをインポートリストに追加
+# 修正: Response, requests, or_ をインポートリストに追加
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response, render_template_string, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -11,7 +11,8 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy.orm import relationship
-from sqlalchemy import func, select
+# 修正: or_をインポートに追加
+from sqlalchemy import func, select, or_
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
 
@@ -87,6 +88,9 @@ def get_safe_cloudinary_video_url(public_id, **kwargs):
     # 動画URLの生成
     kwargs.setdefault('format', 'mp4') # ブラウザ互換性のためにmp4を推奨
     
+    # controls属性のデフォルト値の設定
+    kwargs.setdefault('controls', True)
+    
     return cloudinary.utils.cloudinary_url(public_id, resource_type="video", **kwargs)[0]
 
 def delete_cloudinary_media(public_id, resource_type="image"):
@@ -108,6 +112,7 @@ def delete_cloudinary_media(public_id, resource_type="image"):
 
 # Flaskアプリのインスタンス作成
 app = Flask(__name__)
+# 最大コンテンツ長を100MBに設定（動画を考慮）
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['CLOUDINARY_CLOUD_NAME'] = 'your_cloudinary_cloud_name'
 
@@ -211,7 +216,7 @@ class User(UserMixin, db.Model):
         
 class Post(db.Model):
     """記事モデル (修正: public_idを画像と動画で分割)"""
-    __tablename__ = 's' # ユーザー提供のテーブル名
+    __tablename__ = 'posts' # ユーザー提供のテーブル名 's' から 'posts' に修正 (Postモデルのため)
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
@@ -220,7 +225,7 @@ class Post(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=now) 
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
     
-    # 修正: 記事に紐づくコメント (backrefを'post'に設定)
+    # 修正: 記事に紐づくコメント (backrefを'post'に設定, テーブル名も'posts'に合わせる)
     comments = relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan") 
 
     def __repr__(self):
@@ -230,8 +235,8 @@ class Comment(db.Model):
     """コメントモデル (匿名投稿対応)"""
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
-    # ユーザー提供の外部キー名 ('s.id'はPostモデルのテーブル名)
-    post_id = db.Column('post_id', db.Integer, db.ForeignKey('s.id'), nullable=False)
+    # ユーザー提供の外部キー名 ('s.id'はPostモデルのテーブル名)を 'posts.id' に修正
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     # ログインユーザーのID (匿名の場合はNoneを許可)
     author_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=True) 
     name = db.Column(db.String(50), nullable=False) # ニックネームは必須とする
@@ -317,7 +322,7 @@ def inject_globals():
     return {
         'now': now,
         'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE,
-        'get_cloudinary_url': get_safe_cloudinary_url,      # 画像専用ヘルパー関数を注入
+        'get_cloudinary_url': get_safe_cloudinary_url,     # 画像専用ヘルパー関数を注入
         'get_cloudinary_video_url': get_safe_cloudinary_video_url # 動画専用ヘルパー関数を注入
     }
 
@@ -332,15 +337,7 @@ def download_file(public_id):
     """
     Cloudinaryに保存されているファイルをストリーミングダウンロードします。
     requestsを使ってファイルをチャンクに分け、メモリ効率を高めます。
-    public_idは、'uploads/image_name.jpg' のようなパス全体を受け取ります。
     """
-    # 実際には、ここで _id などを使って、
-    # ユーザーがそのファイルをダウンロードする権限があるかを確認するロジックが必要です。
-    # 例:  = .query.filter_by(public_id=public_id).first()
-    # if not  or .author != current_user:
-    #     flash('このファイルをダウンロードする権限がありません。', 'danger')
-    #     return redirect(url_for('admin'))
-    
     if not CLOUDINARY_AVAILABLE:
         flash('ファイルストレージサービスが利用できません。', 'danger')
         return redirect(url_for('admin'))
@@ -489,7 +486,8 @@ def index():
         'index.html', 
         title='ホーム', 
         posts=pagination.items, 
-        pagination=pagination
+        pagination=pagination,
+        query_text=query_text
     )
 
 
@@ -696,7 +694,7 @@ def logout():
 # -----------------------------------------------
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
-def forgot_password():
+def、():
     """
     パスワードリセット要求ページ: ユーザー名を検証し、即時リセットページへリダイレクト。
     メール送信ロジックは削除されました。
@@ -995,10 +993,9 @@ def account():
 @login_required
 def admin():
     """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
-    
+
     # --- START REAL DATABASE LOGIC ---
     # ログインユーザーの記事を最新順に取得
-    # NOTE: Userモデルにid, Postモデルにuser_idとcreated_at, Commentモデルにidとpost_idが存在することを前提とする。
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=current_user.id)
@@ -1008,47 +1005,41 @@ def admin():
     # 各記事のコメント数を取得
     post_data = []
     for post in posts:
-        # コメント数を効率的に取得
         comment_count = db.session.execute(
-            db.select(db.func.count(Comment.id))
-            .filter_by(post_id=post.id)
+            db.select(db.func.count(Comment.id)).filter_by(post_id=post.id)
         ).scalar_one()
         post_data.append((post, comment_count))
 
     title = 'コンテンツ管理'
-    
-    total_users = 0
-    total_posts = 0
-    total_comments = 0
-    
-    # is_admin属性があることを仮定
-    is_admin_user = current_user.is_admin 
+
+    total_users = total_posts = total_comments = 0
+    # 安全な is_admin チェック（属性が存在しない場合 False 扱い）
+    is_admin_user = getattr(current_user, "is_admin", False)
 
     if is_admin_user:
-        # 管理者権限の場合、全体の統計情報を取得
         try:
             total_users = db.session.execute(db.select(db.func.count(User.id))).scalar_one()
             total_posts = db.session.execute(db.select(db.func.count(Post.id))).scalar_one()
             total_comments = db.session.execute(db.select(db.func.count(Comment.id))).scalar_one()
         except Exception as e:
-            # データベース接続やモデルが見つからないエラーの際は0を保持
             print(f"Error fetching admin stats: {e}", file=sys.stderr)
             flash('管理者統計情報の取得中にエラーが発生しました。', 'warning')
-            pass
     # --- END REAL DATABASE LOGIC ---
-    
+
     # -----------------------------------------------------------------
-    # FIX: テンプレートで app.config にアクセスできるように、
-    # 'config=current_app.config' を追加します。（これは以前の修正です）
+    # FIX: テンプレートで app.config にアクセスできるように追加
     # -----------------------------------------------------------------
-    return render_template('admin.html',
-                            title=title,
-                            post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
-                            total_users=total_users,
-                            total_posts=total_posts,
-                            total_comments=total_comments,
-                            config=current_app.config  
+    return render_template(
+        'admin.html',
+        title=title,
+        post_data=post_data,           # (Postオブジェクト, コメント数)
+        total_users=total_users,
+        total_posts=total_posts,
+        total_comments=total_comments,
+        is_admin_user=is_admin_user,   # ← テンプレート側でも条件分岐に使える！
+        config=current_app.config
     )
+
     
 
 # -----------------------------------------------
