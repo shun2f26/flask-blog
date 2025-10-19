@@ -4,7 +4,7 @@ import time
 from io import BytesIO
 from functools import wraps
 # ★修正: Responseとrequestsをインポートリストに追加
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response 
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response , render_template_string, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
