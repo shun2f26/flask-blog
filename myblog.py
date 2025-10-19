@@ -143,7 +143,7 @@ db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
 csrf.init_app(app)
-# RenderのPostgreSQLデータベースと連携
+# RenderのgreSQLデータベースと連携
 migrate.init_app(app, db) 
 
 login_manager.login_view = 'login'
@@ -192,7 +192,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=now)
-    posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
+    s = relationship('', backref='author', lazy='dynamic', cascade="all, delete-orphan")
 
     reset_token = db.Column(db.String(256), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
@@ -208,9 +208,9 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
         
-class Post(db.Model):
+class (db.Model):
     """記事モデル (修正: public_idを画像と動画で分割)"""
-    __tablename__ = 'posts'
+    __tablename__ = 's'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
@@ -221,17 +221,17 @@ class Post(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=now) 
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
     
-    # 記事に紐づくコメント (Post -> Comment)
-    comments = relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan") 
+    # 記事に紐づくコメント ( -> Comment)
+    comments = relationship('Comment', backref='', lazy='dynamic', cascade="all, delete-orphan") 
 
     def __repr__(self):
-        return f"Post('{self.title}', '{self.created_at}')"
+        return f"('{self.title}', '{self.created_at}')"
 
 class Comment(db.Model):
     """コメントモデル (匿名投稿対応)"""
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
-    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+    _id = db.Column(db.Integer, db.ForeignKey('s.id'), nullable=False)
     # ログインユーザーのID (匿名の場合はNoneを許可)
     author_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=True) 
     # 匿名コメント用の名前（ログインユーザーの場合もユーザー名が入る）
@@ -239,11 +239,11 @@ class Comment(db.Model):
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=now) # 投稿日時
 
-    # リレーションは Post モデル側で定義済み
+    # リレーションは  モデル側で定義済み
     # author = relationship('User', backref='user_comments') # UserモデルとCommentモデルが関連付けられる
 
     def __repr__(self):
-        return f"Comment('{self.name}', Post ID: {self.post_id}, User ID: {self.author_id})"
+        return f"Comment('{self.name}',  ID: {self._id}, User ID: {self.author_id})"
 
 
 # --- フォーム定義 ---
@@ -277,7 +277,7 @@ class LoginForm(FlaskForm):
     remember_me = BooleanField('ログイン状態を維持する')
     submit = SubmitField('ログイン')
 
-class PostForm(FlaskForm):
+class Form(FlaskForm):
     """記事投稿・編集用のフォームクラス (画像と動画を分割)"""
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
@@ -340,10 +340,10 @@ def download_file(public_id):
     requestsを使ってファイルをチャンクに分け、メモリ効率を高めます。
     public_idは、'uploads/image_name.jpg' のようなパス全体を受け取ります。
     """
-    # 実際には、ここで post_id などを使って、
+    # 実際には、ここで _id などを使って、
     # ユーザーがそのファイルをダウンロードする権限があるかを確認するロジックが必要です。
-    # 例: post = Post.query.filter_by(public_id=public_id).first()
-    # if not post or post.author != current_user:
+    # 例:  = .query.filter_by(public_id=public_id).first()
+    # if not  or .author != current_user:
     #     flash('このファイルをダウンロードする権限がありません。', 'danger')
     #     return redirect(url_for('admin'))
     
@@ -471,9 +471,9 @@ def admin_required(f):
 @app.route("/index")
 def index():
     """ブログ記事一覧ページ (全ユーザーの最新記事)"""
-    # 修正: Post.created_at.desc() に変更
-    posts = db.session.execute(db.select(Post).order_by(Post.created_at.desc())).scalars().all()
-    return render_template('index.html', title='ホーム', posts=posts)
+    # 修正: .created_at.desc() に変更
+    s = db.session.execute(db.select().order_by(.created_at.desc())).scalars().all()
+    return render_template('index.html', title='ホーム', s=s)
 
 
 # -----------------------------------------------
@@ -489,41 +489,41 @@ def user_blog(username):
         flash(f'ユーザー "{username}" は見つかりませんでした。', 'danger')
         return redirect(url_for('index'))
 
-    # 修正: Post.created_at.desc() に変更
-    posts = db.session.execute(
-        db.select(Post)
+    # 修正: .created_at.desc() に変更
+    s = db.session.execute(
+        db.select()
         .filter_by(user_id=target_user.id)
-        .order_by(Post.created_at.desc())
+        .order_by(.created_at.desc())
     ).scalars().all()
 
     return render_template('user_blog.html',
                             title=f'{username} のブログ',
                             target_user=target_user,
-                            posts=posts)
+                            s=s)
 
-@app.route('/view/<int:post_id>')
-def view(post_id):
+@app.route('/view/<int:_id>')
+def view(_id):
     """
     記事の詳細ビュー。（エンドポイント名: view）
     """
     # 実際のアプリケーションではここでデータベースから記事を取得する
-    # post = db.get_post_by_id(post_id) 
-    # public_id = post.video_public_id # view.html で使用される変数
+    #  = db.get__by_id(_id) 
+    # public_id = .video_public_id # view.html で使用される変数
     
     # エラー回避のためのダミー値 (実際のアプリケーションでは不要)
     public_id = 'example_video_public_id' 
     
     # FIX: /view ルートでも config をテンプレートに渡します。
     return render_template('view.html',
-                            post=post
+                            post=post,
                             config=current_app.config
     )
 
-@app.route('/comment/<int:post_id>', methods=['POST'])
-def post_comment(post_id):
+@app.route('/comment/<int:_id>', methods=[''])
+def _comment(_id):
     """コメント投稿処理"""
-    post = db.session.get(Post, post_id)
-    if not post:
+     = db.session.get(, _id)
+    if not :
         abort(404)
 
     form = CommentForm()
@@ -541,10 +541,10 @@ def post_comment(post_id):
         elif not comment_name:
             # 匿名ユーザーの場合、nameフィールドはフォームバリデーションで必須チェック済みだが、念のため。
             flash('コメントを投稿するにはニックネームが必要です。', 'danger')
-            return redirect(url_for('view', post_id=post_id))
+            return redirect(url_for('view', _id=_id))
 
         new_comment = Comment(
-            post_id=post_id,
+            _id=_id,
             author_id=author_id,
             name=comment_name,
             content=comment_content,
@@ -556,14 +556,14 @@ def post_comment(post_id):
         
         flash('コメントが正常に投稿されました。', 'success')
         # コメント欄までスクロールさせるためにフラグメントを設定
-        return redirect(url_for('view', post_id=post_id) + '#comments')
+        return redirect(url_for('view', _id=_id) + '#comments')
 
     # バリデーションエラーがあった場合、フォームデータを保持して記事ページに戻る
     flash('コメントの投稿に失敗しました。すべての必須フィールドが入力されているか確認してください。', 'danger')
-    return redirect(url_for('view', post_id=post_id))
+    return redirect(url_for('view', _id=_id))
 
 
-@app.route('/delete_comment/<int:comment_id>', methods=['POST'])
+@app.route('/delete_comment/<int:comment_id>', methods=[''])
 @login_required # ログインユーザーのみ削除可能とする
 def delete_comment(comment_id):
     """コメント削除処理"""
@@ -575,7 +575,7 @@ def delete_comment(comment_id):
 
     # 記事の作成者、管理者、またはコメントの作成者（ログインユーザーであるコメントのみ）のみ削除可能
     can_delete = False
-    if comment.post.user_id == current_user.id:
+    if comment..user_id == current_user.id:
         # 記事の作成者
         can_delete = True
     elif comment.author_id == current_user.id:
@@ -586,20 +586,20 @@ def delete_comment(comment_id):
         flash('このコメントを削除する権限がありません。', 'danger')
         abort(403)
         
-    post_id = comment.post_id # リダイレクト用に取得
+    _id = comment._id # リダイレクト用に取得
     
     db.session.delete(comment)
     db.session.commit()
     
     flash('コメントが削除されました。', 'success')
-    return redirect(url_for('view', post_id=post_id) + '#comments')
+    return redirect(url_for('view', _id=_id) + '#comments')
 
 
 # -----------------------------------------------
 # 認証関連のルーティング
 # -----------------------------------------------
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', ''])
 def login():
     """ログインページ"""
     if current_user.is_authenticated:
