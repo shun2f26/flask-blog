@@ -518,97 +518,75 @@ def user_blog(username):
 
 @app.route('/view/<int:_id>')
 def view(_id):
-    """
-    記事の詳細ビュー。（エンドポイント名: view）
-    """
-    # 実際のアプリケーションではここでデータベースから記事を取得する
-    #  = db.get__by_id(_id) 
-    # public_id = .video_public_id # view.html で使用される変数
-    
-    # エラー回避のためのダミー値 (実際のアプリケーションでは不要)
-    public_id = 'example_video_public_id' 
-    
-    # FIX: /view ルートでも config をテンプレートに渡します。
-    return render_template('view.html',
-                            post=post,
-                            config=current_app.config
+    """記事の詳細ビュー"""
+    post = db.session.get(Post, _id)
+    if not post:
+        abort(404)
+
+    comments = db.session.execute(
+        db.select(Comment).filter_by(post_id=_id).order_by(Comment.created_at.asc())
+    ).scalars().all()
+
+    form = CommentForm()
+    return render_template(
+        'view.html',
+        post=post,
+        comments=comments,
+        form=form,
+        config=current_app.config
     )
 
-@app.route('/comment/<int:_id>', methods=[''])
-def _comment(_id):
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+def comment(post_id):
     """コメント投稿処理"""
-     = db.session.get(, _id)
-    if not :
+    post = db.session.get(Post, post_id)
+    if not post:
         abort(404)
 
     form = CommentForm()
-
     if form.validate_on_submit():
-        comment_content = form.content.data
-        comment_name = form.name.data # 匿名/ログインに関わらずこの名前を使用
-        author_id = None
-
-        if current_user.is_authenticated:
-            # ログイン済みユーザーの場合、author_idをセット
-            author_id = current_user.id
-            # 匿名投稿を許可するため、nameフィールドはユーザー入力の値をそのまま使用（またはユーザー名で上書きしても良いが、ここでは入力値を尊重）
-            
-        elif not comment_name:
-            # 匿名ユーザーの場合、nameフィールドはフォームバリデーションで必須チェック済みだが、念のため。
-            flash('コメントを投稿するにはニックネームが必要です。', 'danger')
-            return redirect(url_for('view', _id=_id))
-
-        new_comment = Comment(
-            _id=_id,
-            author_id=author_id,
-            name=comment_name,
-            content=comment_content,
+        comment = Comment(
+            post_id=post_id,
+            author_id=current_user.id if current_user.is_authenticated else None,
+            name=form.name.data,
+            content=form.content.data,
             created_at=now()
         )
-        
-        db.session.add(new_comment)
+        db.session.add(comment)
         db.session.commit()
-        
-        flash('コメントが正常に投稿されました。', 'success')
-        # コメント欄までスクロールさせるためにフラグメントを設定
-        return redirect(url_for('view', _id=_id) + '#comments')
+        flash('コメントを投稿しました。', 'success')
+        return redirect(url_for('view', _id=post_id) + '#comments')
 
-    # バリデーションエラーがあった場合、フォームデータを保持して記事ページに戻る
-    flash('コメントの投稿に失敗しました。すべての必須フィールドが入力されているか確認してください。', 'danger')
-    return redirect(url_for('view', _id=_id))
+    flash('コメント送信に失敗しました。', 'danger')
+    return redirect(url_for('view', _id=post_id))
 
 
-@app.route('/delete_comment/<int:comment_id>', methods=[''])
-@login_required # ログインユーザーのみ削除可能とする
+@app.route('/delete_comment/<int:comment_id>', methods=['POST'])
+@login_required
 def delete_comment(comment_id):
     """コメント削除処理"""
     comment = db.session.get(Comment, comment_id)
     if not comment:
         flash('コメントが見つかりませんでした。', 'danger')
-        # 削除前のページ（request.referrer）が不明な場合はインデックスにリダイレクト
         return redirect(request.referrer or url_for('index'))
 
-    # 記事の作成者、管理者、またはコメントの作成者（ログインユーザーであるコメントのみ）のみ削除可能
-    can_delete = False
-    if comment..user_id == current_user.id:
-        # 記事の作成者
-        can_delete = True
-    elif comment.author_id == current_user.id:
-        # コメントの作成者
-        can_delete = True
-        
-    if not can_delete and not current_user.is_admin:
-        flash('このコメントを削除する権限がありません。', 'danger')
+    # 削除権限チェック
+    can_delete = (
+        comment.post.user_id == current_user.id or
+        comment.author_id == current_user.id or
+        current_user.is_admin
+    )
+
+    if not can_delete:
+        flash('削除権限がありません。', 'danger')
         abort(403)
-        
-    _id = comment._id # リダイレクト用に取得
-    
+
+    post_id = comment.post_id
     db.session.delete(comment)
     db.session.commit()
-    
-    flash('コメントが削除されました。', 'success')
-    return redirect(url_for('view', _id=_id) + '#comments')
-
+    flash('コメントを削除しました。', 'success')
+    return redirect(url_for('view', _id=post_id) + '#comments')
 
 # -----------------------------------------------
 # 認証関連のルーティング
@@ -995,7 +973,6 @@ def admin():
     """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
 
     # --- START REAL DATABASE LOGIC ---
-    # ログインユーザーの記事を最新順に取得
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=current_user.id)
@@ -1011,11 +988,10 @@ def admin():
         post_data.append((post, comment_count))
 
     title = 'コンテンツ管理'
-
     total_users = total_posts = total_comments = 0
-    # 安全な is_admin チェック（属性が存在しない場合 False 扱い）
     is_admin_user = getattr(current_user, "is_admin", False)
 
+    # 管理者の場合、全体統計を取得
     if is_admin_user:
         try:
             total_users = db.session.execute(db.select(db.func.count(User.id))).scalar_one()
@@ -1024,11 +1000,9 @@ def admin():
         except Exception as e:
             print(f"Error fetching admin stats: {e}", file=sys.stderr)
             flash('管理者統計情報の取得中にエラーが発生しました。', 'warning')
+
     # --- END REAL DATABASE LOGIC ---
 
-    # -----------------------------------------------------------------
-    # FIX: テンプレートで app.config にアクセスできるように追加
-    # -----------------------------------------------------------------
     return render_template(
         'admin.html',
         title=title,
@@ -1036,11 +1010,9 @@ def admin():
         total_users=total_users,
         total_posts=total_posts,
         total_comments=total_comments,
-        is_admin_user=is_admin_user,   # ← テンプレート側でも条件分岐に使える！
+        is_admin_user=is_admin_user,
         config=current_app.config
     )
-
-    
 
 # -----------------------------------------------
 # エラーハンドリング
