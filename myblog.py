@@ -3,8 +3,8 @@ import sys
 import time
 from io import BytesIO
 from functools import wraps
-# ★修正: Responseとrequestsをインポートリストに追加
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response , render_template_string, current_app
+# 修正: Responseとrequestsをインポートリストに追加
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response, render_template_string, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
 
-# ★追加: requestsはダウンロード機能に必要です
+# 追加: requestsはダウンロード機能に必要です
 import requests
 
 # WTForms関連のインポート
@@ -463,8 +463,9 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-
-# --- ルーティング ---
+# -----------------------------------------------
+# 公開ページ
+# -----------------------------------------------
 
 @app.route("/")
 @app.route("/index")
@@ -496,9 +497,9 @@ def user_blog(username):
     ).scalars().all()
 
     return render_template('user_blog.html',
-                           title=f'{username} のブログ',
-                           target_user=target_user,
-                           posts=posts)
+                            title=f'{username} のブログ',
+                            target_user=target_user,
+                            posts=posts)
 
 @app.route('/view/<int:post_id>')
 def view(post_id):
@@ -514,11 +515,11 @@ def view(post_id):
     
     # FIX: /view ルートでも config をテンプレートに渡します。
     return render_template('view.html',
-                           public_id=public_id,
-                           title=f'記事ID: {post_id}',
-                           # --- 修正点 ---
-                           config=current_app.config
-                           # ------------
+                            public_id=public_id,
+                            title=f'記事ID: {post_id}',
+                            # --- 修正点 ---
+                            config=current_app.config
+                            # ------------
     )
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
@@ -815,11 +816,11 @@ def create():
 
 
         new_post = Post(title=title,
-                        content=content,
-                        user_id=current_user.id,
-                        image_public_id=image_public_id, # ★変更
-                        video_public_id=video_public_id, # ★追加
-                        created_at=now()) 
+                         content=content,
+                         user_id=current_user.id,
+                         image_public_id=image_public_id, # ★変更
+                         video_public_id=video_public_id, # ★追加
+                         created_at=now()) 
         db.session.add(new_post)
         db.session.commit()
         
@@ -928,13 +929,13 @@ def update(post_id):
     
     # create.html を流用して編集フォームをレンダリング
     return render_template('create.html', 
-                           title=f'記事の編集: {post.title}', 
-                           form=form, 
-                           post=post, # 既存の記事情報をテンプレートに渡す
-                           current_image_url=current_image_url, # 現在の画像URL
-                           current_video_url=current_video_url, # 現在の動画URL
-                           is_edit=True) # 編集モードであることをテンプレートに伝える
-                           
+                            title=f'記事の編集: {post.title}', 
+                            form=form, 
+                            post=post, # 既存の記事情報をテンプレートに渡す
+                            current_image_url=current_image_url, # 現在の画像URL
+                            current_video_url=current_video_url, # 現在の動画URL
+                            is_edit=True) # 編集モードであることをテンプレートに伝える
+                            
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
 def delete_post(post_id):
@@ -981,49 +982,58 @@ def account():
 def admin():
     """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
     
-    # --- START DUMMY DATA FOR DEMONSTRATION ---
-    # NOTE: In the actual application, replace these dummy data/imports 
-    # with the real database logic and Flask-Login features.
-    class DummyPost:
-        def __init__(self, id, title, created_at):
-            self.id = id
-            self.title = title
-            self.created_at = created_at
-        def __repr__(self):
-            return f"Post('{self.title}')"
+    # --- START REAL DATABASE LOGIC ---
+    # ログインユーザーの記事を最新順に取得
+    # NOTE: Userモデルにid, Postモデルにuser_idとcreated_at, Commentモデルにidとpost_idが存在することを前提とする。
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=current_user.id)
+        .order_by(Post.created_at.desc())
+    ).scalars().all()
 
-    # ダミーデータを使って実際のクエリ結果をシミュレート
-    post1 = DummyPost(1, "デモ記事１：Cloudinaryの設定", "2025-01-01")
-    post2 = DummyPost(2, "デモ記事２：データベース連携", "2025-01-05")
-    
-    # post_data: (Postオブジェクト, コメント数) のタプルリストをシミュレート
-    post_data = [
-        (post1, 5),
-        (post2, 12),
-    ]
+    # 各記事のコメント数を取得
+    post_data = []
+    for post in posts:
+        # コメント数を効率的に取得
+        comment_count = db.session.execute(
+            db.select(db.func.count(Comment.id))
+            .filter_by(post_id=post.id)
+        ).scalar_one()
+        post_data.append((post, comment_count))
 
     title = 'コンテンツ管理'
-    total_users = 10 
-    total_posts = 50 
-    total_comments = 250
-    # is_adminが利用できないため、ここではハードコード
-    is_admin = True 
-    # --- END DUMMY DATA FOR DEMONSTRATION ---
+    
+    total_users = 0
+    total_posts = 0
+    total_comments = 0
+    
+    # is_admin属性があることを仮定
+    is_admin_user = current_user.is_admin 
+
+    if is_admin_user:
+        # 管理者権限の場合、全体の統計情報を取得
+        try:
+            total_users = db.session.execute(db.select(db.func.count(User.id))).scalar_one()
+            total_posts = db.session.execute(db.select(db.func.count(Post.id))).scalar_one()
+            total_comments = db.session.execute(db.select(db.func.count(Comment.id))).scalar_one()
+        except Exception as e:
+            # データベース接続やモデルが見つからないエラーの際は0を保持
+            print(f"Error fetching admin stats: {e}", file=sys.stderr)
+            flash('管理者統計情報の取得中にエラーが発生しました。', 'warning')
+            pass
+    # --- END REAL DATABASE LOGIC ---
     
     # -----------------------------------------------------------------
     # FIX: テンプレートで app.config にアクセスできるように、
     # 'config=current_app.config' を追加します。（これは以前の修正です）
     # -----------------------------------------------------------------
     return render_template('admin.html',
-                           title=title,
-                           # posts=posts, # デモではpost_dataを使うため省略
-                           post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
-                           total_users=total_users if is_admin else 0,
-                           total_posts=total_posts if is_admin else 0,
-                           total_comments=total_comments if is_admin else 0,
-                           # --- 修正点 ---
-                           config=current_app.config 
-                           # ------------
+                            title=title,
+                            post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
+                            total_users=total_users,
+                            total_posts=total_posts,
+                            total_comments=total_comments,
+                            config=current_app.config  
     )
     
 
@@ -1086,3 +1096,5 @@ if __name__ == '__main__':
     # 開発環境で実行する場合
     print("Application is running. Navigate to /admin or /view/1 to test the link.")
     app.run(debug=True)
+
+
