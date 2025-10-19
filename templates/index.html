@@ -74,7 +74,7 @@ overflow: hidden;
                         <div class="video-container rounded-lg shadow-md overflow-hidden">
                             {# Cloudinaryの動画サムネイルを取得するための設定 (f_jpgで最初のフレームを画像として取得) #}
                             {# w_400, h_225 は 16:9 のアスペクト比 #}
-                            {% set thumbnail_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_400,h_225,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
+                            {% set thumbnail_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/w_400,h_225,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
                             <img 
                                 src="{{ thumbnail_url }}" 
                                 alt="{{ post.title }} の動画サムネイル" 
@@ -90,7 +90,7 @@ overflow: hidden;
                         {# 画像の場合: <img> タグで表示。アスペクト比をvideo-containerに合わせるためラップ #}
                         <div class="video-container rounded-lg shadow-md overflow-hidden">
                             {# w_400, h_225 でサムネイルを生成 (16:9) #}
-                            {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
+                            {% set img_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
                             <img 
                                 src="{{ img_url }}" 
                                 alt="{{ post.title }} の画像" 
