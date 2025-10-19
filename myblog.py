@@ -515,11 +515,8 @@ def view(post_id):
     
     # FIX: /view ルートでも config をテンプレートに渡します。
     return render_template('view.html',
-                            public_id=public_id,
-                            title=f'記事ID: {post_id}',
-                            # --- 修正点 ---
+                            post=post
                             config=current_app.config
-                            # ------------
     )
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
