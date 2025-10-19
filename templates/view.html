@@ -103,7 +103,7 @@
                         {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else 'mp4' %}
                         
                         <div class="relative w-full overflow-hidden rounded-xl shadow-lg border border-gray-100">
-                            {% set video_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + public_id %}
+                            {% set video_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/video/upload/' + public_id %}
                             <video controls preload="metadata" class="w-full h-auto object-contain">
                                 <source src="{{ video_url }}" type="video/{{ extension }}">
                                 お使いのブラウザは動画タグをサポートしていません。
@@ -121,7 +121,7 @@
                     {% elif post.image_public_id %}
                         {# 画像の場合: <img> タグで表示 #}
                         {% set public_id = post.image_public_id %}
-                        {% set img_url = 'https://res.cloudinary.com/' + app.config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + public_id %}
+                        {% set img_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] + '/image/upload/w_800,c_limit,f_auto,q_auto/' + public_id %}
                         <img 
                             src="{{ img_url }}" 
                             alt="{{ post.title }}" 
