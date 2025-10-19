@@ -62,7 +62,7 @@ overflow: hidden;
 
             <!-- 画像/動画表示エリア -->
             <div class="md:w-1/3 flex-shrink-0">
-                <a href="{{ url_for('view', post_id=post.id) }}" class="block">
+                <a href="{{ url_for('view', _id=post.id) }}" class="block">
                 {% if post.public_id %}
                     {# public_idから拡張子を推測するロジック #}
                     {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
