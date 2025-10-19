@@ -208,7 +208,7 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
         
-class (db.Model):
+class Post(db.Model):
     """記事モデル (修正: public_idを画像と動画で分割)"""
     __tablename__ = 's'
     id = db.Column(db.Integer, primary_key=True)
@@ -277,7 +277,7 @@ class LoginForm(FlaskForm):
     remember_me = BooleanField('ログイン状態を維持する')
     submit = SubmitField('ログイン')
 
-class Form(FlaskForm):
+class PostForm(FlaskForm):
     """記事投稿・編集用のフォームクラス (画像と動画を分割)"""
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
