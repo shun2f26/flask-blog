@@ -192,7 +192,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=now)
-    s = relationship('', backref='author', lazy='dynamic', cascade="all, delete-orphan")
+    # 修正: 記事とのリレーションシップを明確に定義
+    posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan") 
 
     reset_token = db.Column(db.String(256), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
@@ -210,19 +211,17 @@ class User(UserMixin, db.Model):
         
 class Post(db.Model):
     """記事モデル (修正: public_idを画像と動画で分割)"""
-    __tablename__ = 's'
+    __tablename__ = 's' # ユーザー提供のテーブル名
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    # ★修正: 画像専用のCloudinary Public ID
     image_public_id = db.Column(db.String(100), nullable=True) 
-    # ★追加: 動画専用のCloudinary Public ID
     video_public_id = db.Column(db.String(100), nullable=True) 
     created_at = db.Column(db.DateTime, nullable=False, default=now) 
     user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
     
-    # 記事に紐づくコメント ( -> Comment)
-    comments = relationship('Comment', backref='', lazy='dynamic', cascade="all, delete-orphan") 
+    # 修正: 記事に紐づくコメント (backrefを'post'に設定)
+    comments = relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan") 
 
     def __repr__(self):
         return f"('{self.title}', '{self.created_at}')"
@@ -231,22 +230,20 @@ class Comment(db.Model):
     """コメントモデル (匿名投稿対応)"""
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
-    _id = db.Column(db.Integer, db.ForeignKey('s.id'), nullable=False)
+    # ユーザー提供の外部キー名 ('s.id'はPostモデルのテーブル名)
+    post_id = db.Column('post_id', db.Integer, db.ForeignKey('s.id'), nullable=False)
     # ログインユーザーのID (匿名の場合はNoneを許可)
     author_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=True) 
-    # 匿名コメント用の名前（ログインユーザーの場合もユーザー名が入る）
     name = db.Column(db.String(50), nullable=False) # ニックネームは必須とする
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=now) # 投稿日時
 
-    # リレーションは  モデル側で定義済み
-    # author = relationship('User', backref='user_comments') # UserモデルとCommentモデルが関連付けられる
-
     def __repr__(self):
-        return f"Comment('{self.name}',  ID: {self._id}, User ID: {self.author_id})"
+        return f"Comment('{self.name}', Post ID: {self.post_id}, User ID: {self.author_id})"
 
-
-# --- フォーム定義 ---
+# ====================================================================
+# フォーム定義 (ユーザー提供の定義をそのまま使用)
+# ====================================================================
 
 class RegistrationForm(FlaskForm):
     """新規ユーザー登録用のフォームクラス"""
@@ -282,12 +279,10 @@ class PostForm(FlaskForm):
     title = StringField('タイトル', validators=[DataRequired(), Length(min=1, max=100)])
     content = TextAreaField('本文', validators=[DataRequired()])
     
-    # ★修正: 画像専用フィールド
     image = FileField('画像をアップロード (任意)', validators=[
         FileAllowed(['jpg', 'png', 'jpeg', 'gif'], '画像ファイル (JPG, PNG, GIF) のみアップロードできます')
     ])
     
-    # ★追加: 動画専用フィールド
     video = FileField('動画をアップロード (任意)', validators=[
         FileAllowed(['mp4', 'mov', 'avi', 'webm'], '動画ファイル (MP4, MOV, AVI, WEBM) のみアップロードできます')
     ])
@@ -296,7 +291,6 @@ class PostForm(FlaskForm):
 
 class CommentForm(FlaskForm):
     """コメント投稿用のフォームクラス (匿名投稿対応)"""
-    # 匿名ユーザー向けの名前フィールド (ログイン/非ログインに関わらず必須)
     name = StringField('ニックネーム', 
                         validators=[DataRequired(message='ニックネームは必須です。'), 
                                      Length(min=1, max=50, message='ニックネームは1文字以上50文字以内で入力してください。')])
@@ -306,7 +300,7 @@ class CommentForm(FlaskForm):
 class RequestResetForm(FlaskForm):
     """パスワードリセット要求用のフォームクラス"""
     username = StringField('ユーザー名', validators=[DataRequired()])
-    submit = SubmitField('パスワードリセットに進む') # 文言を変更
+    submit = SubmitField('パスワードリセットに進む') 
 
 class ResetPasswordForm(FlaskForm):
     """パスワードリセット（新しいパスワード設定）用のフォームクラス"""
@@ -470,10 +464,33 @@ def admin_required(f):
 @app.route("/")
 @app.route("/index")
 def index():
-    """ブログ記事一覧ページ (全ユーザーの最新記事)"""
-    # 修正: .created_at.desc() に変更
-    s = db.session.execute(db.select().order_by(.created_at.desc())).scalars().all()
-    return render_template('index.html', title='ホーム', s=s)
+    """ブログ記事一覧ページ (全ユーザーの最新記事、検索、ページネーション)"""
+    
+    page = request.args.get('page', 1, type=int)
+    query_text = request.args.get('q', '').strip()
+    per_page = 5  # 1ページあたりの表示件数
+
+    # 1. 初期クエリ: 全ての記事を新しい順に取得 (★修正されたクエリ構文)
+    select_stmt = db.select(Post).order_by(Post.created_at.desc())
+    
+    # 2. 検索クエリがある場合、フィルタリングを追加
+    if query_text:
+        search_filter = or_(
+            Post.title.contains(query_text),
+            Post.content.contains(query_text)
+        )
+        select_stmt = select_stmt.where(search_filter)
+
+    # 3. ページネーションを実行
+    pagination = db.paginate(select_stmt, page=page, per_page=per_page, error_out=False)
+    
+    # テンプレートには 'posts' (記事リスト) と 'pagination' (ページ情報) を渡す
+    return render_template(
+        'index.html', 
+        title='ホーム', 
+        posts=pagination.items, 
+        pagination=pagination
+    )
 
 
 # -----------------------------------------------
