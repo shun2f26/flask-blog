@@ -1084,4 +1084,5 @@ def db_clear_data():
 
 if __name__ == '__main__':
     # 開発環境で実行する場合
+    print("Application is running. Navigate to /admin or /view/1 to test the link.")
     app.run(debug=True)
