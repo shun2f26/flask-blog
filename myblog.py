@@ -1021,7 +1021,8 @@ def admin():
                            post_data=post_data, # (Postオブジェクト, コメント数) のタプルリスト
                            total_users=total_users,
                            total_posts=total_posts,
-                           total_comments=total_comments)
+                           total_comments=total_comments
+                           config=current_app.config)
 
 
 # -----------------------------------------------
