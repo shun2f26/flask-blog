@@ -1048,20 +1048,36 @@ def payload_too_large_error(error):
 
 # データベースの初期設定と管理者ユーザーの作成（開発環境でのみ推奨）
 # 本番環境ではmigrateで対応
-@app.cli.command("initdb")
-def initdb_command():
-    """データベースを初期化し、テーブルを作成します。"""
-    with app.app_context():
-        db.create_all()
-        # 初期管理者ユーザーの作成 (必要な場合のみ)
-        if db.session.scalar(db.select(User).limit(1)) is None:
-            admin_user = User(username='admin')
-            admin_user.set_password('adminpassword') # 適切なパスワードに変更してください
-            admin_user.is_admin = True
-            db.session.add(admin_user)
-            db.session.commit()
-            print('Admin user "admin" created.')
-        print("Initialized the database.")
+@app.route("/db_clear", methods=["GET"])
+def db_clear_data():
+    """データベースの全テーブルを削除し、再作成する（確認なし）"""
+    try:
+        with app.app_context():
+            # セッションを閉じる
+            db.session.close()
+            
+            # 生のSQLを使用してテーブルを強制削除 (PostgreSQLで特に必要)
+            # db.drop_all() を使用する前に、念のため生のSQLで依存関係を考慮して削除
+            # コメントテーブル、ユーザーテーブル、記事テーブル、Alembicテーブルの削除
+            db.session.execute(text("DROP TABLE IF EXISTS comments CASCADE;"))
+            db.session.execute(text("DROP TABLE IF EXISTS posts CASCADE;"))
+            db.session.execute(text("DROP TABLE IF EXISTS blog_users CASCADE;"))
+            db.session.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+            
+            db.session.commit() # 削除をコミット
+            
+            # 再度すべてのテーブルを作成
+            db.create_all()
+            
+            flash("データベースの全データが削除され、テーブルが正常に再作成されました。", 'success')
+            print("Database cleared and recreated successfully.")
+            return redirect(url_for('index'))
+    except Exception as e:
+        db.session.rollback()
+        error_message = f"データベースのクリーンアップ中にエラーが発生しました: {e}"
+        print(error_message, file=sys.stderr)
+        flash(error_message, 'danger')
+        return redirect(url_for('index'))
 
 if __name__ == '__main__':
     # 開発環境で実行する場合
