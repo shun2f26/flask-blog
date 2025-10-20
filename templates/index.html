@@ -1,247 +1,46 @@
-{% extends "base.html" %}
-
-{% block title %}最新の投稿{% endblock %}
-
-{% block content %}
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-/* フォント設定 */
-body { font-family: 'Inter', sans-serif; }
-
-/* 記事の抜粋の行数制限 */
-.line-clamp-3 {
-display: -webkit-box;
--webkit-box-orient: vertical;
-overflow: hidden;
--webkit-line-clamp: 3;
-}
-/* 動画/画像のサムネイルアスペクト比を保ちつつ、レスポンシブに対応 */
-.video-container {
-position: relative;
-width: 100%;
-/* 16:9 のアスペクト比を維持 (9 / 16 = 0.5625 = 56.25%) */
-padding-bottom: 56.25%;
-height: 0;
-}
-.video-container video,
-.video-container img,
-.video-container .placeholder {
-position: absolute;
-top: 0;
-left: 0;
-width: 100%;
-height: 100%;
-object-fit: cover;
-}
-</style>
-
-<div class="container mx-auto px-4 py-8 max-w-4xl">
-<h1 class="text-3xl font-bold mb-6 text-gray-800">最新の投稿</h1>
-
-<!-- 検索バー -->
-<div class="mb-8">
-    <!-- 検索フォーム: GETメソッドを使用し、現在のURLへ 'q' パラメータを付けて送信 -->
-    <form action="{{ url_for('index') }}" method="GET" class="flex rounded-xl shadow-lg overflow-hidden border border-gray-200">
-        <input 
-            type="text" 
-            name="q" 
-            placeholder="記事のタイトルや内容を検索..." 
-            value="{{ request.args.get('q', '') }}"
-            class="w-full px-5 py-3 border-none focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-700 placeholder-gray-400 text-base"
-        >
-        <button type="submit" class="bg-indigo-600 text-white px-5 py-3 hover:bg-indigo-700 transition duration-150 flex items-center justify-center flex-shrink-0">
-            <i class="fas fa-search mr-2"></i>
-            検索
-        </button>
-    </form>
-</div>
-
-<div class="space-y-8">
-    <!-- Cloudinary Cloud Nameを変数に格納。configが存在しない場合や、キーがない場合に備えて空文字列をセット -->
-    {% set CLOUD_NAME = config.get('CLOUDINARY_CLOUD_NAME') if config and config.get('CLOUDINARY_CLOUD_NAME') else '' %}
-
-    {% for post in posts %}
-    <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col md:flex-row gap-6 border-t-4 border-gray-100 hover:border-indigo-400">
-
-        <!-- 画像/動画表示エリア -->
-        <div class="md:w-1/3 flex-shrink-0">
-            <a href="{{ url_for('view', post_id=post.id) }}" class="block">
-            
-            {% if CLOUD_NAME and (post.image_public_id or post.video_public_id) %}
-                {# 投稿詳細ページ（view.html）で使用されていた image_public_id と video_public_id を優先して使用 #}
-                {% set public_id = post.video_public_id or post.image_public_id %}
-                {% set is_video = post.video_public_id is not none and post.video_public_id != '' %}
-
-                {# public_idが空の場合、次のブロックへスキップ #}
-                {% if public_id %}
-                    {% if is_video %}
-                        {# 動画の場合: Cloudinaryの video/upload を使って最初のフレームを画像として取得 (f_jpg) #}
-                        <div class="video-container rounded-lg shadow-md overflow-hidden bg-gray-900">
-                            {# 動画のサムネイルサイズを画像と同じ 16:9 (w_400,h_225) に統一して視認性を向上 #}
-                            {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/w_400,h_225,c_fill,g_auto:face,f_jpg,q_auto/' + public_id %}
-                            <img 
-                                src="{{ thumbnail_url }}" 
-                                alt="{{ post.title }} の動画サムネイル" 
-                                class="w-full h-full object-cover"
-                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/374151/FFFFFF?text=VIDEO+THUMBNAIL+ERROR';"
-                            >
-                            {# 再生アイコンのオーバーレイ #}
-                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 transition duration-300 hover:bg-opacity-10">
-                                <i class="fas fa-play-circle text-white text-5xl opacity-80"></i>
-                            </div>
-                        </div>
-                    {% else %}
-                        {# 画像の場合: <img> タグで表示 #}
-                        <div class="video-container rounded-lg shadow-md overflow-hidden">
-                            {# f_autoで最適なフォーマットを自動選択 #}
-                            {% set img_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + public_id %}
-                            <img 
-                                src="{{ img_url }}" 
-                                alt="{{ post.title }} の画像" 
-                                class="w-full h-full object-cover"
-                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/F87171/FFFFFF?text=IMAGE+ERROR'; this.alt='画像が見つかりません';"
-                            >
-                        </div>
-                    {% endif %}
-                {% else %}
-                    <!-- public_idが空の場合のプレースホルダー -->
-                    <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
-                        メディアなし
-                    </div>
-                {% endif %}
-            {% else %}
-                <!-- 画像/動画がない、またはCloud Name未設定の場合のプレースホルダー -->
-                <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
-                    {% if post.image_public_id or post.video_public_id %}
-                        <!-- public_idはあるがCLOUD_NAMEがない場合の警告 -->
-                        <i class="fas fa-exclamation-triangle text-xl mr-2"></i> 設定エラー
-                    {% else %}
-                        メディアなし
-                    {% endif %}
+<!-- 画像/動画表示エリア -->
+<div class="md:w-1/3 flex-shrink-0">
+    <a href="{{ url_for('view', post_id=post.id) }}" class="block">
+    {% set CLOUD_NAME = config.get('CLOUDINARY_CLOUD_NAME', '') %}
+    {% set is_video = post.video_public_id and post.video_public_id != '' %}
+    {% set is_image = post.image_public_id and post.image_public_id != '' %}
+    
+    {% if CLOUD_NAME and (is_video or is_image) %}
+        {% if is_video %}
+            {% set public_id = post.video_public_id.replace('.mp4', '') %}
+            {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/so_0/w_400,h_225,c_fill,g_auto:face,f_jpg,q_auto/' + public_id + '.jpg' %}
+            <div class="video-container rounded-lg shadow-md overflow-hidden bg-gray-900 relative">
+                <img 
+                    src="{{ thumbnail_url }}" 
+                    alt="{{ post.title }} の動画サムネイル" 
+                    class="w-full h-full object-cover"
+                    onerror="this.onerror=null; this.src='https://placehold.co/400x225/374151/FFFFFF?text=VIDEO+THUMBNAIL+ERROR';"
+                >
+                <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 hover:bg-opacity-10 transition duration-300">
+                    <i class="fas fa-play-circle text-white text-5xl opacity-80"></i>
                 </div>
-            {% endif %}
-            </a>
-        </div>
-
-        <!-- 記事情報エリア -->
-        <div class="md:w-2/3">
-            <h2 class="text-2xl font-semibold text-indigo-600 mb-2">
-                <a href="{{ url_for('view', post_id=post.id) }}" class="hover:text-indigo-800 transition duration-150">
-                    {{ post.title }}
-                </a>
-            </h2>
-            
-            <!-- 作成者バッジを含むメタ情報 -->
-            <p class="text-sm text-gray-500 mb-4 flex flex-wrap items-center space-x-4">
-                <!-- 投稿日 -->
-                <span class="flex items-center">
-                    <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i> 
-                    {{ post.created_at | datetimeformat('%Y-%m-%d') }}
-                </span>
-                
-                <!-- 作成者バッジ -->
-                {% if post.author %}
-                <a href="{{ url_for('login') }}" 
-                    class="flex items-center font-medium text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full text-xs hover:bg-teal-200 transition duration-150 shadow-sm"
-                    title="{{ post.author.username }}が投稿">
-                    <i class="fas fa-user-edit mr-1"></i>
-                    {{ post.author.username }}
-                </a>
-                {% endif %}
-            </p>
-            
-            <!-- 抜粋テキスト。line-clamp-3で3行に制限 -->
-            <p class="text-gray-700 leading-relaxed mb-4 line-clamp-3">
-                {{ post.content | striptags | truncate(200, True) }}
-            </p>
-            
-            <div>
-                <a href="{{ url_for('view', post_id=post.id) }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition duration-300">
-                    続きを読む
-                    <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                </a>
             </div>
-        </div>
-    </div>
+        {% else %}
+            {% set public_id = post.image_public_id %}
+            {% set img_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + public_id %}
+            <div class="video-container rounded-lg shadow-md overflow-hidden">
+                <img 
+                    src="{{ img_url }}" 
+                    alt="{{ post.title }} の画像" 
+                    class="w-full h-full object-cover"
+                    onerror="this.onerror=null; this.src='https://placehold.co/400x225/F87171/FFFFFF?text=IMAGE+ERROR';"
+                >
+            </div>
+        {% endif %}
     {% else %}
-    <p class="text-gray-600 p-6 bg-white rounded-xl shadow-lg border border-gray-200 text-center">まだ投稿はありません。</p>
-    {% endfor %}
-</div>
-
-<!-- ページネーションの追加 -->
-{% if pagination and pagination.pages > 1 %}
-<nav class="mt-10 flex justify-center" aria-label="ページネーション">
-    <ul class="flex items-center -space-x-px text-sm rounded-lg shadow-lg overflow-hidden">
-        
-        <!-- 前へボタン -->
-        {% if pagination.has_prev %}
-        <li>
-            <a href="{{ url_for('index', page=pagination.prev_num, q=request.args.get('q', '')) }}" 
-               class="flex items-center justify-center px-4 h-10 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition duration-150">
-                <i class="fas fa-chevron-left mr-1"></i>
-                前へ
-            </a>
-        </li>
-        {% else %}
-        <li>
-            <span class="flex items-center justify-center px-4 h-10 leading-tight text-gray-300 bg-white border border-gray-300 cursor-not-allowed">
-                <i class="fas fa-chevron-left mr-1"></i>
-                前へ
-            </span>
-        </li>
-        {% endif %}
-
-        <!-- ページ番号ループ -->
-        {% for page in pagination.iter_pages() %}
-            {% if page %}
-                {% if page != pagination.page %}
-                <li>
-                    <a href="{{ url_for('index', page=page, q=request.args.get('q', '')) }}" 
-                       class="flex items-center justify-center px-4 h-10 leading-tight text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 transition duration-150">
-                        {{ page }}
-                    </a>
-                </li>
-                {% else %}
-                <li>
-                    <span aria-current="page" 
-                          class="flex items-center justify-center px-4 h-10 leading-tight text-white bg-indigo-600 border border-indigo-600 font-bold">
-                        {{ page }}
-                    </span>
-                </li>
-                {% endif %}
+        <!-- メディアなし or 設定エラー -->
+        <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
+            {% if post.image_public_id or post.video_public_id %}
+                <i class="fas fa-exclamation-triangle text-xl mr-2"></i> 設定エラー
             {% else %}
-            <li>
-                <span class="px-4 h-10 leading-tight text-gray-500 bg-white border border-gray-300">...</span>
-            </li>
+                メディアなし
             {% endif %}
-        {% endfor %}
-
-        <!-- 次へボタン -->
-        {% if pagination.has_next %}
-        <li>
-            <a href="{{ url_for('index', page=pagination.next_num, q=request.args.get('q', '')) }}" 
-               class="flex items-center justify-center px-4 h-10 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition duration-150">
-                次へ
-                <i class="fas fa-chevron-right ml-1"></i>
-            </a>
-        </li>
-        {% else %}
-        <li>
-            <span class="flex items-center justify-center px-4 h-10 leading-tight text-gray-300 bg-white border border-gray-300 cursor-not-allowed">
-                次へ
-                <i class="fas fa-chevron-right ml-1"></i>
-            </span>
-        </li>
-        {% endif %}
-
-    </ul>
-</nav>
-{% endif %}
-<!-- ページネーション終了 -->
-
-
+        </div>
+    {% endif %}
+    </a>
 </div>
-{% endblock %}
