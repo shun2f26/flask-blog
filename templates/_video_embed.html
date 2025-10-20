@@ -1,0 +1,55 @@
+{% macro render_media(post, CLOUD_NAME, width='640', height='360') %}
+    {% set public_id = post.image_public_id or post.video_public_id %}
+    {% set is_video = post.video_public_id is not none and post.video_public_id != '' %}
+
+    {% if CLOUD_NAME and public_id %}
+        {% set clean_id = public_id | replace('.mp4', '') %}
+        
+        {% if is_video %}
+            <!-- 動画 (Video) の表示ロジック -->
+            <!-- 1. 動画再生用のURLを生成 -->
+            {% set video_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/q_auto,f_auto/' + clean_id %}
+            
+            <!-- 2. サムネイル (ポスター画像) のURLを生成 -->
+            <!-- so_0 (0秒目), w_{width}, h_{height}, c_fill (サイズ調整), f_jpg (JPEGに変換) -->
+            {% set poster_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/so_0,w_' + width + ',h_' + height + ',c_fill,g_auto,f_jpg,q_auto/' + clean_id %}
+
+            <div class="media-container rounded-xl shadow-2xl overflow-hidden bg-black mx-auto" 
+                 style="max-width: {{ width }}px;">
+                <video 
+                    controls 
+                    preload="metadata"
+                    width="{{ width }}" 
+                    height="{{ height }}"
+                    poster="{{ poster_url }}" 
+                    class="w-full h-auto block"
+                >
+                    <!-- Cloudinaryの最適化された動画ソース -->
+                    <source src="{{ video_url }}" type="video/mp4">
+                    <!-- ブラウザがvideoタグをサポートしていない場合のメッセージ -->
+                    申し訳ありませんが、お使いのブラウザは動画をサポートしていません。
+                </video>
+            </div>
+            
+        {% else %}
+            <!-- 画像 (Image) の表示ロジック -->
+            {% set img_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_' + width + ',h_' + height + ',c_fill,g_auto,f_auto,q_auto/' + public_id %}
+            
+            <div class="media-container rounded-xl shadow-2xl overflow-hidden mx-auto"
+                 style="max-width: {{ width }}px;">
+                <img 
+                    src="{{ img_url }}" 
+                    alt="{{ post.title }} の画像" 
+                    class="w-full h-auto block object-cover"
+                    onerror="this.onerror=null; this.src='https://placehold.co/' + width + 'x' + height + '/F87171/FFFFFF?text=IMAGE+ERROR';"
+                >
+            </div>
+        {% endif %}
+    {% else %}
+        <!-- メディアがない場合のプレースホルダー -->
+        <div class="media-container bg-gray-100 p-8 rounded-xl shadow-inner text-center text-gray-500 mx-auto"
+             style="max-width: {{ width }}px;">
+            <i class="fas fa-exclamation-circle text-xl mr-2"></i> 関連メディアが見つかりません。
+        </div>
+    {% endif %}
+{% endmacro %}
