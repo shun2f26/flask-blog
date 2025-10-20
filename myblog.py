@@ -62,16 +62,14 @@ def get_safe_cloudinary_url(public_id, **kwargs):
 def get_safe_cloudinary_video_url(public_id, **kwargs):
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
-    kwargs.setdefault('format', 'mp4')
-    kwargs.setdefault('resource_type', 'video')
-    kwargs.setdefault('type', 'upload')
-    kwargs.setdefault('secure', True)
-    kwargs.setdefault('transformation', [
-        {'quality': 'auto:best'},
-        {'fetch_format': 'auto'},
-        {'flags': 'streaming'}
-    ])
-    return cloudinary.utils.cloudinary_url(public_id, **kwargs)[0]
+    try:
+        cloud_name = CLOUD_NAME or os.environ.get("CLOUDINARY_CLOUD_NAME")
+        # 明示的に拡張子を付けて動画URLを作成（変換不要）
+        video_url = f"https://res.cloudinary.com/{cloud_name}/video/upload/{public_id}.mp4"
+        return video_url
+    except Exception as e:
+        print(f"Video URL generation error: {e}", file=sys.stderr)
+        return ""
     
 def get_safe_cloudinary_video_thumbnail(public_id):
     if not public_id or not CLOUDINARY_AVAILABLE:
@@ -382,17 +380,55 @@ def view(post_id):
     form = CommentForm()
     return render_template('view.html', post=post, comments=comments, form=form, config=current_app.config)
     
-@app.route('/download/video/<int:post_id>', methods=['GET'])
-@login_required # ログインが必須
+@app.route('/download_video/<int:post_id>')
+@login_required
 def download_video(post_id):
-    post = db.session.get(Post, post_id)
-    if not post or not post.video_url:
-        flash('ダウンロード可能な動画ファイルが見つかりませんでした。', 'danger')
-        return redirect(url_for('view', post_id=post_id))
+    post = Post.query.get_or_404(post_id)
+
+    # 管理者のみダウンロード許可
     if not current_user.is_admin:
-        flash('動画をダウンロードする権限がありません。', 'danger')
-        abort(403) 
-    return redirect(post.video_url)
+        flash('ダウンロード権限がありません。', 'danger')
+        return redirect(url_for('view', post_id=post.id))
+
+    # Cloudinaryに動画が存在しない場合
+    if not post.video_public_id:
+        flash('動画が存在しません。', 'warning')
+        return redirect(url_for('view', post_id=post.id))
+
+    # Cloudinaryの安全な動画URLを生成
+    video_url = get_safe_cloudinary_video_url(post.video_public_id)
+
+    if not video_url:
+        flash('動画URLの生成に失敗しました。', 'danger')
+        return redirect(url_for('view', post_id=post.id))
+
+    # 安全なファイル名生成
+    safe_title = post.title.replace(' ', '_')
+    filename = f"{safe_title}.mp4"
+
+    # Cloudinary の実ファイルURLを取得してダウンロード用にストリーミング
+    try:
+        response = requests.get(video_url, stream=True)
+        if response.status_code != 200:
+            flash('動画の取得中にエラーが発生しました。', 'danger')
+            return redirect(url_for('view', post_id=post.id))
+
+        def generate():
+            for chunk in response.iter_content(chunk_size=4096):
+                if chunk:
+                    yield chunk
+
+        return Response(
+            generate(),
+            mimetype='video/mp4',
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\""
+            }
+        )
+    except Exception as e:
+        print(f"動画ダウンロードエラー: {e}", file=sys.stderr)
+        flash('動画のダウンロード中にエラーが発生しました。', 'danger')
+        return redirect(url_for('view', post_id=post.id))
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
 def comment(post_id):
