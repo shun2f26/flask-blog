@@ -80,7 +80,7 @@ object-fit: cover;
                     {% if is_video %}
                         {# 動画の場合: Cloudinaryの video/upload を使って最初のフレームを画像として取得 (f_jpg) #}
                         <div class="video-container rounded-lg shadow-md overflow-hidden bg-gray-900">
-                            {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/w_400,h_225,c_fill,g_auto:face,f_jpg,q_auto/' + public_id %}
+                            {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/w_160,h_130,c_fill,g_auto:face,f_jpg,q_auto/' + public_id %}
                             <img 
                                 src="{{ thumbnail_url }}" 
                                 alt="{{ post.title }} の動画サムネイル" 
