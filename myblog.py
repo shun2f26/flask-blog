@@ -614,7 +614,7 @@ def update(post_id):
 
     current_image_url = get_safe_cloudinary_url(post.image_public_id) if post.image_public_id else None
     current_video_url = get_safe_cloudinary_video_url(post.video_public_id) if post.video_public_id else None
-    return render_template('create.html', title=f'記事の編集: {post.title}', form=form, post=post, current_image_url=current_image_url, current_video_url=current_video_url, is_edit=True)
+    return render_template('update.html', title=f'記事の編集: {post.title}', form=form, post=post, current_image_url=current_image_url, current_video_url=current_video_url, is_edit=True)
 
 @app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
