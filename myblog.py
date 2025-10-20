@@ -62,10 +62,14 @@ def get_safe_cloudinary_url(public_id, **kwargs):
 def get_safe_cloudinary_video_url(public_id, **kwargs):
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
-    kwargs.setdefault('format', 'mp4')
-    # note: Cloudinary URL generator ignores arbitrary kwargs like 'controls'
+    kwargs.setdefault('format', 'mp4') 
+    kwargs.setdefault('transformation', [
+        {'quality': 'auto:best'},    # 品質を自動で最適化
+        {'fetch_format': 'auto'},    # ブラウザに応じて最適なフォーマットで配信
+        {'flags': 'streaming'}       # ストリーミング配信を有効化 (再生開始を速める)
+    ])
     return cloudinary.utils.cloudinary_url(public_id, resource_type="video", **kwargs)[0]
-
+    
 def delete_cloudinary_media(public_id, resource_type="image"):
     if CLOUDINARY_AVAILABLE and public_id:
         try:
