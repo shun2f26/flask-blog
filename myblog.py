@@ -344,7 +344,7 @@ def user_blog(username):
     return render_template('user_blog.html', title=f'{username} のブログ', target_user=target_user, posts=posts)
 
 @app.route('/view/<int:_id>')
-def view(_id):
+def view(post_id):
     post = db.session.get(Post, _id)
     if not post:
         abort(404)
