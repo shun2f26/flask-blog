@@ -62,13 +62,32 @@ def get_safe_cloudinary_url(public_id, **kwargs):
 def get_safe_cloudinary_video_url(public_id, **kwargs):
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
-    kwargs.setdefault('format', 'mp4') 
+    kwargs.setdefault('format', 'mp4')
+    kwargs.setdefault('resource_type', 'video')
+    kwargs.setdefault('type', 'upload')
+    kwargs.setdefault('secure', True)
     kwargs.setdefault('transformation', [
-        {'quality': 'auto:best'},    # 品質を自動で最適化
-        {'fetch_format': 'auto'},    # ブラウザに応じて最適なフォーマットで配信
-        {'flags': 'streaming'}       # ストリーミング配信を有効化 (再生開始を速める)
+        {'quality': 'auto:best'},
+        {'fetch_format': 'auto'},
+        {'flags': 'streaming'}
     ])
-    return cloudinary.utils.cloudinary_url(public_id, resource_type="video", **kwargs)[0]
+    return cloudinary.utils.cloudinary_url(public_id, **kwargs)[0]
+    
+def get_safe_cloudinary_video_thumbnail(public_id):
+    if not public_id or not CLOUDINARY_AVAILABLE:
+        return ""
+    try:
+        return cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type="video",
+            format="jpg",
+            transformation=[
+                {'width': 400, 'crop': 'fill', 'gravity': 'auto'}
+            ]
+        )[0]
+    except Exception as e:
+        print(f"Video thumbnail generation failed: {e}", file=sys.stderr)
+        return ""
     
 def delete_cloudinary_media(public_id, resource_type="image"):
     if CLOUDINARY_AVAILABLE and public_id:
