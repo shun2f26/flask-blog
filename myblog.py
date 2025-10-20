@@ -353,6 +353,8 @@ def view(post_id):
     post = db.session.get(Post, post_id)
     if not post:
         abort(404)
+    post.image_url = get_safe_cloudinary_url(post.image_public_id) if post.image_public_id else None
+    post.video_url = get_safe_cloudinary_video_url(post.video_public_id) if post.video_public_id else None
     comments = db.session.execute(
         db.select(Comment).filter_by(post_id=post_id).order_by(Comment.created_at.asc())
     ).scalars().all()
@@ -360,28 +362,16 @@ def view(post_id):
     form = CommentForm()
     return render_template('view.html', post=post, comments=comments, form=form, config=current_app.config)
     
-# --- 動画ダウンロード用ルート（管理者専用）を追加 ---
 @app.route('/download/video/<int:post_id>', methods=['GET'])
 @login_required # ログインが必須
 def download_video(post_id):
-    # 1. 投稿の取得
     post = db.session.get(Post, post_id)
-    
-    # 2. 投稿の存在と動画URLのチェック
     if not post or not post.video_url:
         flash('ダウンロード可能な動画ファイルが見つかりませんでした。', 'danger')
         return redirect(url_for('view', post_id=post_id))
-    
-    # 3. 管理者権限のチェック
-    # 注: Userモデルに .is_admin 属性があることを前提としています。
     if not current_user.is_admin:
-        # 管理者でなければエラーメッセージを表示し、403 Forbiddenを返すか、viewページに戻す
         flash('動画をダウンロードする権限がありません。', 'danger')
-        abort(403) # 権限エラーとして返す
-    
-    # 4. 動画URLへリダイレクト
-    # 外部ストレージ（Cloudinaryなど）のURLへリダイレクトし、ブラウザにダウンロードを委ねます。
-    # view.html のダウンロードボタンのリンク先をこのルート（例: url_for('download_video', post_id=post.id)）に変更してください。
+        abort(403) 
     return redirect(post.video_url)
 
 @app.route('/comment/<int:post_id>', methods=['POST'])
