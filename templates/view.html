@@ -20,13 +20,13 @@
     </div>
 
     <!-- メディア -->
-    {% if post.video_public_id %}
-      <div class="mb-6">
-        <video controls playsinline preload="metadata" class="w-full rounded-xl shadow">
-          <source src="{{ get_cloudinary_video_url(post.video_public_id) }}" type="video/mp4">
-          お使いのブラウザは動画タグをサポートしていません。
+    {% elif post.video_public_id %}
+    <div class="video-container mb-6 shadow-lg">
+        <video controls preload="metadata" playsinline crossorigin="anonymous" style="width:100%; border-radius:0.75rem;">
+            <source src="{{ get_safe_cloudinary_video_url(post.video_public_id) }}" type="video/mp4">
+            お使いのブラウザは動画タグをサポートしていません。
         </video>
-      </div>
+    </div>
 
       {% if current_user.is_authenticated and current_user.is_admin %}
       <div class="flex justify-center mb-6">
