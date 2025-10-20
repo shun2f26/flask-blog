@@ -343,14 +343,13 @@ def user_blog(username):
 
     return render_template('user_blog.html', title=f'{username} のブログ', target_user=target_user, posts=posts)
 
-@app.route('/view/<int:_id>')
+@app.route('/view/<int:post_id>')
 def view(post_id):
-    post = db.session.get(Post, _id)
+    post = db.session.get(Post, post_id)
     if not post:
         abort(404)
-
     comments = db.session.execute(
-        db.select(Comment).filter_by(post_id=_id).order_by(Comment.created_at.asc())
+        db.select(Comment).filter_by(post_id=post_id).order_by(Comment.created_at.asc())
     ).scalars().all()
 
     form = CommentForm()
