@@ -66,12 +66,9 @@
           <div class="flex items-start w-full sm:w-2/3 mb-3 sm:mb-0">
 
             {% if post.video_public_id %}
-              {% set thumb_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] +
-                '/video/upload/so_0,w_100,h_100,c_fill,g_auto,f_jpg,q_auto/' + post.video_public_id + '.jpg' %}
-              <div class="relative w-20 h-20 mr-4">
-                <img src="{{ thumb_url }}" class="w-full h-full object-cover rounded-lg border shadow" alt="動画">
-                <i class="fas fa-play-circle absolute inset-0 m-auto text-xl text-white/80"></i>
-              </div>
+              <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id, 600, 340) }}"
+              class="w-full h-60 object-cover rounded-lg shadow"
+              alt="動画サムネイル">
             {% elif post.image_public_id %}
               {% set thumb_url = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] +
                 '/image/upload/w_100,h_100,c_fill,f_auto,q_auto/' + post.image_public_id %}
