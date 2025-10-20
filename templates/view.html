@@ -57,13 +57,12 @@
         </div>
 
         {% elif post.video_url %}
-        <div class="video-container mb-6 shadow-lg">
-            <!-- ここで preload="none" に変更し、ブラウザ負荷を軽減 -->
-            <video controls preload="none" playsinline crossorigin="anonymous">
-                <source src="{{ post.video_url }}" type="video/mp4">
-                お使いのブラウザは動画タグをサポートしていません。
-            </video>
-        </div>
+        <div class="video-container mb-6 shadow-lg">
+            <video controls preload="none" playsinline crossorigin="anonymous">
+                <source src="{{ post.video_url }}" type="video/mp4">
+                お使いのブラウザは動画タグをサポートしていません。
+            </video>
+        </div>
 
         {% if current_user.is_authenticated and current_user.is_admin %}
         <div class="flex justify-center mb-6">
