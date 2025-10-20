@@ -221,7 +221,7 @@ overflow: hidden;
                             </a>
 
                             <!-- 削除ボタン (POSTリクエスト用フォーム) -->
-                            <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" class="inline-block" onsubmit="return confirmAction(event, '{{ post.title }}');">
+                            <form action="{{ url_for('delete_post', post_id=post.id) }}" method="POST" class="inline-block" onsubmit="return confirmAction(event, '{{ post.title }}');">
                                 {# CSRFトークンを挿入するためのJinja2構文が欠けている場合は、ここで補う必要がありますが、base.htmlの<head>やアプリ全体で設定されている前提とします。 #}
                                 {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                                 <button type="submit"
