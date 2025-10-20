@@ -11,18 +11,18 @@
 /* フォント設定 */
 body { font-family: 'Inter', sans-serif; }
 
-/* 記事の抜粋の行数制限 /
+/* 記事の抜粋の行数制限 */
 .line-clamp-3 {
 display: -webkit-box;
 -webkit-box-orient: vertical;
 overflow: hidden;
 -webkit-line-clamp: 3;
 }
-/ 動画/画像のサムネイルアスペクト比を保ちつつ、レスポンシブに対応 /
+/* 動画/画像のサムネイルアスペクト比を保ちつつ、レスポンシブに対応 */
 .video-container {
 position: relative;
 width: 100%;
-/ 16:9 のアスペクト比を維持 */
+/* 16:9 のアスペクト比を維持 */
 padding-bottom: 56.25%;
 height: 0;
 }
@@ -70,47 +70,51 @@ object-fit: cover;
         <div class="md:w-1/3 flex-shrink-0">
             <a href="{{ url_for('view', _id=post.id) }}" class="block">
             
-            {% if CLOUD_NAME and post.public_id %}
-                {# Cloudinary設定があり、public_idも存在する場合に処理 #}
+            {% if CLOUD_NAME and (post.image_public_id or post.video_public_id) %}
+                {# 投稿詳細ページ（view.html）で使用されていた image_public_id と video_public_id を優先して使用 #}
+                {% set public_id = post.video_public_id or post.image_public_id %}
+                {% set is_video = post.video_public_id is not none and post.video_public_id != '' %}
 
-                {# public_idから拡張子を推測するロジック #}
-                {% set filename_parts = post.public_id.split('/')[-1].split('.') %}
-                {% set extension = filename_parts[-1] | lower if filename_parts | length > 1 else '' %}
-                {% set video_extensions = ['mp4', 'mov', 'avi', 'wmv', 'webm', 'ogg'] %}
-                
-                {% if extension in video_extensions %}
-                    {# 動画の場合: <video> タグのサムネイルとして表示 #}
-                    <div class="video-container rounded-lg shadow-md overflow-hidden bg-gray-900">
-                        {# Cloudinaryの動画サムネイルを取得するための設定 (f_jpgで最初のフレームを画像として取得) #}
-                        {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/w_400,h_225,c_fill,g_auto,f_jpg,q_auto/' + post.public_id %}
-                        <img 
-                            src="{{ thumbnail_url }}" 
-                            alt="{{ post.title }} の動画サムネイル" 
-                            class="w-full h-full object-cover"
-                            onerror="this.onerror=null; this.src='https://placehold.co/400x225/374151/FFFFFF?text=VIDEO+THUMBNAIL+ERROR';"
-                        >
-                        {# 再生アイコンのオーバーレイ #}
-                        <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
-                            <i class="fas fa-play-circle text-white text-5xl opacity-80"></i>
+                {# public_idが空の場合、次のブロックへスキップ #}
+                {% if public_id %}
+                    {% if is_video %}
+                        {# 動画の場合: Cloudinaryの video/upload を使って最初のフレームを画像として取得 (f_jpg) #}
+                        <div class="video-container rounded-lg shadow-md overflow-hidden bg-gray-900">
+                            {% set thumbnail_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/video/upload/w_400,h_225,c_fill,g_auto:face,f_jpg,q_auto/' + public_id %}
+                            <img 
+                                src="{{ thumbnail_url }}" 
+                                alt="{{ post.title }} の動画サムネイル" 
+                                class="w-full h-full object-cover"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/374151/FFFFFF?text=VIDEO+THUMBNAIL+ERROR';"
+                            >
+                            {# 再生アイコンのオーバーレイ #}
+                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 transition duration-300 hover:bg-opacity-10">
+                                <i class="fas fa-play-circle text-white text-5xl opacity-80"></i>
+                            </div>
                         </div>
-                    </div>
+                    {% else %}
+                        {# 画像の場合: <img> タグで表示 #}
+                        <div class="video-container rounded-lg shadow-md overflow-hidden">
+                            {# f_autoで最適なフォーマットを自動選択 #}
+                            {% set img_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + public_id %}
+                            <img 
+                                src="{{ img_url }}" 
+                                alt="{{ post.title }} の画像" 
+                                class="w-full h-full object-cover"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x225/F87171/FFFFFF?text=IMAGE+ERROR'; this.alt='画像が見つかりません';"
+                            >
+                        </div>
+                    {% endif %}
                 {% else %}
-                    {# 画像の場合: <img> タグで表示 #}
-                    <div class="video-container rounded-lg shadow-md overflow-hidden">
-                        {# f_autoで最適なフォーマットを自動選択 #}
-                        {% set img_url = 'https://res.cloudinary.com/' + CLOUD_NAME + '/image/upload/w_400,h_225,c_fill,g_auto,f_auto,q_auto/' + post.public_id %}
-                        <img 
-                            src="{{ img_url }}" 
-                            alt="{{ post.title }} の画像" 
-                            class="w-full h-full object-cover"
-                            onerror="this.onerror=null; this.src='https://placehold.co/400x225/F87171/FFFFFF?text=IMAGE+ERROR'; this.alt='画像が見つかりません';"
-                        >
+                    <!-- public_idが空の場合のプレースホルダー -->
+                    <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
+                        メディアなし
                     </div>
                 {% endif %}
             {% else %}
                 <!-- 画像/動画がない、またはCloud Name未設定の場合のプレースホルダー -->
                 <div class="video-container bg-gray-200 rounded-lg shadow-inner flex items-center justify-center text-gray-500 text-lg placeholder">
-                    {% if post.public_id %}
+                    {% if post.image_public_id or post.video_public_id %}
                         <!-- public_idはあるがCLOUD_NAMEがない場合の警告 -->
                         <i class="fas fa-exclamation-triangle text-xl mr-2"></i> 設定エラー
                     {% else %}
