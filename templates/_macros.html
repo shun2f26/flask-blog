@@ -1,0 +1,71 @@
+{% macro render_post_media(public_id, alt_text="投稿メディア") %}
+    {% if public_id %}
+        {# Cloudinary Cloud Nameを取得 #}
+        {% set CLOUD_NAME = app.config['CLOUDINARY_CLOUD_NAME'] if app.config['CLOUDINARY_CLOUD_NAME'] else '' %}
+        
+        {# Cloudinary Cloud Nameがない場合は、マクロは何も表示せずに終了 #}
+        {% if not CLOUD_NAME %}
+            <!-- Cloudinary設定エラー: CLOUDINARY_CLOUD_NAMEが設定されていません。 -->
+            <div class="text-center p-4 bg-red-100 text-red-700 rounded-lg">メディア表示エラー: 設定不足</div>
+            {% return %}
+        {% endif %}
+
+        {# Cloudinary URLの基本パスを構築 #}
+        {% set base_url = 'https://res.cloudinary.com/' + CLOUD_NAME %}
+        
+        {# public_idから拡張子を推測する簡単なロジック（念のため） #}
+        {# ただし、CloudinaryのIDは通常拡張子を含まないため、このロジックは主にフォールバックとして使用 #}
+        {% set filename_parts = public_id.split('.') %}
+        {% set extension = filename_parts[-1] | lower if filename_parts|length > 1 else 'image' %}
+        
+        {# 動画判定ロジックを強化: Public IDに動画拡張子やキーワードが含まれていれば動画とみなす #}
+        {% set is_video = ('video' in extension) or ('mp4' in public_id | lower) or ('mov' in public_id | lower) or ('avi' in public_id | lower) or ('wmv' in public_id | lower) %}
+        {% if post and post.video_public_id and post.video_public_id == public_id %}
+            {% set is_video = True %}
+        {% endif %}
+        
+        {# ----------------- 動画のレンダリング ----------------- #}
+        {% if is_video %}
+            
+            {# 
+            Cloudinary動画URL生成: 
+            トランスフォーメーション (f_auto, q_auto, c_limit) を挿入し、
+            resource_type として 'video/upload' を使用します。
+            
+            Public IDが既に v123456.../path/to/file の形であると仮定し、
+            '/upload/' の直後にトランスフォーメーションパラメータを挿入します。
+            #}
+            {% set video_url_parts = public_id.split('/') %}
+            {% set filename_with_v = video_url_parts[-1] %}
+            
+            {# 通常のID形式 (フォルダ/ID) #}
+            {% set clean_public_id = public_id %}
+            
+            {# 公開IDの途中にタイムスタンプ (v123456) が含まれる場合を考慮して、URLを再構築 #}
+            {# ユーザーが提供したURL形式に合わせるため、トランスフォーメーションをvXXX/ の直後に挿入 #}
+            {% set video_url = base_url + '/video/upload/f_auto,q_auto,c_limit/' + clean_public_id %}
+
+
+            <div class="relative w-full overflow-hidden rounded-lg shadow-xl mb-4">
+                <video controls preload="metadata" class="w-full h-auto" style="max-height: 400px;">
+                    {# video/mp4 は最も安全なタイプ。f_autoが最適な形式を配信します #}
+                    <source src="{{ video_url }}" type="video/mp4">
+                    <div class="text-center p-4 bg-gray-200 text-gray-700">お使いのブラウザは動画タグをサポートしていません。</div>
+                </video>
+            </div>
+            
+        {# ----------------- 画像のレンダリング ----------------- #}
+        {% else %}
+            
+            {# Cloudinary SDKの標準画像URL形式: /image/upload/public_id #}
+            {% set image_url = base_url + '/image/upload/w_auto,f_auto,q_auto/' + public_id %}
+
+            <img src="{{ image_url }}" 
+                 alt="{{ alt_text }}" 
+                 class="w-full h-auto object-cover rounded-lg shadow-xl mb-4"
+                 style="max-height: 400px;"
+                 onerror="this.onerror=null; this.src='https://placehold.co/600x400/CCCCCC/333333?text=Image+Load+Error'; this.style.height='200px';"
+            >
+        {% endif %}
+    {% endif %}
+{% endmacro %}
