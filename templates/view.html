@@ -1,69 +1,88 @@
-{% macro render_media(post, width='800', height='450') %}
-    {# post から Public ID とメディアタイプを判定。
-       ここでは、コンテキストプロセッサで提供される関数を使用します。 #}
-    {% set public_id = post.image_public_id or post.video_public_id %}
-    {% set is_video = post.video_public_id is not none and post.video_public_id != '' %}
+{% extends "base.html" %}
 
-    {# コンテキストプロセッサから提供される CLOUDINARY_AVAILABLE をチェック #}
-    {% if CLOUDINARY_AVAILABLE and public_id %}
-        
-        {# Cloudinary の最適化パラメータを定義 #}
-        {% set options = {
-            'width': width, 
-            'height': height, 
-            'crop': 'fill', 
-            'gravity': 'auto', 
-            'quality': 'auto', 
-            'fetch_format': 'auto' 
-        } %}
-        
-        {% if is_video %}
-            {# --- 動画 (Video) の表示ロジック --- #}
-            
-            {# get_cloudinary_video_url を使って動画のソースURLを生成 #}
-            {% set video_url = get_cloudinary_video_url(public_id, **options) %}
-            
-            {# サムネイル（ポスター画像）のURLを生成
-               so_0: 0秒目のフレームを取得し、f_jpg: JPEG形式に変換 #}
-            {% set poster_options = options | merge({'format': 'jpg', 'time_0': True}) %}
-            {% set poster_url = get_cloudinary_video_url(public_id, **poster_options) %}
+{% block title %}{{ post.title }}{% endblock %}
 
-            <div class="media-container rounded-xl shadow-2xl overflow-hidden bg-black mx-auto" 
-                 style="max-width: {{ width }}px;">
-                <video 
-                    controls 
-                    preload="metadata"
-                    width="{{ width }}" 
-                    height="{{ height }}"
-                    poster="{{ poster_url }}" 
-                    class="w-full h-auto block"
-                >
-                    <source src="{{ video_url }}" type="video/mp4">
-                    申し訳ありませんが、お使いのブラウザは動画をサポートしていません。
-                </video>
-            </div>
-            
-        {% else %}
-            {# --- 画像 (Image) の表示ロジック --- #}
-            
-            {# get_cloudinary_url を使って画像URLを生成 #}
-            {% set img_url = get_cloudinary_url(public_id, **options) %}
-            
-            <div class="media-container rounded-xl shadow-2xl overflow-hidden mx-auto"
-                 style="max-width: {{ width }}px;">
-                <img 
-                    src="{{ img_url }}" 
-                    alt="{{ post.title }} の画像" 
-                    class="w-full h-auto block object-cover"
-                    onerror="this.onerror=null; this.src='https://placehold.co/' + width + 'x' + height + '/3B82F6/FFFFFF?text=IMAGE+ERROR';"
-                >
-            </div>
-        {% endif %}
-    {% else %}
-        <!-- メディアがない場合のプレースホルダー -->
-        <div class="media-container bg-gray-100 p-8 rounded-xl shadow-inner text-center text-gray-500 mx-auto"
-             style="max-width: {{ width }}px;">
-            <i class="fas fa-exclamation-circle text-xl mr-2"></i> 関連メディアが見つかりません。
+{% block content %}
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<style>
+.post-container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+.post-content p { margin-bottom: 1.5rem; line-height: 1.8; }
+
+/* 動画のアスペクト比維持 */
+.video-container {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background-color: #000;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+.video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0.75rem;
+}
+
+/* 画像スタイル */
+.image-container img {
+    max-height: 500px;
+    width: 100%;
+    object-fit: contain;
+    border-radius: 0.75rem;
+}
+</style>
+
+<div class="min-h-screen bg-gray-50 py-10 px-4">
+    <div class="post-container bg-white shadow-2xl rounded-2xl">
+
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">{{ post.title }}</h1>
+
+        <div class="flex items-center text-sm text-gray-500 mb-6 border-b pb-4">
+            <span class="mr-3"><i class="fas fa-calendar-alt mr-1"></i> {{ post.created_at.strftime('%Y年%m月%d日') }}</span>
+            <span class="mr-3"><i class="fas fa-user-edit mr-1"></i> {{ post.author.username }}</span>
+            {% if current_user.is_authenticated and post.user_id == current_user.id %}
+            <a href="{{ url_for('update', post_id=post.id) }}" class="ml-auto text-indigo-600 hover:text-indigo-800 font-medium">
+                <i class="fas fa-edit mr-1"></i> 編集
+            </a>
+            {% endif %}
         </div>
-    {% endif %}
-{% endmacro %}
+
+        <!-- メディア表示 -->
+        {% set CLOUD_NAME = config.get('CLOUDINARY_CLOUD_NAME', '') %}
+
+        {% if post.video_public_id %}
+        <div class="video-container mb-6 shadow-lg">
+            <video controls preload="metadata" playsinline crossorigin="anonymous" class="w-full rounded-xl">
+                <source src="https://res.cloudinary.com/{{ CLOUD_NAME }}/video/upload/{{ post.video_public_id }}.mp4" type="video/mp4">
+                お使いのブラウザは動画タグをサポートしていません。
+            </video>
+        </div>
+
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        <div class="flex justify-center mb-6">
+            <a href="https://res.cloudinary.com/{{ CLOUD_NAME }}/video/upload/{{ post.video_public_id }}.mp4"
+                download="{{ post.title|replace(' ', '_') }}.mp4"
+                class="inline-flex items-center py-3 px-6 rounded-full shadow-lg text-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out">
+                <i class="fas fa-download mr-2"></i> 動画をダウンロード (MP4)
+            </a>
+        </div>
+        {% endif %}
+
+        {% elif post.image_public_id %}
+        <div class="image-container mb-6">
+            <img src="https://res.cloudinary.com/{{ CLOUD_NAME }}/image/upload/f_auto,q_auto/{{ post.image_public_id }}" 
+                 alt="{{ post.title }}の画像" class="shadow-lg rounded-xl">
+        </div>
+        {% endif %}
+
+        <!-- 本文 -->
+        <div class="post-content text-gray-700 text-lg">
+            {{ post.content | replace('\n', '<br>') | safe }}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
