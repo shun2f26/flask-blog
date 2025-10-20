@@ -326,7 +326,7 @@ def index():
         select_stmt = select_stmt.where(search_filter)
 
     pagination = db.paginate(select_stmt, page=page, per_page=per_page, error_out=False)
-    return render_template('index.html', title='ホーム', posts=pagination.items, pagination=pagination, query_text=query_text)
+    return render_template('index.html', title='ホーム', posts=pagination.items, pagination=pagination, query_text=query_text,config=current_app.config)
 
 @app.route("/blog/<username>")
 def user_blog(username):
