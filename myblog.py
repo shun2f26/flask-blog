@@ -229,7 +229,9 @@ def inject_globals():
         'now': now,
         'CLOUDINARY_AVAILABLE': CLOUDINARY_AVAILABLE,
         'get_cloudinary_url': get_safe_cloudinary_url,
-        'get_cloudinary_video_url': get_safe_cloudinary_video_url
+        'get_cloudinary_video_url': get_safe_cloudinary_video_url,
+        'CLOUD_NAME': CLOUD_NAME, 
+        'config': current_app.config
     }
 
 @login_manager.user_loader
@@ -665,10 +667,11 @@ def delete_post(post_id):
 def account():
     return render_template('account.html', title='アカウント設定')
 
-# --- Admin dashboard ---
 @app.route('/admin')
 @login_required
 def admin():
+    """コンテンツ管理ダッシュボード: 自分の記事の一覧を表示"""
+    
     posts = db.session.execute(
         db.select(Post)
         .filter_by(user_id=current_user.id)
@@ -678,13 +681,15 @@ def admin():
     post_data = []
     for post in posts:
         comment_count = db.session.execute(
-            db.select(func.count(Comment.id)).filter_by(post_id=post.id)
+            db.select(db.func.count(Comment.id)).filter_by(post_id=post.id)
         ).scalar_one()
         post_data.append((post, comment_count))
 
     title = 'コンテンツ管理'
-    total_users = total_posts = total_comments = 0
-    is_admin_user = getattr(current_user, "is_admin", False)
+    is_admin_user = current_user.is_admin
+    total_users = 0
+    total_posts = 0
+    total_comments = 0
 
     if is_admin_user:
         try:
@@ -692,8 +697,8 @@ def admin():
             total_posts = db.session.execute(db.select(func.count(Post.id))).scalar_one()
             total_comments = db.session.execute(db.select(func.count(Comment.id))).scalar_one()
         except Exception as e:
-            print(f"Error fetching admin stats: {e}", file=sys.stderr)
-            flash('管理者統計情報の取得中にエラーが発生しました。', 'warning')
+            print(f"統計情報の取得エラー: {e}", file=sys.stderr)
+            flash('統計情報の取得中にエラーが発生しました。', 'danger')
 
     return render_template('admin.html', title=title, post_data=post_data, total_users=total_users, total_posts=total_posts, total_comments=total_comments, is_admin_user=is_admin_user, config=current_app.config)
 
