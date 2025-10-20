@@ -59,32 +59,49 @@ def get_safe_cloudinary_url(public_id, **kwargs):
     kwargs.setdefault('quality', 'auto')
     return cloudinary.utils.cloudinary_url(public_id, resource_type="image", **kwargs)[0]
 
-def get_safe_cloudinary_video_url(public_id, **kwargs):
-    if not public_id or not CLOUDINARY_AVAILABLE:
+def get_safe_cloudinary_video_url(public_id):
+    """
+    Cloudinary 上の video_public_id から確実に再生できる動画URLを生成
+    例: https://res.cloudinary.com/<cloud_name>/video/upload/<public_id>.mp4
+    """
+    if not public_id:
         return ""
     try:
-        cloud_name = CLOUD_NAME or os.environ.get("CLOUDINARY_CLOUD_NAME")
-        # 明示的に拡張子を付けて動画URLを作成（変換不要）
-        video_url = f"https://res.cloudinary.com/{cloud_name}/video/upload/{public_id}.mp4"
-        return video_url
+        # Flask 設定 → 環境変数 → fallback
+        cloud_name = (
+            current_app.config.get("CLOUDINARY_CLOUD_NAME")
+            or os.getenv("CLOUDINARY_CLOUD_NAME")
+        )
+        if not cloud_name:
+            raise ValueError("Cloudinary cloud name not found")
+
+        # Cloudinaryの動画URLを明示的に生成
+        return f"https://res.cloudinary.com/{cloud_name}/video/upload/{public_id}.mp4"
     except Exception as e:
-        print(f"Video URL generation error: {e}", file=sys.stderr)
+        print(f"[ERROR] Cloudinary video URL generation failed: {e}", file=sys.stderr)
         return ""
     
-def get_safe_cloudinary_video_thumbnail(public_id):
-    if not public_id or not CLOUDINARY_AVAILABLE:
+def get_safe_cloudinary_video_thumbnail(public_id, width=400, height=225):
+    """
+    Cloudinary 動画の最初のフレームを JPG サムネイルとして取得
+    例: https://res.cloudinary.com/<cloud_name>/video/upload/so_0,w_400,h_225,c_fill,g_auto,f_jpg,q_auto/<public_id>.jpg
+    """
+    if not public_id:
         return ""
     try:
-        return cloudinary.utils.cloudinary_url(
-            public_id,
-            resource_type="video",
-            format="jpg",
-            transformation=[
-                {'width': 400, 'crop': 'fill', 'gravity': 'auto'}
-            ]
-        )[0]
+        cloud_name = (
+            current_app.config.get("CLOUDINARY_CLOUD_NAME")
+            or os.getenv("CLOUDINARY_CLOUD_NAME")
+        )
+        if not cloud_name:
+            raise ValueError("Cloudinary cloud name not found")
+
+        return (
+            f"https://res.cloudinary.com/{cloud_name}/video/upload/"
+            f"so_0,w_{width},h_{height},c_fill,g_auto,f_jpg,q_auto/{public_id}.jpg"
+        )
     except Exception as e:
-        print(f"Video thumbnail generation failed: {e}", file=sys.stderr)
+        print(f"[ERROR] Cloudinary thumbnail generation failed: {e}", file=sys.stderr)
         return ""
     
 def delete_cloudinary_media(public_id, resource_type="image"):
@@ -125,6 +142,10 @@ migrate = Migrate()
 csrf = CSRFProtect()
 
 app.secret_key = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_blog')
+app.jinja_env.globals.update(
+    get_safe_cloudinary_video_url=get_safe_cloudinary_video_url,
+    get_safe_cloudinary_video_thumbnail=get_safe_cloudinary_video_thumbnail
+)
 
 db.init_app(app)
 bcrypt.init_app(app)
