@@ -253,7 +253,7 @@ body { font-family: "Inter", sans-serif; }
             </button>
             
             <!-- 削除実行フォーム (POSTリクエストを送信) -->
-            <form action="{{ url_for('delete', post_id=post.id) }}" method="POST" class="order-1 sm:order-2 w-full sm:w-auto">
+            <form action="{{ url_for('delete_post', post_id=post.id) }}" method="POST" class="order-1 sm:order-2 w-full sm:w-auto">
               {% if form %}
               {{ form.hidden_tag() }}
     　　　　　 {% endif %}
