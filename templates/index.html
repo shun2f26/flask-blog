@@ -14,12 +14,9 @@
       {% for post in posts %}
       <a href="{{ url_for('view', post_id=post.id) }}" class="block bg-white rounded-2xl shadow hover:shadow-2xl transition overflow-hidden">
         {% if post.video_public_id %}
-          {% set thumb = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] +
-            '/video/upload/so_0,w_600,h_340,c_fill,g_auto,f_jpg,q_auto/' + post.video_public_id + '.jpg' %}
-          <div class="relative">
-            <img src="{{ thumb }}" class="w-full h-60 object-cover" alt="動画サムネイル">
-            <i class="fas fa-play-circle absolute inset-0 m-auto text-5xl text-white/80"></i>
-          </div>
+          <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id, 600, 340) }}"
+          class="w-full h-60 object-cover rounded-lg shadow"
+          alt="動画サムネイル">
         {% elif post.image_public_id %}
           {% set thumb = 'https://res.cloudinary.com/' + config['CLOUDINARY_CLOUD_NAME'] +
             '/image/upload/w_600,h_340,c_fill,f_auto,q_auto/' + post.image_public_id %}
