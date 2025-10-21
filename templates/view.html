@@ -22,23 +22,76 @@
   height: 100%;
   object-fit: contain;
 }
+.image-container img {
+  max-height: 500px;
+  width: 100%;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+}
 </style>
 
 <div class="min-h-screen bg-gray-50 py-10 px-4">
   <div class="max-w-3xl mx-auto bg-white shadow-2xl rounded-2xl p-8">
+    
+    <!-- タイトル -->
     <h1 class="text-4xl font-extrabold text-gray-900 mb-2">{{ post.title }}</h1>
 
-    <div
-      class="flex items-center text-sm text-gray-500 mb-6 border-b pb-4"
-    >
-      <span class="mr-3"
-        ><i class="fas fa-calendar-alt mr-1"></i>
-        {{ post.created_at.strftime('%Y年%m月%d日') }}</span
-      >
-      <span
-        ><i class="fas fa-user-edit mr-1"></i> {{ post.author.username }}</span
-      >
+    <!-- 投稿情報 -->
+    <div class="flex items-center text-sm text-gray-500 mb-6 border-b pb-4">
+      <span class="mr-3">
+        <i class="fas fa-calendar-alt mr-1"></i>
+        {{ post.created_at | datetimeformat }}
+      </span>
+      <span>
+        <i class="fas fa-user-edit mr-1"></i> {{ post.author.username }}
+      </span>
+
       {% if current_user.is_authenticated and post.user_id == current_user.id %}
       <a
         href="{{ url_for('update', post_id=post.id) }}"
-        class
+        class="ml-auto text-indigo-600 hover:text-indigo-800 font-medium"
+      >
+        <i class="fas fa-edit mr-1"></i> 編集
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- 動画 or 画像 -->
+    {% if post.video_public_id %}
+      <div class="video-container mb-6 shadow-lg">
+        <video controls preload="metadata" playsinline crossorigin="anonymous">
+          <source src="{{ get_safe_cloudinary_video_url(post.video_public_id) }}" type="video/mp4">
+          お使いのブラウザは動画タグをサポートしていません。
+        </video>
+      </div>
+
+      {% if current_user.is_authenticated and current_user.is_admin %}
+      <div class="flex justify-center mb-6">
+        <a
+          href="{{ url_for('download_video', post_id=post.id) }}"
+          class="inline-flex items-center py-3 px-6 border border-transparent rounded-full shadow-lg text-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition duration-150 ease-in-out"
+        >
+          <i class="fas fa-download mr-2"></i> 動画をダウンロード (MP4)
+        </a>
+      </div>
+      {% endif %}
+
+    {% elif post.image_public_id %}
+      <div class="image-container">
+        <img
+          src="{{ get_safe_cloudinary_url(post.image_public_id, width=800, crop='limit') }}"
+          alt="{{ post.title }}"
+          class="shadow-lg rounded-xl"
+        />
+      </div>
+    {% endif %}
+
+    <!-- 本文 -->
+    <div class="text-gray-700 text-lg leading-relaxed">
+      {{ post.content | replace('\n', '<br>') | safe }}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
