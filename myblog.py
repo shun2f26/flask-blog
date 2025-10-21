@@ -1,20 +1,20 @@
 import os
 import sys
 import time
+import urllib.parse
 from io import BytesIO
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response, render_template_string, current_app,send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, Response, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from flask_wtf.csrf import CSRFProtect
 from flask_migrate import Migrate
 from sqlalchemy.orm import relationship
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, or_
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta, timezone
 import requests
-
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError
@@ -41,35 +41,37 @@ try:
         )
         cloudinary = actual_cloudinary
         CLOUDINARY_AVAILABLE = True
-        print("Cloudinary configuration successful.")
+        print("✅ Cloudinary configuration successful.")
     else:
-        print("Cloudinary environment variables are not fully set. Image features disabled.", file=sys.stderr)
+        print("⚠️ Cloudinary environment variables are not fully set.", file=sys.stderr)
 except ImportError:
-    print("Cloudinary module not installed. Image features disabled.", file=sys.stderr)
+    print("⚠️ Cloudinary module not installed.", file=sys.stderr)
 except Exception as e:
-    print(f"Cloudinary configuration failed: {e}. Image features disabled.", file=sys.stderr)
+    print(f"❌ Cloudinary configuration failed: {e}", file=sys.stderr)
 
-# --- 画像URL生成の安全なヘルパー関数 ---
+# --- Cloudinary Helper Functions ---
 def get_safe_cloudinary_url(public_id, **kwargs):
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
-    kwargs.setdefault('width', 600)
-    kwargs.setdefault('crop', 'limit')
-    kwargs.setdefault('fetch_format', 'auto')
-    kwargs.setdefault('quality', 'auto')
-    return cloudinary.utils.cloudinary_url(public_id, resource_type="image", **kwargs)[0]
+    kwargs.setdefault("width", 600)
+    kwargs.setdefault("crop", "limit")
+    kwargs.setdefault("fetch_format", "auto")
+    kwargs.setdefault("quality", "auto")
+    try:
+        encoded = urllib.parse.quote(public_id, safe="/")
+        return cloudinary.utils.cloudinary_url(encoded, resource_type="image", **kwargs)[0]
+    except Exception as e:
+        print(f"[ERROR] image url generation: {e}", file=sys.stderr)
+        return ""
 
 def get_safe_cloudinary_video_url(public_id):
-    """
-    Cloudinaryの video_public_id から確実に再生できる動画URLを生成
-    SDKを使うことでバージョン番号(vxxxx...)を含む正式URLを得る
-    """
+    """日本語public_idでも確実に再生可能な動画URLを生成"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     try:
-        # Cloudinary SDKで正しいURLを構築（format=mp4, https対応）
+        encoded_public_id = urllib.parse.quote(public_id, safe="/")
         video_url, _ = cloudinary.utils.cloudinary_url(
-            public_id,
+            encoded_public_id,
             resource_type="video",
             format="mp4",
             secure=True
@@ -79,17 +81,14 @@ def get_safe_cloudinary_video_url(public_id):
         print(f"[ERROR] Cloudinary video URL generation failed: {e}", file=sys.stderr)
         return ""
 
-
 def get_safe_cloudinary_video_thumbnail(public_id, width=400, height=225):
-    """
-    Cloudinaryの video_public_id から静止画サムネイルを生成
-    so_0（0秒時点のフレーム）を利用し、JPG形式に変換
-    """
+    """動画のサムネイルを取得（0秒フレーム）"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     try:
+        encoded_public_id = urllib.parse.quote(public_id, safe="/")
         thumbnail_url, _ = cloudinary.utils.cloudinary_url(
-            public_id,
+            encoded_public_id,
             resource_type="video",
             format="jpg",
             transformation=[
@@ -101,111 +100,78 @@ def get_safe_cloudinary_video_thumbnail(public_id, width=400, height=225):
     except Exception as e:
         print(f"[ERROR] Cloudinary thumbnail generation failed: {e}", file=sys.stderr)
         return ""
-    
+
 def delete_cloudinary_media(public_id, resource_type="image"):
     if CLOUDINARY_AVAILABLE and public_id:
         try:
             result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
-            if result.get('result') == 'ok':
-                print(f"Cloudinary {resource_type} deleted successfully: {public_id}")
-                return True
-            else:
-                print(f"Cloudinary deletion failed for {public_id} ({resource_type}): {result.get('result')}", file=sys.stderr)
-                return False
+            return result.get("result") == "ok"
         except Exception as e:
-            print(f"Error deleting Cloudinary {resource_type} {public_id}: {e}", file=sys.stderr)
-            return False
+            print(f"Cloudinary delete error: {e}", file=sys.stderr)
     return False
 
-# Flask app
+# --- Flask app ---
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
-app.config['CLOUDINARY_CLOUD_NAME'] = 'your_cloudinary_cloud_name'
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'my_default_secret_key')
-
-# DB URL fix-up (Heroku -> SQLAlchemy)
-uri = os.environ.get('DATABASE_URL')
-if uri and uri.startswith("postgres://"):
-    uri = uri.replace("postgres://", "postgresql://", 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = uri if uri else 'sqlite:///myblog.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-SESSION_INACTIVITY_TIMEOUT = timedelta(minutes=30)
-app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_INACTIVITY_TIMEOUT
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "my_secret_key")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///myblog.db").replace("postgres://", "postgresql://")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["CLOUDINARY_CLOUD_NAME"] = CLOUD_NAME
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
-migrate = Migrate()
 csrf = CSRFProtect()
+migrate = Migrate()
 
-app.secret_key = os.environ.get('SECRET_KEY', 'a_very_secret_key_for_blog')
+for ext in (db, bcrypt, login_manager, csrf, migrate):
+    ext.init_app(app)
+
+login_manager.login_view = "login"
+login_manager.login_message = "このページにアクセスするにはログインが必要です。"
+
+# Jinja登録
 app.jinja_env.globals.update(
     get_safe_cloudinary_video_url=get_safe_cloudinary_video_url,
     get_safe_cloudinary_video_thumbnail=get_safe_cloudinary_video_thumbnail
 )
 
-db.init_app(app)
-bcrypt.init_app(app)
-login_manager.init_app(app)
-csrf.init_app(app)
-migrate.init_app(app, db)
-
-login_manager.login_view = 'login'
-login_manager.login_message = 'このページにアクセスするにはログインが必要です。'
-login_manager.login_message_category = 'info'
-
-# --- Time helpers ---
+# --- Utils ---
 def now():
     return datetime.now(timezone(timedelta(hours=9)))
 
-def datetimeformat(value, format_string='%Y年%m月%d日 %H:%M'):
-    if value is None:
-        return "日付なし"
-    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
-        jst = timezone(timedelta(hours=9))
-        try:
-            value = value.replace(tzinfo=jst)
-        except Exception:
-            pass
+def datetimeformat(value, format_string="%Y年%m月%d日 %H:%M"):
+    if not value:
+        return "不明"
     return value.strftime(format_string)
 
-app.jinja_env.filters['datetimeformat'] = datetimeformat
+app.jinja_env.filters["datetimeformat"] = datetimeformat
 
 # --- Models ---
 class User(UserMixin, db.Model):
-    __tablename__ = 'blog_users'
+    __tablename__ = "blog_users"
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=now)
-    posts = relationship('Post', backref='author', lazy='dynamic', cascade="all, delete-orphan")
-    reset_token = db.Column(db.String(256), nullable=True)
-    reset_token_expires = db.Column(db.DateTime, nullable=True)
+    posts = relationship("Post", backref="author", lazy="dynamic", cascade="all, delete-orphan")
 
     def set_password(self, password):
-        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
 
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
-    def __repr__(self):
-        return f"User('{self.username}', '{self.id}', admin={self.is_admin})"
-
 class Post(db.Model):
-    __tablename__ = 'posts'
+    __tablename__ = "posts"
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    image_public_id = db.Column(db.String(100), nullable=True)
-    video_public_id = db.Column(db.String(100), nullable=True)
+    image_public_id = db.Column(db.String(150), nullable=True)
+    video_public_id = db.Column(db.String(150), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=now)
-    user_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=False)
-    comments = relationship('Comment', backref='post', lazy='dynamic', cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"('{self.title}', '{self.created_at}')"
+    user_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"), nullable=False)
 
 class Comment(db.Model):
     __tablename__ = 'comments'
@@ -812,6 +778,8 @@ def db_clear_data():
         flash(error_message, 'danger')
         return redirect(url_for('index'))
 
-if __name__ == '__main__':
-    print("Application is running. Navigate to /admin or /view/1 to test the link.")
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+    print("✅ Flask app started at http://127.0.0.1:5000")
     app.run(debug=True)
