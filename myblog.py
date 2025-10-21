@@ -61,45 +61,43 @@ def get_safe_cloudinary_url(public_id, **kwargs):
 
 def get_safe_cloudinary_video_url(public_id):
     """
-    Cloudinary 上の video_public_id から確実に再生できる動画URLを生成
-    例: https://res.cloudinary.com/<cloud_name>/video/upload/<public_id>.mp4
+    Cloudinaryの video_public_id から確実に再生できる動画URLを生成
+    SDKを使うことでバージョン番号(vxxxx...)を含む正式URLを得る
     """
-    if not public_id:
+    if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     try:
-        # Flask 設定 → 環境変数 → fallback
-        cloud_name = (
-            current_app.config.get("CLOUDINARY_CLOUD_NAME")
-            or os.getenv("CLOUDINARY_CLOUD_NAME")
+        # Cloudinary SDKで正しいURLを構築（format=mp4, https対応）
+        video_url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type="video",
+            format="mp4",
+            secure=True
         )
-        if not cloud_name:
-            raise ValueError("Cloudinary cloud name not found")
-
-        # Cloudinaryの動画URLを明示的に生成
-        return f"https://res.cloudinary.com/{cloud_name}/video/upload/{public_id}.mp4"
+        return video_url
     except Exception as e:
         print(f"[ERROR] Cloudinary video URL generation failed: {e}", file=sys.stderr)
         return ""
-    
+
+
 def get_safe_cloudinary_video_thumbnail(public_id, width=400, height=225):
     """
-    Cloudinary 動画の最初のフレームを JPG サムネイルとして取得
-    例: https://res.cloudinary.com/<cloud_name>/video/upload/so_0,w_400,h_225,c_fill,g_auto,f_jpg,q_auto/<public_id>.jpg
+    Cloudinaryの video_public_id から静止画サムネイルを生成
+    so_0（0秒時点のフレーム）を利用し、JPG形式に変換
     """
-    if not public_id:
+    if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
     try:
-        cloud_name = (
-            current_app.config.get("CLOUDINARY_CLOUD_NAME")
-            or os.getenv("CLOUDINARY_CLOUD_NAME")
+        thumbnail_url, _ = cloudinary.utils.cloudinary_url(
+            public_id,
+            resource_type="video",
+            format="jpg",
+            transformation=[
+                {"width": width, "height": height, "crop": "fill", "gravity": "auto", "quality": "auto", "fetch_format": "auto"}
+            ],
+            secure=True
         )
-        if not cloud_name:
-            raise ValueError("Cloudinary cloud name not found")
-
-        return (
-            f"https://res.cloudinary.com/{cloud_name}/video/upload/"
-            f"so_0,w_{width},h_{height},c_fill,g_auto,f_jpg,q_auto/{public_id}.jpg"
-        )
+        return thumbnail_url
     except Exception as e:
         print(f"[ERROR] Cloudinary thumbnail generation failed: {e}", file=sys.stderr)
         return ""
