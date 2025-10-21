@@ -111,22 +111,38 @@ def delete_cloudinary_media(public_id, resource_type="image"):
     return False
 
 # --- Flask app ---
+# --- Flaskアプリ作成 ---
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+
+# --- 基本設定 ---
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "my_secret_key")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///myblog.db").replace("postgres://", "postgresql://")
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    os.environ.get("DATABASE_URL", "sqlite:///myblog.db")
+    .replace("postgres://", "postgresql://")
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB制限
 app.config["CLOUDINARY_CLOUD_NAME"] = CLOUD_NAME
 
+# --- セッション有効期限設定（30分） ---
+SESSION_INACTIVITY_TIMEOUT = timedelta(minutes=30)
+app.config['PERMANENT_SESSION_LIFETIME'] = SESSION_INACTIVITY_TIMEOUT
+
+# --- 拡張機能の初期化 ---
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 migrate = Migrate()
 
-for ext in (db, bcrypt, login_manager, csrf, migrate):
-    ext.init_app(app)
+# ここで順番を統一して init_app()
+db.init_app(app)
+bcrypt.init_app(app)
+login_manager.init_app(app)
+csrf.init_app(app)
+migrate.init_app(app, db)
 
+# ログイン設定
 login_manager.login_view = "login"
 login_manager.login_message = "このページにアクセスするにはログインが必要です。"
 
