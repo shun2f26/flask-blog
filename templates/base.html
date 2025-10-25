@@ -1,16 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Flask Blog - {% block title %}{% endblock %}</title>
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Tailwindのカスタム設定（モバイルにも対応）
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+        },
+        colors: {
+          primary: '#4f46e5',
+          success: '#10b981',
+          danger: '#ef4444',
+          info: '#3b82f6',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+  /* 基本スタイル */
+  body {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    background-color: #f7f9fb;
+  }
+
+  /* フラッシュメッセージ */
+  .flash-container {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    width: 90%;
+    max-width: 400px;
+  }
+
+  .flash-message {
+    animation: slideinout 7s forwards;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  @keyframes slideinout {
+    0% { opacity: 0; transform: translateY(-50px); }
+    5% { opacity: 1; transform: translateY(0); }
+    90% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-50px); }
+  }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+<!-- ナビゲーションバー -->
 <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-lg">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- flex → スマホでは縦並び -->
-    <div class="flex flex-col sm:flex-row justify-between items-center h-auto sm:h-16 space-y-2 sm:space-y-0">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center h-auto sm:h-16 py-2 sm:py-0 space-y-2 sm:space-y-0">
       
-      <!-- ロゴ部分 -->
-      <a href="{{ url_for('index') }}" class="text-2xl font-black text-success hover:text-green-700 transition duration-150">
+      <!-- ロゴ -->
+      <a href="{{ url_for('index') }}" class="text-2xl font-black text-success hover:text-green-700 transition duration-150 text-center sm:text-left">
         <i class="fa-solid fa-seedling"></i> SEEDS IT Tiger Blog
       </a>
 
-      <!-- リンク部分 -->
-      <div class="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-4 mt-2 sm:mt-0">
-
+      <!-- ナビリンク -->
+      <div class="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-4">
         {% if current_user.is_authenticated %}
           {% if current_user.is_admin %}
             <a href="{{ url_for('admin') }}" class="flex items-center text-blue-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
@@ -22,7 +86,7 @@
             </a>
           {% endif %}
 
-          <a href="{{ url_for('logout') }}" class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md">
+          <a href="{{ url_for('logout') }}" class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md whitespace-nowrap">
             <i class="fa-solid fa-right-from-bracket mr-1 text-sm"></i>ログアウト・ホームへ
           </a>
         {% else %}
@@ -37,3 +101,42 @@
     </div>
   </div>
 </nav>
+
+<!-- フラッシュメッセージ -->
+<div class="flash-container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash-message p-4 mt-2 rounded-xl text-white font-semibold flex justify-between items-center transition duration-500
+          {% if category == 'success' %}bg-success
+          {% elif category == 'danger' %}bg-danger
+          {% elif category == 'info' %}bg-info
+          {% else %}bg-gray-500
+          {% endif %}"
+          onclick="this.style.display='none';" role="alert">
+          <span>{{ message }}</span>
+          <button type="button" class="ml-4 text-white hover:text-gray-100 opacity-90 transition" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<!-- メインコンテンツ -->
+<main class="flex-grow">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- フッター -->
+<footer class="bg-gray-800 text-gray-300 p-6 mt-auto border-t border-gray-700">
+  <div class="max-w-7xl mx-auto text-center text-sm leading-relaxed">
+    <p>&copy; {{ now().year }} SEEDS IT Tiger Blog Project. All rights reserved.</p>
+    <p class="mt-1">Powered by Flask × Tailwind CSS × Font Awesome.</p>
+    <p class="mt-1 text-gray-400 text-xs">Designed & Developed with ❤️ by SEEDS IT Tiger Team.</p>
+  </div>
+</footer>
+
+</body>
+</html>
