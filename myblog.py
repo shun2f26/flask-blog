@@ -486,6 +486,34 @@ def logout():
     flash("ログアウトしました。", "info")
     return redirect(url_for("index"))
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        # メール重複チェック
+        if User.query.filter_by(email=email).first():
+            flash("そのメールアドレスはすでに登録されています。", "danger")
+            return redirect(url_for("signup"))
+
+        # パスワードハッシュ化
+        hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+
+        # 新規ユーザー作成
+        user = User(name=name, email=email, password=hashed_pw)
+        db.session.add(user)
+        db.session.commit()
+
+        flash("ユーザー登録が完了しました！ログインしてください。", "success")
+        return redirect(url_for("login"))
+
+    return render_template("signup.html")
+
 # -------------------------------------------------------
 #  Error Pages
 # -------------------------------------------------------
