@@ -9,6 +9,24 @@
         color: #ef4444;
         margin-top: 0.25rem;
     }
+
+    .media-preview-box {
+        max-width: 100%;
+        max-height: 280px;
+        overflow: hidden;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        background-color: #f9fafb;
+        display: none;
+        justify-content: center;
+        align-items: center;
+    }
+    .media-preview-box img,
+    .media-preview-box video {
+        max-width: 100%;
+        max-height: 280px;
+        object-fit: contain;
+    }
 </style>
 
 <div class="min-h-screen bg-gray-100 p-4 sm:p-8">
@@ -21,7 +39,7 @@
                 新規投稿作成
             </h1>
             <p class="text-gray-500">
-                新しいブログ記事を作成し、画像または動画を追加して公開できます。
+                記事を作成し、必要に応じて画像または動画をアップロードできます。
             </p>
         </div>
 
@@ -34,7 +52,7 @@
                 <div class="mb-6">
                     {{ form.title.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
                     {{ form.title(
-                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm 
+                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                                focus:ring-indigo-500 focus:border-indigo-500",
                         placeholder="記事のタイトルを入力してください"
                     ) }}
@@ -47,7 +65,8 @@
                 <div class="mb-6">
                     {{ form.content.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
                     {{ form.content(
-                        class="mt-1 block w-full h-72 px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
+                        rows=10,
+                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                                focus:ring-indigo-500 focus:border-indigo-500 resize-y",
                         placeholder="記事の本文を入力してください"
                     ) }}
@@ -63,53 +82,61 @@
                     </label>
 
                     {{ form.image(
-                        class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
-                               file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm 
-                               file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        id="image",
+                        class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
+                               file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
+                               file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                     ) }}
 
                     {% for error in form.image.errors %}
                         <p class="error-message">{{ error }}</p>
                     {% endfor %}
 
-                    <p class="text-sm text-gray-500 mt-2">許可形式: JPG, PNG, GIF</p>
+                    <p class="text-sm text-gray-500 mt-2">許可形式：JPG / PNG / GIF</p>
+
+                    <div id="image-preview-box" class="media-preview-box mt-4">
+                        <img id="image-preview">
+                    </div>
                 </div>
 
                 <!-- 動画アップロード -->
-                <div class="mb-8 border p-4 rounded-lg bg-gray-50">
+                <div class="mb-6 border p-4 rounded-lg bg-gray-50">
                     <label class="block text-lg font-semibold text-gray-700 mb-2">
                         <i class="fas fa-video mr-2 text-indigo-500"></i>動画ファイル（任意）
                     </label>
 
                     {{ form.video(
-                        class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
-                               file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm 
-                               file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        id="video",
+                        class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
+                               file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
+                               file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                     ) }}
 
                     {% for error in form.video.errors %}
                         <p class="error-message">{{ error }}</p>
                     {% endfor %}
 
-                    <p class="text-sm text-gray-500 mt-2">許可形式: MP4（最大100MB）</p>
+                    <p class="text-sm text-gray-500 mt-2">許可形式：MP4（最大 100MB）</p>
+
+                    <div id="video-preview-box" class="media-preview-box mt-4">
+                        <video id="video-preview" controls></video>
+                    </div>
 
                     <!-- 100MB 超過チェック -->
                     <script>
-                        document.addEventListener("DOMContentLoaded", function () {
-                            const videoInput = document.getElementById("{{ form.video.id }}");
-                            if (!videoInput) return;
-
+                        document.addEventListener("DOMContentLoaded", () => {
+                            const videoInput = document.getElementById("video");
                             const warning = document.createElement("p");
                             warning.classList.add("error-message");
                             warning.textContent = "100MB以下の動画を選択してください。";
                             warning.style.display = "none";
                             videoInput.insertAdjacentElement("afterend", warning);
 
-                            videoInput.addEventListener("change", function () {
-                                const file = this.files[0];
+                            videoInput.addEventListener("change", () => {
+                                const file = videoInput.files[0];
                                 if (file && file.size > 100 * 1024 * 1024) {
                                     warning.style.display = "block";
-                                    this.value = "";
+                                    videoInput.value = "";
                                 } else {
                                     warning.style.display = "none";
                                 }
@@ -119,15 +146,17 @@
                 </div>
 
                 <!-- ボタン -->
-                <div class="flex justify-between mt-10">
+                <div class="flex flex-col sm:flex-row justify-between gap-4 mt-10">
+
                     <a href="{{ url_for('admin') }}"
-                       class="px-5 py-3 bg-gray-300 rounded-lg shadow hover:bg-gray-400 text-gray-800 transition">
+                       class="flex-1 py-3 bg-gray-300 rounded-lg shadow hover:bg-gray-400 
+                              text-gray-800 text-center font-semibold transition">
                         <i class="fas fa-arrow-left mr-1"></i> 戻る
                     </a>
 
                     {{ form.submit(
-                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 
-                               transition font-semibold cursor-pointer"
+                        class="flex-1 py-3 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 
+                               transition font-semibold cursor-pointer text-center"
                     ) }}
                 </div>
 
@@ -135,5 +164,53 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    // ------------ 画像プレビュー ----------------
+    const imageInput = document.getElementById("image");
+    const imagePreviewBox = document.getElementById("image-preview-box");
+    const imagePreview = document.getElementById("image-preview");
+
+    imageInput.addEventListener("change", () => {
+        const file = imageInput.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                imagePreview.src = e.target.result;
+                imagePreviewBox.style.display = "flex";
+            };
+            reader.readAsDataURL(file);
+        } else {
+            imagePreviewBox.style.display = "none";
+        }
+    });
+
+    // ------------ 動画プレビュー ----------------
+    const videoInput = document.getElementById("video");
+    const videoPreviewBox = document.getElementById("video-preview-box");
+    const videoPreview = document.getElementById("video-preview");
+
+    videoInput.addEventListener("change", () => {
+        const file = videoInput.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                videoPreview.innerHTML = "";
+                const source = document.createElement("source");
+                source.src = e.target.result;
+                source.type = file.type;
+                videoPreview.appendChild(source);
+                videoPreview.load();
+                videoPreviewBox.style.display = "flex";
+            };
+            reader.readAsDataURL(file);
+        } else {
+            videoPreviewBox.style.display = "none";
+        }
+    });
+});
+</script>
 
 {% endblock %}
