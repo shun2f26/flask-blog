@@ -124,6 +124,13 @@ migrate.init_app(app, db)
 
 login_manager.login_view = "login"
 
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        return db.session.get(User, int(user_id))
+    except Exception:
+        return None
+
 # -------------------------------------------------------
 #   Utility functions
 # -------------------------------------------------------
