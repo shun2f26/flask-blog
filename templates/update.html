@@ -11,13 +11,10 @@
         margin-top: 0.25rem;
     }
 
-    .modal-open { overflow: hidden; }
-
     .media-preview-box {
         max-width: 100%;
         max-height: 300px;
         overflow: hidden;
-        margin-bottom: 0.75rem;
         border-radius: 0.5rem;
         border: 1px solid #e5e7eb;
         background-color: #f9fafb;
@@ -40,7 +37,9 @@
             <i class="fas fa-edit text-indigo-500 mr-2"></i>
             投稿の編集
         </h1>
-        <p class="text-sm text-gray-500 mb-6">「{{ post.title }}」の内容を編集します。</p>
+        <p class="text-sm text-gray-500 mb-6">
+            「{{ post.title }}」の内容を編集できます。
+        </p>
 
         <!-- 編集フォーム -->
         <form id="postForm" class="space-y-6"
@@ -52,60 +51,54 @@
             <!-- タイトル -->
             <div>
                 <label class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
-
-                {% for error in form.title.errors %}
-                <p class="error-message"><i class="fas fa-exclamation-circle mr-1"></i>{{ error }}</p>
-                {% endfor %}
-
                 {{ form.title(
                     class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                            focus:ring-indigo-500 focus:border-indigo-500",
                     value=post.title
                 ) }}
+                {% for error in form.title.errors %}
+                    <p class="error-message">{{ error }}</p>
+                {% endfor %}
             </div>
 
             <!-- 本文 -->
             <div>
                 <label class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-
-                {% for error in form.content.errors %}
-                <p class="error-message"><i class="fas fa-exclamation-circle mr-1"></i>{{ error }}</p>
-                {% endfor %}
-
                 {{ form.content(
                     rows="10",
                     class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                            focus:ring-indigo-500 focus:border-indigo-500 resize-y"
                 ) }}
+                {% for error in form.content.errors %}
+                    <p class="error-message">{{ error }}</p>
+                {% endfor %}
             </div>
 
-
-            <!-- 画像セクション -->
+            <!-- 画像管理 -->
             <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-image mr-2 text-indigo-500"></i>
-                    画像ファイルの管理
+                    <i class="fas fa-image mr-2 text-indigo-500"></i>画像ファイルの管理
                 </h3>
 
                 {% if post.image_url %}
                 <div id="current-image-container" class="p-3 border bg-white rounded-lg shadow-sm">
                     <p class="font-medium text-gray-700 mb-2">現在の画像:</p>
                     <div class="media-preview-box">
-                        <img src="{{ post.image_url }}" alt="現在の画像">
+                        <img src="{{ post.image_url }}" alt="">
                     </div>
 
                     {% if form.delete_image %}
-                    <div class="flex items-center mt-3">
-                        {{ form.delete_image(class="h-4 w-4 text-red-600") }}
-                        {{ form.delete_image.label(class="ml-2 text-red-600") }}
-                    </div>
+                    <label class="flex items-center mt-3 text-red-600 cursor-pointer">
+                        {{ form.delete_image(class="h-4 w-4") }}
+                        <span class="ml-2">{{ form.delete_image.label.text }}</span>
+                    </label>
                     {% endif %}
                 </div>
                 {% else %}
                     <p class="text-sm text-gray-500">画像は登録されていません。</p>
                 {% endif %}
 
-                <label class="block font-semibold text-gray-700">新しい画像のアップロード</label>
+                <label class="block font-semibold text-gray-700">新しい画像をアップロード</label>
                 {{ form.image(
                     id="image",
                     accept="image/*",
@@ -114,7 +107,7 @@
                 ) }}
 
                 {% for error in form.image.errors %}
-                <p class="error-message">{{ error }}</p>
+                    <p class="error-message">{{ error }}</p>
                 {% endfor %}
 
                 <div id="image-preview-container" class="hidden mt-4">
@@ -125,27 +118,26 @@
                 </div>
             </div>
 
-
-            <!-- 動画セクション -->
-            {% if form.video %}
+            <!-- 動画管理 -->
             <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-video mr-2 text-indigo-500"></i>
-                    動画ファイルの管理
+                    <i class="fas fa-video mr-2 text-indigo-500"></i>動画ファイルの管理
                 </h3>
 
                 {% if post.video_url %}
                 <div id="current-video-container" class="p-3 border bg-white rounded-lg shadow-sm">
                     <p class="font-medium text-gray-700 mb-2">現在の動画:</p>
                     <div class="media-preview-box">
-                        <video controls><source src="{{ post.video_url }}" type="video/mp4"></video>
+                        <video controls>
+                            <source src="{{ post.video_url }}" type="video/mp4">
+                        </video>
                     </div>
 
                     {% if form.delete_video %}
-                    <div class="flex items-center mt-3">
-                        {{ form.delete_video(class="h-4 w-4 text-red-600") }}
-                        {{ form.delete_video.label(class="ml-2 text-red-600") }}
-                    </div>
+                    <label class="flex items-center mt-3 text-red-600 cursor-pointer">
+                        {{ form.delete_video(class="h-4 w-4") }}
+                        <span class="ml-2">{{ form.delete_video.label.text }}</span>
+                    </label>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -158,7 +150,7 @@
                 ) }}
 
                 {% for error in form.video.errors %}
-                <p class="error-message">{{ error }}</p>
+                    <p class="error-message">{{ error }}</p>
                 {% endfor %}
 
                 <div id="video-preview-container" class="hidden mt-4">
@@ -168,21 +160,20 @@
                     </div>
                 </div>
             </div>
-            {% endif %}
 
             <!-- ボタン -->
-            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t">
-                <button class="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg">
+            <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+                <button class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg">
                     <i class="fas fa-save mr-2"></i>変更を保存
                 </button>
 
                 <button type="button" id="openDeleteModalButton"
-                        class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg">
+                        class="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg">
                     <i class="fas fa-trash-alt mr-2"></i>記事を削除
                 </button>
 
                 <a href="{{ url_for('admin') }}"
-                   class="flex-1 py-3 px-4 bg-white border rounded-lg shadow text-gray-700 hover:bg-gray-50">
+                   class="flex-1 py-3 bg-white border rounded-lg shadow text-gray-700 hover:bg-gray-50 text-center">
                     <i class="fas fa-arrow-left mr-2"></i>戻る
                 </a>
             </div>
@@ -196,7 +187,8 @@
      class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50">
     <div class="bg-white rounded-xl p-6 max-w-lg w-11/12 shadow-2xl">
         <h3 class="text-2xl font-bold text-red-600 mb-4">
-            <i class="fas fa-exclamation-triangle mr-2"></i>削除確認
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            削除確認
         </h3>
 
         <p class="text-gray-700 mb-6">
@@ -204,14 +196,13 @@
             <span class="text-red-600 font-semibold">※この操作は取り消せません。</span>
         </p>
 
-        <div class="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
+        <div class="flex flex-col sm:flex-row gap-3 justify-end">
             <button id="cancelDeleteButton"
                     class="py-3 px-6 bg-white border rounded-lg text-gray-700 hover:bg-gray-50">
                 キャンセル
             </button>
 
             <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}">
-                {{ form.hidden_tag() }}
                 <button class="py-3 px-6 bg-red-600 text-white rounded-lg hover:bg-red-700">
                     完全に削除する
                 </button>
@@ -222,7 +213,8 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // プレビューセットアップ関数
+
+    // プレビューをセットする汎用関数
     function setupPreview(input, preview, box, currentBox, type) {
         if (!input) return;
 
@@ -268,10 +260,12 @@ document.addEventListener("DOMContentLoaded", () => {
         "video"
     );
 
-    // モーダル操作
+    // モーダル
     const modal = document.getElementById("deleteModal");
-    document.getElementById("openDeleteModalButton").onclick = () => modal.classList.remove("hidden");
-    document.getElementById("cancelDeleteButton").onclick = () => modal.classList.add("hidden");
+    document.getElementById("openDeleteModalButton").onclick =
+        () => modal.classList.remove("hidden");
+    document.getElementById("cancelDeleteButton").onclick =
+        () => modal.classList.add("hidden");
 });
 </script>
 
