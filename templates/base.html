@@ -8,7 +8,7 @@
 <!-- Tailwind CSS CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-  // Tailwindのカスタム設定（モバイルにも対応）
+  /* Tailwind カスタム設定 */
   tailwind.config = {
     theme: {
       extend: {
@@ -27,7 +27,8 @@
 </script>
 
 <!-- Font Awesome -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
 <style>
   /* 基本スタイル */
@@ -69,74 +70,39 @@
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center h-auto sm:h-16 py-2 sm:py-0 space-y-2 sm:space-y-0">
       
       <!-- ロゴ -->
-      <a href="{{ url_for('index') }}" class="text-2xl font-black text-success hover:text-green-700 transition duration-150 text-center sm:text-left">
+      <a href="{{ url_for('index') }}"
+         class="text-2xl font-black text-success hover:text-green-700 transition duration-150 text-center sm:text-left">
         <i class="fa-solid fa-seedling"></i> SEEDS IT Tiger Blog
       </a>
 
       <!-- ナビリンク -->
       <div class="flex flex-wrap justify-center sm:justify-end items-center gap-2 sm:gap-4">
+        
         {% if current_user.is_authenticated %}
+
           {% if current_user.is_admin %}
-            <a href="{{ url_for('admin') }}" class="flex items-center text-blue-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
-              <i class="fa-solid fa-user-gear mr-1 text-sm"></i>管理者ページへ
-            </a>
+          <!-- 管理者向け -->
+          <a href="{{ url_for('admin') }}"
+             class="flex items-center text-blue-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
+            <i class="fa-solid fa-user-gear mr-1 text-sm"></i>管理者ページへ
+          </a>
           {% else %}
-            <a href="{{ url_for('admin') }}" class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
-              <i class="fa-solid fa-table-columns mr-1 text-sm"></i>ダッシュボード
-            </a>
+          <!-- 一般ユーザー向け（ダッシュボード） -->
+          <a href="{{ url_for('admin') }}"
+             class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
+            <i class="fa-solid fa-table-columns mr-1 text-sm"></i>ダッシュボード
+          </a>
           {% endif %}
 
-          <a href="{{ url_for('logout') }}" class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md whitespace-nowrap">
-            <i class="fa-solid fa-right-from-bracket mr-1 text-sm"></i>ログアウト・ホームへ
+          <!-- ログアウト -->
+          <a href="{{ url_for('logout') }}"
+             class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md whitespace-nowrap">
+            <i class="fa-solid fa-right-from-bracket mr-1 text-sm"></i>
+            ログアウト・ホームへ
           </a>
+
         {% else %}
-          <a href="{{ url_for('login') }}" class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
-            <i class="fa-solid fa-right-to-bracket mr-1 text-sm"></i>ログイン
-          </a>
-          <a href="{{ url_for('signup') }}" class="py-2 px-4 bg-primary text-white rounded-full hover:bg-indigo-700 transition duration-150 shadow-lg whitespace-nowrap">
-            <i class="fa-solid fa-user-plus mr-1 text-sm"></i>サインアップ
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</nav>
 
-<!-- フラッシュメッセージ -->
-<div class="flash-container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="flash-message p-4 mt-2 rounded-xl text-white font-semibold flex justify-between items-center transition duration-500
-          {% if category == 'success' %}bg-success
-          {% elif category == 'danger' %}bg-danger
-          {% elif category == 'info' %}bg-info
-          {% else %}bg-gray-500
-          {% endif %}"
-          onclick="this.style.display='none';" role="alert">
-          <span>{{ message }}</span>
-          <button type="button" class="ml-4 text-white hover:text-gray-100 opacity-90 transition" aria-label="Close">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
-</div>
-
-<!-- メインコンテンツ -->
-<main class="flex-grow">
-  {% block content %}{% endblock %}
-</main>
-
-<!-- フッター -->
-<footer class="bg-gray-800 text-gray-300 p-6 mt-auto border-t border-gray-700">
-  <div class="max-w-7xl mx-auto text-center text-sm leading-relaxed">
-    <p>&copy; {{ now.year }} SEEDS IT Tiger Blog Project. All rights reserved.</p>
-    <p class="mt-1">Powered by Flask × Tailwind CSS × Font Awesome.</p>
-    <p class="mt-1 text-gray-400 text-xs">Designed & Developed with ❤️ by SEEDS IT Tiger Team.</p>
-  </div>
-</footer>
-
-</body>
-</html>
+          <!-- 未ログイン -->
+          <a href="{{ url_for('login') }}"
+             class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded
