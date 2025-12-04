@@ -2,9 +2,8 @@
 {% block title %}投稿の編集: {{ post.title }}{% endblock %}
 
 {% block content %}
-<style>
-    body { font-family: "Inter", sans-serif; }
 
+<style>
     .error-message {
         font-size: 0.875rem;
         color: #ef4444;
@@ -51,40 +50,46 @@
             <!-- タイトル -->
             <div>
                 <label class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
+
                 {{ form.title(
-                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
+                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
                            focus:ring-indigo-500 focus:border-indigo-500",
                     value=post.title
                 ) }}
+
                 {% for error in form.title.errors %}
-                    <p class="error-message">{{ error }}</p>
+                <p class="error-message">{{ error }}</p>
                 {% endfor %}
             </div>
 
             <!-- 本文 -->
             <div>
                 <label class="block text-lg font-medium text-gray-700 mb-2">本文</label>
+
                 {{ form.content(
                     rows="10",
                     class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
                            focus:ring-indigo-500 focus:border-indigo-500 resize-y"
                 ) }}
+
                 {% for error in form.content.errors %}
-                    <p class="error-message">{{ error }}</p>
+                <p class="error-message">{{ error }}</p>
                 {% endfor %}
             </div>
 
             <!-- 画像管理 -->
             <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-image mr-2 text-indigo-500"></i>画像ファイルの管理
+                    <i class="fas fa-image mr-2 text-indigo-500"></i>
+                    画像ファイルの管理
                 </h3>
 
                 {% if post.image_url %}
                 <div id="current-image-container" class="p-3 border bg-white rounded-lg shadow-sm">
                     <p class="font-medium text-gray-700 mb-2">現在の画像:</p>
+
                     <div class="media-preview-box">
-                        <img src="{{ post.image_url }}" alt="">
+                        <img src="{{ post.image_url }}" alt="現在の画像">
                     </div>
 
                     {% if form.delete_image %}
@@ -94,15 +99,14 @@
                     </label>
                     {% endif %}
                 </div>
-                {% else %}
-                    <p class="text-sm text-gray-500">画像は登録されていません。</p>
                 {% endif %}
 
                 <label class="block font-semibold text-gray-700">新しい画像をアップロード</label>
+
                 {{ form.image(
                     id="image",
                     accept="image/*",
-                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full
+                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full 
                            file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 ) }}
 
@@ -121,12 +125,14 @@
             <!-- 動画管理 -->
             <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-video mr-2 text-indigo-500"></i>動画ファイルの管理
+                    <i class="fas fa-video mr-2 text-indigo-500"></i>
+                    動画ファイルの管理
                 </h3>
 
                 {% if post.video_url %}
                 <div id="current-video-container" class="p-3 border bg-white rounded-lg shadow-sm">
                     <p class="font-medium text-gray-700 mb-2">現在の動画:</p>
+
                     <div class="media-preview-box">
                         <video controls>
                             <source src="{{ post.video_url }}" type="video/mp4">
@@ -145,7 +151,7 @@
                 {{ form.video(
                     id="video",
                     accept="video/mp4",
-                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full 
+                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full
                            file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 ) }}
 
@@ -186,6 +192,7 @@
 <div id="deleteModal"
      class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50">
     <div class="bg-white rounded-xl p-6 max-w-lg w-11/12 shadow-2xl">
+
         <h3 class="text-2xl font-bold text-red-600 mb-4">
             <i class="fas fa-exclamation-triangle mr-2"></i>
             削除確認
@@ -202,7 +209,7 @@
                 キャンセル
             </button>
 
-            <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}">
+            <form method="POST" action="{{ url_for('delete', post_id=post.id) }}">
                 <button class="py-3 px-6 bg-red-600 text-white rounded-lg hover:bg-red-700">
                     完全に削除する
                 </button>
@@ -214,7 +221,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-    // プレビューをセットする汎用関数
+    // プレビュー設定（画像／動画共通）
     function setupPreview(input, preview, box, currentBox, type) {
         if (!input) return;
 
@@ -225,10 +232,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 reader.onload = e => {
                     if (type === "video") {
                         preview.innerHTML = "";
-                        const src = document.createElement("source");
-                        src.src = e.target.result;
-                        src.type = file.type;
-                        preview.appendChild(src);
+                        const source = document.createElement("source");
+                        source.src = e.target.result;
+                        source.type = file.type;
+                        preview.appendChild(source);
                         preview.load();
                     } else {
                         preview.src = e.target.result;
@@ -237,13 +244,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (currentBox) currentBox.style.display = "none";
                 };
                 reader.readAsDataURL(file);
-            } else {
-                box.classList.add("hidden");
-                if (currentBox) currentBox.style.display = "block";
             }
         });
     }
 
+    // 画像プレビュー
     setupPreview(
         document.getElementById("image"),
         document.getElementById("image-preview"),
@@ -252,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "image"
     );
 
+    // 動画プレビュー
     setupPreview(
         document.getElementById("video"),
         document.getElementById("video-preview"),
@@ -260,10 +266,11 @@ document.addEventListener("DOMContentLoaded", () => {
         "video"
     );
 
-    // モーダル
+    // モーダル制御
     const modal = document.getElementById("deleteModal");
     document.getElementById("openDeleteModalButton").onclick =
         () => modal.classList.remove("hidden");
+
     document.getElementById("cancelDeleteButton").onclick =
         () => modal.classList.add("hidden");
 });
