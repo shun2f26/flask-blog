@@ -319,6 +319,35 @@ def view(post_id):
     form = CommentForm()
     return render_template("view.html", post=post, comments=comments, form=form)
 
+# -------------------------------------------------------
+# Admin Dashboard
+# -------------------------------------------------------
+@app.route("/admin")
+@login_required
+def admin():
+    # 現在ログイン中ユーザーの投稿を取得
+    posts = (
+        db.session.execute(
+            db.select(Post)
+            .filter_by(user_id=current_user.id)
+            .order_by(Post.created_at.desc())
+        ).scalars().all()
+    )
+
+    # コメント数を一緒に集計
+    post_data = []
+    for p in posts:
+        count = db.session.execute(
+            db.select(func.count(Comment.id)).filter_by(post_id=p.id)
+        ).scalar_one()
+        post_data.append((p, count))
+
+    return render_template(
+        "admin.html",
+        post_data=post_data,
+        is_admin=current_user.is_admin
+    )
+
 
 # -------------------------------------------------------
 # Login / Logout / Signup
