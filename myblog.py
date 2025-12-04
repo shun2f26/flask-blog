@@ -174,13 +174,16 @@ class Post(db.Model):
 
 
 class Comment(db.Model):
-    __tablename__ = "comments"
+    __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
-    post_id = db.Column(db.Integer, db.ForeignKey("posts.id"), nullable=False)
-    author_id = db.Column(db.Integer, db.Foreign.ForeignKey("blog_users.id"), nullable=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('blog_users.id'), nullable=True)
     name = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=now)
+    created_at = db.Column(db.DateTime, nullable=False, default=now)
+
+    def __repr__(self):
+        return f"Comment('{self.name}', Post ID: {self.post_id}, User ID: {self.author_id})"
 
 # -------------------------------------------------------
 #  DB 初期化（Flask 3 でも確実に Render で動作）
