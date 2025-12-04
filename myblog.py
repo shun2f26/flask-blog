@@ -348,6 +348,23 @@ def admin():
         is_admin=current_user.is_admin
     )
 
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    # 現在のユーザーの投稿一覧を取得
+    posts = (
+        db.session.execute(
+            db.select(Post)
+            .filter_by(user_id=current_user.id)
+            .order_by(Post.created_at.desc())
+        ).scalars().all()
+    )
+
+    # 画像URLなどを追加加工
+    for p in posts:
+        p.image_url = get_safe_cloudinary_url(p.image_public_id)
+
+    return render_template("dashboard.html", posts=posts, title="ダッシュボード")
 
 # -------------------------------------------------------
 # Login / Logout / Signup
