@@ -2,6 +2,7 @@
 {% block title %}新規投稿{% endblock %}
 
 {% block content %}
+
 <style>
     .error-message {
         font-size: 0.875rem;
@@ -16,10 +17,11 @@
         <!-- ヘッダー -->
         <div class="mb-8 p-6 bg-white shadow-xl rounded-xl border-t-4 border-indigo-500">
             <h1 class="text-3xl font-extrabold text-gray-900 mb-2">
-                <i class="fas fa-pen-nib text-indigo-500 mr-3"></i>新規投稿作成
+                <i class="fas fa-pen-nib text-indigo-500 mr-3"></i>
+                新規投稿作成
             </h1>
             <p class="text-gray-500">
-                新しいブログ記事を作成し、画像または動画を追加して公開します。
+                新しいブログ記事を作成し、画像または動画を追加して公開できます。
             </p>
         </div>
 
@@ -31,8 +33,11 @@
                 <!-- タイトル -->
                 <div class="mb-6">
                     {{ form.title.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
-                    {{ form.title(class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500", placeholder="記事のタイトルを入力してください") }}
-
+                    {{ form.title(
+                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm 
+                               focus:ring-indigo-500 focus:border-indigo-500",
+                        placeholder="記事のタイトルを入力してください"
+                    ) }}
                     {% for error in form.title.errors %}
                         <p class="error-message">{{ error }}</p>
                     {% endfor %}
@@ -41,20 +46,27 @@
                 <!-- 本文 -->
                 <div class="mb-6">
                     {{ form.content.label(class="block text-lg font-semibold text-gray-700 mb-2") }}
-                    {{ form.content(class="mt-1 block w-full h-72 px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y", placeholder="記事の本文を入力してください") }}
-
+                    {{ form.content(
+                        class="mt-1 block w-full h-72 px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
+                               focus:ring-indigo-500 focus:border-indigo-500 resize-y",
+                        placeholder="記事の本文を入力してください"
+                    ) }}
                     {% for error in form.content.errors %}
                         <p class="error-message">{{ error }}</p>
                     {% endfor %}
                 </div>
 
-                <!-- 画像 -->
+                <!-- 画像アップロード -->
                 <div class="mb-6 border p-4 rounded-lg bg-gray-50">
-                    <label for="{{ form.image.id }}" class="block text-lg font-semibold text-gray-700 mb-2">
+                    <label class="block text-lg font-semibold text-gray-700 mb-2">
                         <i class="fas fa-image mr-2 text-indigo-500"></i>画像ファイル（任意）
                     </label>
 
-                    {{ form.image(class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100") }}
+                    {{ form.image(
+                        class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
+                               file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm 
+                               file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    ) }}
 
                     {% for error in form.image.errors %}
                         <p class="error-message">{{ error }}</p>
@@ -63,45 +75,65 @@
                     <p class="text-sm text-gray-500 mt-2">許可形式: JPG, PNG, GIF</p>
                 </div>
 
-                <!-- 動画 -->
-                {% if form.video %}
+                <!-- 動画アップロード -->
                 <div class="mb-8 border p-4 rounded-lg bg-gray-50">
-                    <label for="{{ form.video.id }}" class="block text-lg font-semibold text-gray-700 mb-2">
+                    <label class="block text-lg font-semibold text-gray-700 mb-2">
                         <i class="fas fa-video mr-2 text-indigo-500"></i>動画ファイル（任意）
                     </label>
 
-                    {{ form.video(class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100") }}
+                    {{ form.video(
+                        class="mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-white
+                               file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm 
+                               file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    ) }}
 
                     {% for error in form.video.errors %}
                         <p class="error-message">{{ error }}</p>
                     {% endfor %}
 
-                    <p class="text-sm text-gray-500 mt-2">許可形式: MP4（最大 100MB）</p>
+                    <p class="text-sm text-gray-500 mt-2">許可形式: MP4（最大100MB）</p>
+
+                    <!-- 100MB 超過チェック -->
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function () {
+                            const videoInput = document.getElementById("{{ form.video.id }}");
+                            if (!videoInput) return;
+
+                            const warning = document.createElement("p");
+                            warning.classList.add("error-message");
+                            warning.textContent = "100MB以下の動画を選択してください。";
+                            warning.style.display = "none";
+                            videoInput.insertAdjacentElement("afterend", warning);
+
+                            videoInput.addEventListener("change", function () {
+                                const file = this.files[0];
+                                if (file && file.size > 100 * 1024 * 1024) {
+                                    warning.style.display = "block";
+                                    this.value = "";
+                                } else {
+                                    warning.style.display = "none";
+                                }
+                            });
+                        });
+                    </script>
                 </div>
 
-                <script>
-                document.addEventListener("DOMContentLoaded", function () {
-                    const videoInput = document.getElementById("{{ form.video.id }}");
-                    if (!videoInput) return;
-
-                    const warning = document.createElement("p");
-                    warning.classList.add("error-message");
-                    warning.textContent = "100MB以下の動画を選択してください。";
-                    warning.style.display = "none";
-                    videoInput.insertAdjacentElement("afterend", warning);
-
-                    videoInput.addEventListener("change", function () {
-                        const file = this.files[0];
-                        if (file && file.size > 100 * 1024 * 1024) {
-                            warning.style.display = "block";
-                            this.value = "";
-                        } else {
-                            warning.style.display = "none";
-                        }
-                    });
-                });
-                </script>
-                {% endif %}
-
                 <!-- ボタン -->
-                <div class="flex justify-e
+                <div class="flex justify-between mt-10">
+                    <a href="{{ url_for('admin') }}"
+                       class="px-5 py-3 bg-gray-300 rounded-lg shadow hover:bg-gray-400 text-gray-800 transition">
+                        <i class="fas fa-arrow-left mr-1"></i> 戻る
+                    </a>
+
+                    {{ form.submit(
+                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 
+                               transition font-semibold cursor-pointer"
+                    ) }}
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
