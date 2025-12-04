@@ -164,7 +164,6 @@ class Comment(db.Model):
 
     created_at = db.Column(db.DateTime, default=now)
 
-
 # -------------------------------------------------------
 # DB 初期化
 # -------------------------------------------------------
@@ -294,6 +293,15 @@ def index():
         query_text=query,
     )
 
+@app.template_filter("datetimeformat")
+def datetimeformat(value, format="%Y-%m-%d %H:%M"):
+    if not value:
+        return ""
+    return value.strftime(format)
+
+@app.context_processor
+def inject_now():
+    return {"now": datetime.utcnow()}
 
 @app.route("/view/<int:post_id>")
 def view(post_id):
