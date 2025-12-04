@@ -1,287 +1,219 @@
 {% extends "base.html" %}
-
 {% block title %}投稿の編集: {{ post.title }}{% endblock %}
 
 {% block content %}
-
-<script src="https://cdn.tailwindcss.com"></script>
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
-body { font-family: "Inter", sans-serif; }
-/* モーダル表示中は背景スクロールを禁止 */
-.modal-open { overflow: hidden; }
+    body { font-family: "Inter", sans-serif; }
 
-/* エラーメッセージ用のカスタムスタイル */
-.error-message {
-    font-size: 0.875rem; /* text-sm */
-    color: #ef4444; /* text-red-500 */
-    margin-top: 0.25rem;
-}
+    .error-message {
+        font-size: 0.875rem;
+        color: #ef4444;
+        margin-top: 0.25rem;
+    }
 
-/* メディアプレビューコンテナのスタイル */
-.media-preview-box {
-    max-width: 100%;
-    max-height: 300px; /* プレビューの高さを統一 */
-    overflow: hidden;
-    margin-bottom: 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid #e5e7eb;
-    background-color: #f9fafb;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.media-preview-box img, .media-preview-box video {
-    max-width: 100%;
-    height: auto;
-    max-height: 300px;
-    object-fit: contain; /* 画像や動画がボックスに収まるように調整 */
-}
+    .modal-open { overflow: hidden; }
+
+    .media-preview-box {
+        max-width: 100%;
+        max-height: 300px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        background-color: #f9fafb;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .media-preview-box img,
+    .media-preview-box video {
+        max-width: 100%;
+        max-height: 300px;
+        object-fit: contain;
+    }
 </style>
 
 <div class="min-h-screen bg-gray-100 p-4 sm:p-8">
-<div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-<h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">
-<i class="fas fa-edit text-indigo-500 mr-2"></i> 投稿の編集
-</h1>
-<p class="text-sm text-gray-500 mb-6">既存の投稿内容（「{{ post.title }}」）を変更し、更新します。</p>
+    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
 
-    <!-- 編集フォーム -->
-    <form id="postForm" class="space-y-6" action="{{ url_for('update', post_id=post.id) }}" method="POST" enctype="multipart/form-data">
-        
-        <!-- 1. CSRFトークンの埋め込み (重要!) -->
-        {% if form %}
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">
+            <i class="fas fa-edit text-indigo-500 mr-2"></i>
+            投稿の編集
+        </h1>
+        <p class="text-sm text-gray-500 mb-6">「{{ post.title }}」の内容を編集します。</p>
+
+        <!-- 編集フォーム -->
+        <form id="postForm" class="space-y-6"
+              action="{{ url_for('update', post_id=post.id) }}"
+              method="POST" enctype="multipart/form-data">
+
             {{ form.hidden_tag() }}
-        {% endif %}
-        
-        <!-- タイトル入力 -->
-        <div>
-            <label for="title" class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
-            {% if form and form.title.errors %}
-            <ul class="text-red-500 text-sm mb-1 space-y-1">
-                {% for error in form.title.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-            </ul>
-            {% endif %}
-            <!-- form.title.data があれば優先（バリデーション失敗時）、なければ post.title を使用 -->
-            <input type="text" id="title" name="title" required
-                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                    placeholder="魅力的なタイトルを入力してください"
-                    value="{{ form.title.data if form and form.title.data is not none else post.title if post.title is not none else '' }}">
-        </div>
 
-        <!-- 本文入力 -->
-        <div>
-            <label for="content" class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-            
-            {% if form and form.content.errors %}
-            <ul class="text-red-500 text-sm mb-1 space-y-1">
-                <!-- content フィールドのエラーを表示 -->
-                {% for error in form.content.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-            </ul>
-            {% endif %}
-            
-            <textarea id="content" name="content" rows="10" required
-                        class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base resize-y"
-                        placeholder="投稿の本文を記述してください。">
-                        
-                        {{ form.content.data if form and form.content.data is not none else post.content if post.content is not none else '' }}
-                        
-            </textarea>
-        </div>
-        
-        <!-- 3. 画像ファイルセクション -->
-        <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
-            <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                 <i class="fas fa-image mr-2 text-indigo-500"></i>画像ファイルの管理
-            </h3>
+            <!-- タイトル -->
+            <div>
+                <label class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
 
-            <!-- 既存画像のプレビューと削除オプション -->
-            {% if post.image_url %}
-            <div id="current-image-container" class="p-3 border border-gray-300 rounded-lg bg-white shadow-sm">
-                <p class="font-medium text-gray-700 mb-2">現在の画像:</p>
-                <div class="media-preview-box">
-                    <img id="current-image" src="{{ post.image_url }}" alt="現在の画像プレビュー" onerror="this.onerror=null;this.src='https://placehold.co/400x200/CCCCCC/333333?text=Image+Not+Found';">
-                </div>
-                
-                <!-- form.delete_imageが存在し、チェックボックスとラベルを描画 -->
-                {% if form and form.delete_image %}
-                <div class="flex items-center mt-3">
-                    {{ form.delete_image(class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500") }}
-                    {{ form.delete_image.label(class="ml-2 block text-base font-medium text-red-600") }}
-                </div>
-                {% endif %}
+                {% for error in form.title.errors %}
+                <p class="error-message"><i class="fas fa-exclamation-circle mr-1"></i>{{ error }}</p>
+                {% endfor %}
+
+                {{ form.title(
+                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
+                           focus:ring-indigo-500 focus:border-indigo-500",
+                    value=post.title
+                ) }}
             </div>
-            {% else %}
-            <p id="current-image-container" class="text-sm text-gray-500 mb-2">現在、画像は設定されていません。</p>
-            {% endif %}
 
-            <!-- 新規画像アップロードフィールド -->
-            <div class="pt-2">
-                <label for="image" class="block text-base font-semibold text-gray-700 mb-2">
-                    新しい画像の選択 (オプション)
-                </label>
-                <!-- form.imageを直接使用し、ファイル形式をaccept属性で指定 -->
-                {% if form and form.image %}
-                {{ form.image(id="image", accept="image/*",
-                        class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer") }}
-                
-                    {% if form.image.errors %}
-                        {% for error in form.image.errors %}
-                            <p class="error-message">{{ error }}</p>
-                        {% endfor %}
-                    {% endif %}
-                {% else %}
-                <!-- formオブジェクトが存在しない、またはform.imageがない場合の代替 -->
-                <input type="file" id="image" name="image" accept="image/*"
-                        class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
-                {% endif %}
-                
-                <!-- 新しい画像のプレビューエリア -->
-                <div id="image-preview-container" class="mt-4 hidden">
-                    <p class="text-sm font-medium text-gray-500 mb-2">新しい画像のプレビュー:</p>
+            <!-- 本文 -->
+            <div>
+                <label class="block text-lg font-medium text-gray-700 mb-2">本文</label>
+
+                {% for error in form.content.errors %}
+                <p class="error-message"><i class="fas fa-exclamation-circle mr-1"></i>{{ error }}</p>
+                {% endfor %}
+
+                {{ form.content(
+                    rows="10",
+                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
+                           focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                ) }}
+            </div>
+
+
+            <!-- 画像セクション -->
+            <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-image mr-2 text-indigo-500"></i>
+                    画像ファイルの管理
+                </h3>
+
+                {% if post.image_url %}
+                <div id="current-image-container" class="p-3 border bg-white rounded-lg shadow-sm">
+                    <p class="font-medium text-gray-700 mb-2">現在の画像:</p>
                     <div class="media-preview-box">
-                        <img id="image-preview" src="#" alt="New Image Preview">
+                        <img src="{{ post.image_url }}" alt="現在の画像">
+                    </div>
+
+                    {% if form.delete_image %}
+                    <div class="flex items-center mt-3">
+                        {{ form.delete_image(class="h-4 w-4 text-red-600") }}
+                        {{ form.delete_image.label(class="ml-2 text-red-600") }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                    <p class="text-sm text-gray-500">画像は登録されていません。</p>
+                {% endif %}
+
+                <label class="block font-semibold text-gray-700">新しい画像のアップロード</label>
+                {{ form.image(
+                    id="image",
+                    accept="image/*",
+                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full
+                           file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                ) }}
+
+                {% for error in form.image.errors %}
+                <p class="error-message">{{ error }}</p>
+                {% endfor %}
+
+                <div id="image-preview-container" class="hidden mt-4">
+                    <p class="text-sm text-gray-500">新しい画像プレビュー:</p>
+                    <div class="media-preview-box">
+                        <img id="image-preview" src="#">
                     </div>
                 </div>
-                <p class="text-sm text-gray-500 mt-2">許可される形式: JPG, PNG, GIF (新しいファイルをアップロードすると、既存の画像は置き換えられます)</p>
             </div>
-        </div>
-        
-        <!-- 4. 動画ファイルセクション (追加) -->
-        <!-- form.videoが存在する場合のみ表示 -->
-        {% if form and form.video %}
-        <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
-            <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                <i class="fas fa-video mr-2 text-indigo-500"></i>動画ファイルの管理
-            </h3>
 
-            <!-- 既存動画のプレビューと削除オプション -->
-            <!-- post.video_url または form.video_url.data (バリデーション失敗時) を使用することを想定 -->
-            {% set current_video_url = post.video_url if post.video_url else form.video_url.data if form and form.video_url else none %}
-            
-            {% if current_video_url %}
-            <div id="current-video-container" class="p-3 border border-gray-300 rounded-lg bg-white shadow-sm">
-                <p class="font-medium text-gray-700 mb-2">現在の動画:</p>
-                <div class="media-preview-box">
-                    <video id="current-video" controls>
-                        <source src="{{ current_video_url }}" type="video/mp4">
-                        お使いのブラウザは動画タグをサポートしていません。
-                    </video>
-                </div>
-                
-                <!-- form.delete_videoが存在し、チェックボックスとラベルを描画 -->
-                {% if form.delete_video %}
-                <div class="flex items-center mt-3">
-                    {{ form.delete_video(class="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500") }}
-                    {{ form.delete_video.label(class="ml-2 block text-base font-medium text-red-600") }}
+
+            <!-- 動画セクション -->
+            {% if form.video %}
+            <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-video mr-2 text-indigo-500"></i>
+                    動画ファイルの管理
+                </h3>
+
+                {% if post.video_url %}
+                <div id="current-video-container" class="p-3 border bg-white rounded-lg shadow-sm">
+                    <p class="font-medium text-gray-700 mb-2">現在の動画:</p>
+                    <div class="media-preview-box">
+                        <video controls><source src="{{ post.video_url }}" type="video/mp4"></video>
+                    </div>
+
+                    {% if form.delete_video %}
+                    <div class="flex items-center mt-3">
+                        {{ form.delete_video(class="h-4 w-4 text-red-600") }}
+                        {{ form.delete_video.label(class="ml-2 text-red-600") }}
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
-            </div>
-            {% else %}
-            <p id="current-video-container" class="text-sm text-gray-500 mb-2">現在、動画は設定されていません。</p>
-            {% endif %}
 
-            <!-- 新規動画アップロードフィールド -->
-            <div class="pt-2">
-                <label for="video" class="block text-base font-semibold text-gray-700 mb-2">
-                    新しい動画の選択 (オプション)
-                </label>
-                <!-- form.videoを直接使用 -->
-                {{ form.video(id="video", accept="video/mp4",
-                    class="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer") }}
+                {{ form.video(
+                    id="video",
+                    accept="video/mp4",
+                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full 
+                           file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                ) }}
 
-                {% if form.video.errors %}
-                    {% for error in form.video.errors %}
-                        <p class="error-message">{{ error }}</p>
-                    {% endfor %}
-                {% endif %}
-                
-                <!-- 新しい動画のプレビューエリア -->
-                <div id="video-preview-container" class="mt-4 hidden">
-                    <p class="text-sm font-medium text-gray-500 mb-2">新しい動画のプレビュー:</p>
+                {% for error in form.video.errors %}
+                <p class="error-message">{{ error }}</p>
+                {% endfor %}
+
+                <div id="video-preview-container" class="hidden mt-4">
+                    <p class="text-sm text-gray-500">新しい動画プレビュー:</p>
                     <div class="media-preview-box">
                         <video id="video-preview" controls></video>
                     </div>
                 </div>
-                <p class="text-sm text-gray-500 mt-2">許可される形式: MP4 (新しいファイルをアップロードすると、既存の動画は置き換えられます)</p>
             </div>
-        </div>
-        {% endif %}
-        <!-- 動画サイズチェック -->
-        <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const videoInput = document.getElementById("{{ form.video.id }}");
-            if (!videoInput) return;
-        
-            const warning = document.createElement("p");
-            warning.classList.add("error-message");
-            warning.textContent = "100MBまでにしてください";
-            warning.style.display = "none";
-            videoInput.insertAdjacentElement("afterend", warning);
-        
-            videoInput.addEventListener("change", function () {
-                const file = this.files[0];
-                if (file && file.size > 100 * 1024 * 1024) {
-                    warning.style.display = "block";
-                    this.value = ""; // 入力をリセット
-                } else {
-                    warning.style.display = "none";
-                }
-            });
-        });
-        </script>
-        <!-- 送信ボタンとアクションボタン -->
-        <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
-            <!-- 変更を保存ボタン -->
-            <button type="submit" id="submitButton"
-                    class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i class="fas fa-save mr-2"></i> 変更を保存
-            </button>
-            
-            <!-- 記事を削除ボタン (モーダルをトリガー) -->
-            <button type="button" id="openDeleteModalButton"
-                    class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-150 ease-in-out">
-                <i class="fas fa-trash-alt mr-2"></i> 記事を削除
-            </button>
+            {% endif %}
 
-            <!-- ダッシュボードに戻るリンク -->
-            <a href="{{ url_for('admin') }}"
-                class="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-lg font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                <i class="fas fa-arrow-left mr-2"></i> ダッシュボードに戻る
-            </a>
-        </div>
+            <!-- ボタン -->
+            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t">
+                <button class="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg">
+                    <i class="fas fa-save mr-2"></i>変更を保存
+                </button>
 
-    </form>
-</div>
+                <button type="button" id="openDeleteModalButton"
+                        class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg">
+                    <i class="fas fa-trash-alt mr-2"></i>記事を削除
+                </button>
+
+                <a href="{{ url_for('admin') }}"
+                   class="flex-1 py-3 px-4 bg-white border rounded-lg shadow text-gray-700 hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-2"></i>戻る
+                </a>
+            </div>
+
+        </form>
+    </div>
 </div>
 
-<!-- 記事削除確認モーダル (アラート/確認ダイアログの代替) -->
-<div id="deleteModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 overflow-y-auto h-full w-full z-50 flex items-center justify-center transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="bg-white rounded-xl p-6 md:p-8 max-w-lg w-11/12 mx-auto shadow-2xl transform transition-transform duration-300 scale-95">
-        <h3 id="modal-title" class="text-2xl font-bold text-red-600 mb-4 border-b pb-2">
-            <i class="fas fa-exclamation-triangle mr-2"></i> 削除の最終確認
+<!-- 削除モーダル -->
+<div id="deleteModal"
+     class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl p-6 max-w-lg w-11/12 shadow-2xl">
+        <h3 class="text-2xl font-bold text-red-600 mb-4">
+            <i class="fas fa-exclamation-triangle mr-2"></i>削除確認
         </h3>
-        <p class="text-gray-700 mb-6">
-            本当にこの記事「<span class="font-semibold">{{ post.title }}</span>」を削除してもよろしいですか？
 
-            **この操作は元に戻せません。**
+        <p class="text-gray-700 mb-6">
+            本当に「<strong>{{ post.title }}</strong>」を削除しますか？<br>
+            <span class="text-red-600 font-semibold">※この操作は取り消せません。</span>
         </p>
+
         <div class="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4">
-            <!-- キャンセルボタン -->
-            <button id="cancelDeleteButton" type="button" 
-                    class="order-2 sm:order-1 py-3 px-6 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition duration-150 ease-in-out">
+            <button id="cancelDeleteButton"
+                    class="py-3 px-6 bg-white border rounded-lg text-gray-700 hover:bg-gray-50">
                 キャンセル
             </button>
-            
-            <!-- 削除実行フォーム (POSTリクエストを送信) -->
-            <form action="{{ url_for('delete_post', post_id=post.id) }}" method="POST" class="order-1 sm:order-2 w-full sm:w-auto">
-              {% if form %}
-              {{ form.hidden_tag() }}
-    　　　　　 {% endif %}
-                <button type="submit" 
-                        class="w-full py-3 px-6 rounded-lg text-white bg-red-600 hover:bg-red-700 font-semibold shadow-md transition duration-150 ease-in-out">
-                    はい、完全に削除します
+
+            <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}">
+                {{ form.hidden_tag() }}
+                <button class="py-3 px-6 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    完全に削除する
                 </button>
             </form>
         </div>
@@ -289,111 +221,58 @@ body { font-family: "Inter", sans-serif; }
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // 画像関連の要素
-    const imageInput = document.getElementById('image');
-    const imagePreview = document.getElementById('image-preview');
-    const imagePreviewContainer = document.getElementById('image-preview-container');
-    const currentImageContainer = document.getElementById('current-image-container');
+document.addEventListener("DOMContentLoaded", () => {
+    // プレビューセットアップ関数
+    function setupPreview(input, preview, box, currentBox, type) {
+        if (!input) return;
 
-    // 動画関連の要素 (新しい要素)
-    const videoInput = document.getElementById('video');
-    const videoPreview = document.getElementById('video-preview');
-    const videoPreviewContainer = document.getElementById('video-preview-container');
-    const currentVideoContainer = document.getElementById('current-video-container'); // 動画が設定されていない場合もIDがあることを想定
-
-    // モーダル関連の要素
-    const openModalButton = document.getElementById('openDeleteModalButton');
-    const deleteModal = document.getElementById('deleteModal');
-    const cancelDeleteButton = document.getElementById('cancelDeleteButton');
-    const body = document.body;
-
-    /**
-     * 新規ファイルのプレビュー処理
-     * @param {HTMLElement} inputElement - file input要素
-     * @param {HTMLElement} previewElement - プレビューを表示する img または video 要素
-     * @param {HTMLElement} previewContainer - プレビュー要素を囲むコンテナ
-     * @param {HTMLElement} currentMediaContainer - 既存メディアのコンテナ (新規アップロード時に非表示にするため)
-     * @param {string} mediaType - 'image' または 'video'
-     */
-    const setupPreview = (inputElement, previewElement, previewContainer, currentMediaContainer, mediaType) => {
-        if (!inputElement || !previewElement || !previewContainer) return;
-
-        inputElement.addEventListener('change', function() {
-            const file = this.files[0];
+        input.addEventListener("change", () => {
+            const file = input.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    // プレビュー要素の更新
-                    if (mediaType === 'video') {
-                        const source = document.createElement('source');
-                        source.src = e.target.result;
-                        source.type = file.type || 'video/mp4'; // ファイルタイプを取得
-                        previewElement.innerHTML = ''; // 既存のソースをクリア
-                        previewElement.appendChild(source);
-                        previewElement.load(); // 動画をロード
+                reader.onload = e => {
+                    if (type === "video") {
+                        preview.innerHTML = "";
+                        const src = document.createElement("source");
+                        src.src = e.target.result;
+                        src.type = file.type;
+                        preview.appendChild(src);
+                        preview.load();
                     } else {
-                        previewElement.src = e.target.result;
+                        preview.src = e.target.result;
                     }
-
-                    previewContainer.classList.remove('hidden');
-                    // 新規ファイルが選択された場合、既存のコンテナを非表示にする
-                    if (currentMediaContainer) currentMediaContainer.style.display = 'none';
-                }
+                    box.classList.remove("hidden");
+                    if (currentBox) currentBox.style.display = "none";
+                };
                 reader.readAsDataURL(file);
             } else {
-                // ファイル選択がキャンセルされた場合、プレビューをリセット
-                previewContainer.classList.add('hidden');
-                if (mediaType === 'video') {
-                    previewElement.src = '';
-                    previewElement.innerHTML = '';
-                } else {
-                    previewElement.src = '#';
-                }
-                
-                // 既存のメディアを再表示する
-                if (currentMediaContainer) currentMediaContainer.style.display = 'block';
+                box.classList.add("hidden");
+                if (currentBox) currentBox.style.display = "block";
             }
         });
-    };
+    }
 
-    // --- 画像プレビューのセットアップ ---
-    setupPreview(imageInput, imagePreview, imagePreviewContainer, currentImageContainer, 'image');
+    setupPreview(
+        document.getElementById("image"),
+        document.getElementById("image-preview"),
+        document.getElementById("image-preview-container"),
+        document.getElementById("current-image-container"),
+        "image"
+    );
 
-    // --- 動画プレビューのセットアップ ---
-    setupPreview(videoInput, videoPreview, videoPreviewContainer, currentVideoContainer, 'video');
+    setupPreview(
+        document.getElementById("video"),
+        document.getElementById("video-preview"),
+        document.getElementById("video-preview-container"),
+        document.getElementById("current-video-container"),
+        "video"
+    );
 
-
-    // --- 削除モーダル機能 ---
-
-    // モーダルを開く
-    openModalButton.addEventListener('click', () => {
-        deleteModal.classList.remove('hidden');
-        body.classList.add('modal-open');
-    });
-
-    // モーダルを閉じる
-    const closeModal = () => {
-        deleteModal.classList.add('hidden');
-        body.classList.remove('modal-open');
-    };
-
-    // キャンセルボタンで閉じる
-    cancelDeleteButton.addEventListener('click', closeModal);
-
-    // モーダル外のクリックで閉じる
-    deleteModal.addEventListener('click', (e) => {
-        if (e.target === deleteModal) {
-            closeModal();
-        }
-    });
-
-    // ESCキーで閉じる
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !deleteModal.classList.contains('hidden')) {
-            closeModal();
-        }
-    });
+    // モーダル操作
+    const modal = document.getElementById("deleteModal");
+    document.getElementById("openDeleteModalButton").onclick = () => modal.classList.remove("hidden");
+    document.getElementById("cancelDeleteButton").onclick = () => modal.classList.add("hidden");
 });
 </script>
+
 {% endblock %}
