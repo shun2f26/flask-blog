@@ -1,101 +1,111 @@
 {% extends "base.html" %}
-
-{% block title %}{{ title }}{% endblock %}
+{% block title %}アカウント設定{% endblock %}
 
 {% block content %}
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
 <style>
-body { font-family: "Inter", sans-serif; }
+  body { font-family: "Inter", sans-serif; }
+  .error-message { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; }
 </style>
 
 <div class="min-h-screen bg-gray-100 p-4 sm:p-8">
-    <div class="max-w-3xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">
-            <i class="fas fa-user-circle text-indigo-500 mr-2"></i> アカウント設定
-        </h1>
-        <p class="text-sm text-gray-500 mb-6">ユーザー情報とパスワードを変更できます。</p>
+  <div class="max-w-3xl mx-auto bg-white shadow-2xl rounded-xl p-8 md:p-10">
 
-        <!-- 修正箇所: エンドポイント 'account' (POST) を指定 -->
-        <form action="{{ url_for('account') }}" method="POST" class="space-y-6">
-            
-            <!-- 1. CSRFトークンの埋め込み (重要!) -->
-            {% if form %}
-                {{ form.hidden_tag() }}
-            {% endif %}
+    <!-- ヘッダー -->
+    <h1 class="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+      <i class="fas fa-user-circle text-indigo-500 mr-3"></i>
+      アカウント設定
+    </h1>
+    <p class="text-sm text-gray-500 mb-8">
+      ユーザー情報とパスワードを更新できます。
+    </p>
 
-            <div class="space-y-4 border-b pb-6">
-                <h2 class="text-xl font-semibold text-gray-700">基本情報</h2>
+    <!-- フォーム -->
+    <form action="{{ url_for('account') }}" method="POST" class="space-y-10">
+      {{ form.hidden_tag() }}
 
-                <!-- ユーザー名入力 -->
-                <div>
-                    <label for="username" class="block text-lg font-medium text-gray-700 mb-2">ユーザー名</label>
-                    {% if form and form.username.errors %}
-                    <ul class="text-red-500 text-sm mb-1 space-y-1">
-                        {% for error in form.username.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-                    </ul>
-                    {% endif %}
-                    <input type="text" id="username" name="username" required
-                           class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                           placeholder="新しいユーザー名"
-                           value="{{ form.username.data if form and form.username.data is not none else current_user.username if current_user.username is not none else '' }}">
-                </div>
+      <!-- 基本情報 -->
+      <section class="space-y-6 border-b pb-8">
+        <h2 class="text-xl font-semibold text-gray-700 flex items-center">
+          <i class="fas fa-id-card mr-2 text-indigo-500"></i> 基本情報
+        </h2>
 
-                <!-- メールアドレス入力 -->
-                <div>
-                    <label for="email" class="block text-lg font-medium text-gray-700 mb-2">メールアドレス</label>
-                    {% if form and form.email.errors %}
-                    <ul class="text-red-500 text-sm mb-1 space-y-1">
-                        {% for error in form.email.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-                    </ul>
-                    {% endif %}
-                    <input type="email" id="email" name="email" required
-                           class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                           placeholder="メールアドレス"
-                           value="{{ form.email.data if form and form.email.data is not none else current_user.email if current_user.email is not none else '' }}">
-                </div>
-            </div>
-            
-            <div class="space-y-4 border-b pb-6">
-                <h2 class="text-xl font-semibold text-gray-700">パスワード変更 (オプション)</h2>
+        <!-- 名前 -->
+        <div>
+          {{ form.username.label(class="block text-lg font-medium text-gray-700 mb-2") }}
+          {{ form.username(
+            class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
+                   focus:ring-indigo-500 focus:border-indigo-500",
+            placeholder="新しいユーザー名"
+          ) }}
+          {% for error in form.username.errors %}
+            <p class="error-message">{{ error }}</p>
+          {% endfor %}
+        </div>
 
-                <!-- パスワード入力 -->
-                <div>
-                    <label for="password" class="block text-lg font-medium text-gray-700 mb-2">新しいパスワード</label>
-                    {% if form and form.password.errors %}
-                    <ul class="text-red-500 text-sm mb-1 space-y-1">
-                        {% for error in form.password.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-                    </ul>
-                    {% endif %}
-                    <input type="password" id="password" name="password"
-                           class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                           placeholder="変更する場合のみ入力">
-                </div>
+        <!-- メール -->
+        <div>
+          {{ form.email.label(class="block text-lg font-medium text-gray-700 mb-2") }}
+          {{ form.email(
+            class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
+                   focus:ring-indigo-500 focus:border-indigo-500",
+            placeholder="メールアドレス"
+          ) }}
+          {% for error in form.email.errors %}
+            <p class="error-message">{{ error }}</p>
+          {% endfor %}
+        </div>
+      </section>
 
-                <!-- パスワード確認入力 -->
-                <div>
-                    <label for="confirm_password" class="block text-lg font-medium text-gray-700 mb-2">パスワードの確認</label>
-                    {% if form and form.confirm_password.errors %}
-                    <ul class="text-red-500 text-sm mb-1 space-y-1">
-                        {% for error in form.confirm_password.errors %}<li class="flex items-center"><i class="fas fa-exclamation-circle mr-1"></i> {{ error }}</li>{% endfor %}
-                    </ul>
-                    {% endif %}
-                    <input type="password" id="confirm_password" name="confirm_password"
-                           class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base"
-                           placeholder="新しいパスワードを再入力">
-                </div>
-            </div>
 
-            <!-- 送信ボタン -->
-            <div class="pt-4">
-                <button type="submit"
-                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                    <i class="fas fa-sync-alt mr-2"></i> 設定を更新
-                </button>
-            </div>
-        </form>
-    </div>
+      <!-- パスワード変更 -->
+      <section class="space-y-6 border-b pb-8">
+        <h2 class="text-xl font-semibold text-gray-700 flex items-center">
+          <i class="fas fa-lock mr-2 text-indigo-500"></i> パスワード変更（任意）
+        </h2>
+
+        <!-- 新しいパス -->
+        <div>
+          {{ form.password.label(class="block text-lg font-medium text-gray-700 mb-2") }}
+          {{ form.password(
+            class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
+                   focus:ring-indigo-500 focus:border-indigo-500",
+            placeholder="新しいパスワード"
+          ) }}
+          {% for error in form.password.errors %}
+            <p class="error-message">{{ error }}</p>
+          {% endfor %}
+        </div>
+
+        <!-- 確認 -->
+        <div>
+          {{ form.confirm_password.label(class="block text-lg font-medium text-gray-700 mb-2") }}
+          {{ form.confirm_password(
+            class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
+                   focus:ring-indigo-500 focus:border-indigo-500",
+            placeholder="パスワードを再入力"
+          ) }}
+          {% for error in form.confirm_password.errors %}
+            <p class="error-message">{{ error }}</p>
+          {% endfor %}
+        </div>
+
+      </section>
+
+      <!-- 更新ボタン -->
+      <div>
+        <button type="submit"
+          class="w-full py-3 px-4 rounded-lg text-lg font-semibold text-white bg-indigo-600
+                 hover:bg-indigo-700 shadow-lg transition flex justify-center items-center gap-2">
+          <i class="fas fa-sync-alt"></i> 設定を更新
+        </button>
+      </div>
+
+    </form>
+  </div>
 </div>
 
 {% endblock %}
