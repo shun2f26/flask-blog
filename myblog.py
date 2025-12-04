@@ -228,7 +228,7 @@ class PostForm(FlaskForm):
 
 class CommentForm(FlaskForm):
     name = StringField('ニックネーム', validators=[DataRequired()])
-    content = TextAreaField('コメント内容',
+    content = TextAreaField('コメント内容')
 
 # -------------------------------------------------------
 #  Public Routes
