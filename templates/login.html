@@ -1,94 +1,48 @@
 {% extends "base.html" %}
-
 {% block title %}ログイン{% endblock %}
 
 {% block content %}
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <style>
-    /* Interフォントを使用 */
-    body {
-        font-family: 'Inter', sans-serif;
-    }
-    /* エラーメッセージのスタイル */
+    body { font-family: 'Inter', sans-serif; }
+
     .error-message {
-        font-size: 0.875rem; /* text-sm */
-        color: #ef4444; /* text-red-500 */
+        font-size: 0.875rem;
+        color: #ef4444;
         margin-top: 0.25rem;
     }
 </style>
 
-<!-- ページ全体: 画面中央に配置 -->
 <div class="min-h-screen flex items-center justify-center bg-gray-50 p-4 sm:p-6">
-    <!-- ログインカードコンテナ -->
     <div class="w-full max-w-md">
-        
+
         <div class="bg-white p-8 sm:p-10 rounded-xl shadow-2xl border border-gray-100 transform transition duration-500 hover:shadow-3xl">
-            
+
             <h2 class="text-3xl font-extrabold text-center text-gray-900 mb-2">
                 <i class="fas fa-sign-in-alt text-indigo-600 mr-2"></i>
                 ログイン
             </h2>
-            <p class="text-center text-gray-500 mb-8">管理者アカウントでサインインしてください</p>
-            
-            <form method="POST" action="{{ url_for('login') }}" novalidate class="space-y-6">
+
+            <p class="text-center text-gray-500 mb-8">
+                管理者アカウントでサインインしてください
+            </p>
+
+            <form method="POST" action="{{ url_for('login') }}" class="space-y-6" novalidate>
                 {{ form.hidden_tag() }}
-                
-                <!-- ユーザー名フィールド -->
+
+                <!-- ユーザー名 -->
                 <div>
                     {{ form.username.label(class="block text-sm font-medium text-gray-700 mb-1") }}
-                    {{ form.username(class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150", placeholder="ユーザー名を入力", required=True) }}
-                    
+                    {{ form.username(
+                        class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
+                               placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500",
+                        placeholder="ユーザー名を入力",
+                        required=True
+                    ) }}
                     {% for error in form.username.errors %}
                         <div class="error-message">{{ error }}</div>
                     {% endfor %}
                 </div>
-                
-                <!-- パスワードフィールド -->
+
+                <!-- パスワード -->
                 <div>
-                    {{ form.password.label(class="block text-sm font-medium text-gray-700 mb-1") }}
-                    {{ form.password(class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 transition duration-150", placeholder="パスワードを入力", required=True) }}
-
-                    {% for error in form.password.errors %}
-                        <div class="error-message">{{ error }}</div>
-                    {% endfor %}
-                </div>
-
-                <!-- 記憶する/パスワードを忘れた場合 -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <!-- Tailwindのカスタムチェックボックススタイルを適用 -->
-                        {{ form.remember_me(class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500") }}
-                        {{ form.remember_me.label(class="ml-2 block text-sm text-gray-900") }}
-                    </div>
-                    
-                    <div class="text-sm">
-                        <a href="{{ url_for('forgot_password') }}" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
-                            パスワードを忘れた場合
-                        </a>
-                    </div>
-                </div>
-
-                <!-- 送信ボタン -->
-                <div>
-                    <!-- d-grid gap-2 mb-3 を w-full flex justify-center に置き換え -->
-                    {{ form.submit(class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 cursor-pointer") }}
-                </div>
-            </form>
-
-            <!-- サインアップリンク -->
-            <div class="mt-6 text-center">
-                <p class="text-sm text-gray-600">
-                    アカウントをお持ちでないですか？ 
-                    <a href="{{ url_for('signup') }}" class="font-medium text-indigo-600 hover:text-indigo-500 transition duration-150">
-                        サインアップ
-                    </a>
-                </p>
-            </div>
-            
-        </div>
-    </div>
-</div>
-{% endblock %}
