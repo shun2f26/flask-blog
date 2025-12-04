@@ -367,6 +367,11 @@ def user_blog(username):
 
     return render_template('user_blog.html', title=f'{username} のブログ', target_user=target_user, posts=posts)
 
+@app.before_first_request
+def initialize_database():
+    with app.app_context():
+        db.create_all()
+
 @app.route('/view/<int:post_id>')
 def view(post_id):
     post = db.session.get(Post, post_id)
