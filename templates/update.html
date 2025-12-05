@@ -1,279 +1,56 @@
 {% extends "base.html" %}
-{% block title %}投稿の編集: {{ post.title }}{% endblock %}
+{% block title %}記事編集{% endblock %}
 
 {% block content %}
 
-<style>
-    .error-message {
-        font-size: 0.875rem;
-        color: #ef4444;
-        margin-top: 0.25rem;
-    }
+<div class="max-w-4xl mx-auto mt-10 px-4">
+    <h2 class="text-3xl font-bold mb-6">記事を編集</h2>
 
-    .media-preview-box {
-        max-width: 100%;
-        max-height: 300px;
-        overflow: hidden;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-        background-color: #f9fafb;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    .media-preview-box img,
-    .media-preview-box video {
-        max-width: 100%;
-        max-height: 300px;
-        object-fit: contain;
-    }
-</style>
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
 
-<div class="min-h-screen bg-gray-100 p-4 sm:p-8">
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
+        <!-- タイトル -->
+        <label class="block mb-2 font-medium">タイトル</label>
+        {{ form.title(class="w-full p-3 border rounded mb-6") }}
 
-        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">
-            <i class="fas fa-edit text-indigo-500 mr-2"></i>
-            投稿の編集
-        </h1>
-        <p class="text-sm text-gray-500 mb-6">
-            「{{ post.title }}」の内容を編集できます。
-        </p>
+        <!-- 内容 -->
+        <label class="block mb-2 font-medium">内容</label>
+        {{ form.content(class="w-full p-3 border rounded mb-6 h-48") }}
 
-        <!-- 編集フォーム -->
-        <form id="postForm" class="space-y-6"
-              action="{{ url_for('update', post_id=post.id) }}"
-              method="POST" enctype="multipart/form-data">
+        <!-- ✨ 現在の画像・動画プレビュー -->
+        <div class="mb-6">
+            <p class="font-medium mb-2">現在のメディア</p>
 
-            {{ form.hidden_tag() }}
+            {% if post.video_public_id %}
+                <!-- 動画プレビュー -->
+                <video class="w-full rounded mb-4 shadow" controls preload="metadata">
+                    <source src="{{ safe_video_url(post.video_public_id) }}" type="video/mp4">
+                    動画を再生できません
+                </video>
 
-            <!-- タイトル -->
-            <div>
-                <label class="block text-lg font-medium text-gray-700 mb-2">タイトル</label>
-
-                {{ form.title(
-                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm
-                           focus:ring-indigo-500 focus:border-indigo-500",
-                    value=post.title
-                ) }}
-
-                {% for error in form.title.errors %}
-                <p class="error-message">{{ error }}</p>
-                {% endfor %}
-            </div>
-
-            <!-- 本文 -->
-            <div>
-                <label class="block text-lg font-medium text-gray-700 mb-2">本文</label>
-
-                {{ form.content(
-                    rows="10",
-                    class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm 
-                           focus:ring-indigo-500 focus:border-indigo-500 resize-y"
-                ) }}
-
-                {% for error in form.content.errors %}
-                <p class="error-message">{{ error }}</p>
-                {% endfor %}
-            </div>
-
-            <!-- 画像管理 -->
-            <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-image mr-2 text-indigo-500"></i>
-                    画像ファイルの管理
-                </h3>
-
-                {% if post.image_url %}
-                <div id="current-image-container" class="p-3 border bg-white rounded-lg shadow-sm">
-                    <p class="font-medium text-gray-700 mb-2">現在の画像:</p>
-
-                    <div class="media-preview-box">
-                        <img src="{{ post.image_url }}" alt="現在の画像">
-                    </div>
-
-                    {% if form.delete_image %}
-                    <label class="flex items-center mt-3 text-red-600 cursor-pointer">
-                        {{ form.delete_image(class="h-4 w-4") }}
-                        <span class="ml-2">{{ form.delete_image.label.text }}</span>
-                    </label>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                <label class="block font-semibold text-gray-700">新しい画像をアップロード</label>
-
-                {{ form.image(
-                    id="image",
-                    accept="image/*",
-                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full 
-                           file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                ) }}
-
-                {% for error in form.image.errors %}
-                    <p class="error-message">{{ error }}</p>
-                {% endfor %}
-
-                <div id="image-preview-container" class="hidden mt-4">
-                    <p class="text-sm text-gray-500">新しい画像プレビュー:</p>
-                    <div class="media-preview-box">
-                        <img id="image-preview" src="#">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 動画管理 -->
-            <div class="border p-4 rounded-lg bg-gray-50 space-y-4">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-video mr-2 text-indigo-500"></i>
-                    動画ファイルの管理
-                </h3>
-
-                {% if post.video_url %}
-                <div id="current-video-container" class="p-3 border bg-white rounded-lg shadow-sm">
-                    <p class="font-medium text-gray-700 mb-2">現在の動画:</p>
-
-                    <div class="media-preview-box">
-                        <video controls>
-                            <source src="{{ post.video_url }}" type="video/mp4">
-                        </video>
-                    </div>
-
-                    {% if form.delete_video %}
-                    <label class="flex items-center mt-3 text-red-600 cursor-pointer">
-                        {{ form.delete_video(class="h-4 w-4") }}
-                        <span class="ml-2">{{ form.delete_video.label.text }}</span>
-                    </label>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                {{ form.video(
-                    id="video",
-                    accept="video/mp4",
-                    class="block w-full text-sm text-gray-600 file:py-2 file:px-4 file:rounded-full
-                           file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                ) }}
-
-                {% for error in form.video.errors %}
-                    <p class="error-message">{{ error }}</p>
-                {% endfor %}
-
-                <div id="video-preview-container" class="hidden mt-4">
-                    <p class="text-sm text-gray-500">新しい動画プレビュー:</p>
-                    <div class="media-preview-box">
-                        <video id="video-preview" controls></video>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ボタン -->
-            <div class="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-                <button class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg">
-                    <i class="fas fa-save mr-2"></i>変更を保存
-                </button>
-
-                <button type="button" id="openDeleteModalButton"
-                        class="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-lg">
-                    <i class="fas fa-trash-alt mr-2"></i>記事を削除
-                </button>
-
-                <a href="{{ url_for('admin') }}"
-                   class="flex-1 py-3 bg-white border rounded-lg shadow text-gray-700 hover:bg-gray-50 text-center">
-                    <i class="fas fa-arrow-left mr-2"></i>戻る
-                </a>
-            </div>
-
-        </form>
-    </div>
-</div>
-
-<!-- 削除モーダル -->
-<div id="deleteModal"
-     class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50">
-    <div class="bg-white rounded-xl p-6 max-w-lg w-11/12 shadow-2xl">
-
-        <h3 class="text-2xl font-bold text-red-600 mb-4">
-            <i class="fas fa-exclamation-triangle mr-2"></i>
-            削除確認
-        </h3>
-
-        <p class="text-gray-700 mb-6">
-            本当に「<strong>{{ post.title }}</strong>」を削除しますか？<br>
-            <span class="text-red-600 font-semibold">※この操作は取り消せません。</span>
-        </p>
-
-        <div class="flex flex-col sm:flex-row gap-3 justify-end">
-            <button id="cancelDeleteButton"
-                    class="py-3 px-6 bg-white border rounded-lg text-gray-700 hover:bg-gray-50">
-                キャンセル
-            </button>
-
-            <form method="POST" action="{{ url_for('delete', post_id=post.id) }}">
-                <button class="py-3 px-6 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                    完全に削除する
-                </button>
-            </form>
+            {% elif post.image_public_id %}
+                <!-- 画像プレビュー -->
+                <img src="{{ get_safe_cloudinary_url(post.image_public_id, width=800, height=450, crop='fill') }}"
+                     class="w-full rounded shadow mb-4">
+            {% else %}
+                <p class="text-gray-500">メディアはありません</p>
+            {% endif %}
         </div>
-    </div>
+
+        <!-- 新しい画像 -->
+        <label class="block mb-2 font-medium">画像を変更（任意）</label>
+        {{ form.image(class="w-full p-3 border rounded mb-6") }}
+
+        <!-- 新しい動画 -->
+        <label class="block mb-2 font-medium">動画を変更（任意）</label>
+        {{ form.video(class="w-full p-3 border rounded mb-6") }}
+
+        <!-- 保存ボタン -->
+        <button type="submit"
+                class="px-6 py-3 bg-primary text-white rounded-full shadow hover:bg-indigo-700">
+            更新する
+        </button>
+    </form>
 </div>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-
-    // プレビュー設定（画像／動画共通）
-    function setupPreview(input, preview, box, currentBox, type) {
-        if (!input) return;
-
-        input.addEventListener("change", () => {
-            const file = input.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = e => {
-                    if (type === "video") {
-                        preview.innerHTML = "";
-                        const source = document.createElement("source");
-                        source.src = e.target.result;
-                        source.type = file.type;
-                        preview.appendChild(source);
-                        preview.load();
-                    } else {
-                        preview.src = e.target.result;
-                    }
-                    box.classList.remove("hidden");
-                    if (currentBox) currentBox.style.display = "none";
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-
-    // 画像プレビュー
-    setupPreview(
-        document.getElementById("image"),
-        document.getElementById("image-preview"),
-        document.getElementById("image-preview-container"),
-        document.getElementById("current-image-container"),
-        "image"
-    );
-
-    // 動画プレビュー
-    setupPreview(
-        document.getElementById("video"),
-        document.getElementById("video-preview"),
-        document.getElementById("video-preview-container"),
-        document.getElementById("current-video-container"),
-        "video"
-    );
-
-    // モーダル制御
-    const modal = document.getElementById("deleteModal");
-    document.getElementById("openDeleteModalButton").onclick =
-        () => modal.classList.remove("hidden");
-
-    document.getElementById("cancelDeleteButton").onclick =
-        () => modal.classList.add("hidden");
-});
-</script>
 
 {% endblock %}
