@@ -1,3 +1,7 @@
+# ======================================================
+#  myblog.py  — 最終決定版（動画サムネ・動画再生 完全対応）
+# ======================================================
+
 import os
 import sys
 import urllib.parse
@@ -24,10 +28,11 @@ from wtforms.validators import DataRequired, Length, EqualTo
 from flask_wtf.file import FileField, FileAllowed
 
 from sqlalchemy.orm import relationship
-from sqlalchemy import func, or_
+from sqlalchemy import or_
+
 
 # ======================================================
-# Cloudinary Setup（安全）
+# Cloudinary Setup
 # ======================================================
 CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
 API_KEY = os.environ.get("CLOUDINARY_API_KEY")
@@ -53,33 +58,15 @@ try:
 except Exception as e:
     print("Cloudinary setup failed:", e, file=sys.stderr)
 
-# ======================================================
-# Flask App（★ここを最初に作ることが超重要）
-# ======================================================
-app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mysecretkey")
-
-db_url = os.environ.get("DATABASE_URL", "sqlite:///myblog.db")
-db_url = db_url.replace("postgres://", "postgresql://")
-app.config["SQLALCHEMY_DATABASE_URI"] = db_url
-
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
-
-db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
-csrf = CSRFProtect(app)
-login_manager = LoginManager(app)
-migrate = Migrate(app, db)
-
-login_manager.login_view = "login"
 
 # ======================================================
-# Cloudinary Helper（★ app 作成後に定義）
+# Cloudinary Helpers（画像・動画URL生成）
 # ======================================================
-def get_safe_cloudinary_url(public_id, width=600, height=340, crop="fill"):
+def get_safe_cloudinary_image_url(public_id, width=600, height=340, crop="fill"):
+    """画像URL生成（サムネイル用）"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
+
     try:
         encoded = urllib.parse.quote(public_id, safe="/")
         url, _ = cloudinary.utils.cloudinary_url(
@@ -97,8 +84,10 @@ def get_safe_cloudinary_url(public_id, width=600, height=340, crop="fill"):
 
 
 def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
+    """動画サムネイル（Cloudinary が自動生成する JPG）"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
+
     try:
         encoded = urllib.parse.quote(public_id, safe="/")
         url, _ = cloudinary.utils.cloudinary_url(
@@ -114,8 +103,10 @@ def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
 
 
 def safe_video_url(public_id):
+    """動画再生URL（mp4）"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
+
     try:
         encoded = urllib.parse.quote(public_id, safe="/")
         url, _ = cloudinary.utils.cloudinary_url(
@@ -128,16 +119,45 @@ def safe_video_url(public_id):
     except:
         return ""
 
+
 # ======================================================
-# Jinja context_processor（★ app 定義後に置くこと！）
+# Flask App
+# ======================================================
+app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mysecretkey")
+
+db_url = os.environ.get("DATABASE_URL", "sqlite:///myblog.db")
+db_url = db_url.replace("postgres://", "postgresql://")
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+
+db = SQLAlchemy()
+bcrypt = Bcrypt()
+csrf = CSRFProtect()
+login_manager = LoginManager()
+migrate = Migrate()
+
+db.init_app(app)
+bcrypt.init_app(app)
+csrf.init_app(app)
+login_manager.init_app(app)
+migrate.init_app(app, db)
+
+login_manager.login_view = "login"
+
+
+# ======================================================
+# Jinja に Cloudinary helpers を渡す
 # ======================================================
 @app.context_processor
 def inject_cloudinary_helpers():
     return {
-        "get_safe_cloudinary_url": get_safe_cloudinary_url,
+        "get_safe_cloudinary_image_url": get_safe_cloudinary_image_url,
         "get_safe_cloudinary_video_thumbnail": get_safe_cloudinary_video_thumbnail,
         "safe_video_url": safe_video_url,
     }
+
 
 # ======================================================
 # Helper
@@ -145,25 +165,30 @@ def inject_cloudinary_helpers():
 def now():
     return datetime.now(timezone(timedelta(hours=9)))
 
+
 @app.template_filter("datetimeformat")
 def datetimeformat(value, format="%Y-%m-%d %H:%M"):
     if not value:
         return ""
     return value.strftime(format)
 
+
 @app.context_processor
 def inject_now():
     return {"now": datetime.utcnow()}
+
 
 # ======================================================
 # Models
 # ======================================================
 class User(UserMixin, db.Model):
     __tablename__ = "blog_users"
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=now)
+
     posts = relationship("Post", backref="author", lazy="dynamic")
 
     def set_password(self, pw):
@@ -175,7 +200,9 @@ class User(UserMixin, db.Model):
 
 class Post(db.Model):
     __tablename__ = "posts"
+
     id = db.Column(db.Integer, primary_key=True)
+
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
 
@@ -188,6 +215,7 @@ class Post(db.Model):
 
 class Comment(db.Model):
     __tablename__ = "comments"
+
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer, db.ForeignKey("posts.id"))
     author_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"))
@@ -197,7 +225,7 @@ class Comment(db.Model):
 
 
 # ======================================================
-# Forms（省略しないようにそのまま）
+# Forms
 # ======================================================
 class RegistrationForm(FlaskForm):
     username = StringField("ユーザー名", validators=[DataRequired(), Length(min=2, max=20)])
@@ -237,22 +265,22 @@ class PasswordResetForm(FlaskForm):
     confirm_password = PasswordField("パスワード確認", validators=[DataRequired(), EqualTo("password")])
     submit = SubmitField("更新")
 
-# ======================================================
-# Routes（Signup/Login）
-# ======================================================
-@login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, user_id)
 
+# ======================================================
+# Routes（Signup/Login/Logout）
+# ======================================================
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:
         return redirect(url_for("admin"))
+
     form = RegistrationForm()
+
     if form.validate_on_submit():
         exist = db.session.execute(
             db.select(User).filter_by(username=form.username.data)
         ).scalar_one_or_none()
+
         if exist:
             flash("そのユーザー名はすでに使われています。", "danger")
             return redirect(url_for("signup"))
@@ -268,21 +296,33 @@ def signup():
 
     return render_template("signup.html", form=form)
 
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, user_id)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("admin"))
+
     form = LoginForm()
+
     if form.validate_on_submit():
         user = db.session.execute(
             db.select(User).filter_by(username=form.username.data)
         ).scalar_one_or_none()
+
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
             flash("ログイン成功！", "success")
             return redirect(url_for("admin"))
+
         flash("ユーザー名またはパスワードが違います。", "danger")
+
     return render_template("login.html", form=form)
+
 
 @app.route("/logout")
 @login_required
@@ -291,11 +331,271 @@ def logout():
     flash("ログアウトしました。", "info")
     return redirect(url_for("index"))
 
+
 # ======================================================
-# 他の routes（index, admin, view, create, update, delete）
+# Index（公開ブログ一覧）
 # ======================================================
-# ★ ここは前回のコードで問題なしなので省略して OK
-# 必要なら続きも全部貼るよ！
+@app.route("/")
+@app.route("/index")
+def index():
+    page = request.args.get("page", 1, type=int)
+    query = request.args.get("q", "").strip()
+
+    stmt = db.select(Post).order_by(Post.created_at.desc())
+
+    if query:
+        stmt = stmt.where(
+            or_(Post.title.contains(query), Post.content.contains(query))
+        )
+
+    pagination = db.paginate(stmt, page=page, per_page=6, error_out=False)
+
+    return render_template(
+        "index.html",
+        posts=pagination.items,
+        pagination=pagination,
+        query_text=query,
+    )
+
+
+# ======================================================
+# View Post（動画再生あり）
+# ======================================================
+@app.route("/view/<int:post_id>")
+def view(post_id):
+    post = db.session.get(Post, post_id)
+    if not post:
+        abort(404)
+
+    post.image_url = get_safe_cloudinary_image_url(post.image_public_id)
+    post.video_url = safe_video_url(post.video_public_id)
+
+    comments = db.session.execute(
+        db.select(Comment).filter_by(post_id=post_id).order_by(Comment.created_at.asc())
+    ).scalars().all()
+
+    form = CommentForm()
+    return render_template("view.html", post=post, comments=comments, form=form)
+
+
+@app.route("/comment/<int:post_id>", methods=["POST"])
+def comment(post_id):
+    form = CommentForm()
+
+    if not form.validate_on_submit():
+        flash("コメントの入力に問題があります。", "danger")
+        return redirect(url_for("view", post_id=post_id))
+
+    post = db.session.get(Post, post_id)
+    if not post:
+        abort(404)
+
+    new_comment = Comment(
+        post_id=post.id,
+        author_id=current_user.id if current_user.is_authenticated else None,
+        name=form.name.data,
+        content=form.content.data
+    )
+
+    db.session.add(new_comment)
+    db.session.commit()
+
+    flash("コメントを投稿しました！", "success")
+    return redirect(url_for("view", post_id=post_id))
+
+
+@app.route("/delete_comment/<int:comment_id>", methods=["POST"])
+@login_required
+def delete_comment(comment_id):
+    comment = db.session.get(Comment, comment_id)
+    if not comment:
+        abort(404)
+
+    post = db.session.get(Post, comment.post_id)
+
+    if current_user.id not in [comment.author_id, post.user_id]:
+        abort(403)
+
+    db.session.delete(comment)
+    db.session.commit()
+    flash("コメントを削除しました。", "info")
+
+    return redirect(url_for("view", post_id=post.id))
+
+
+# ======================================================
+# Admin
+# ======================================================
+@app.route("/admin")
+@login_required
+def admin():
+    posts = db.session.execute(
+        db.select(Post)
+        .filter_by(user_id=current_user.id)
+        .order_by(Post.created_at.desc())
+    ).scalars().all()
+
+    for p in posts:
+        # 画像 or 動画サムネイルを付与
+        if p.image_public_id:
+            p.thumbnail = get_safe_cloudinary_image_url(p.image_public_id)
+        elif p.video_public_id:
+            p.thumbnail = get_safe_cloudinary_video_thumbnail(p.video_public_id)
+        else:
+            p.thumbnail = None
+
+    return render_template("admin.html", posts=posts)
+
+
+# ======================================================
+# Create Post
+# ======================================================
+@app.route("/create", methods=["GET", "POST"])
+@login_required
+def create():
+    form = PostForm()
+
+    if form.validate_on_submit():
+
+        img_id = None
+        vid_id = None
+
+        if form.image.data and CLOUDINARY_AVAILABLE:
+            r = cloudinary.uploader.upload(
+                form.image.data,
+                folder=f"blog/{current_user.username}",
+                resource_type="image"
+            )
+            img_id = r.get("public_id")
+
+        if form.video.data and CLOUDINARY_AVAILABLE:
+            r = cloudinary.uploader.upload(
+                form.video.data,
+                folder=f"blog/{current_user.username}",
+                resource_type="video"
+            )
+            vid_id = r.get("public_id")
+
+        post = Post(
+            title=form.title.data,
+            content=form.content.data,
+            user_id=current_user.id,
+            image_public_id=img_id,
+            video_public_id=vid_id,
+        )
+
+        db.session.add(post)
+        db.session.commit()
+
+        flash("記事を投稿しました！", "success")
+        return redirect(url_for("admin"))
+
+    return render_template("create.html", form=form)
+
+
+# ======================================================
+# Update Post
+# ======================================================
+@app.route("/update/<int:post_id>", methods=["GET", "POST"])
+@login_required
+def update(post_id):
+    post = db.session.get(Post, post_id)
+
+    if not post or post.user_id != current_user.id:
+        abort(403)
+
+    form = PostForm(obj=post)
+
+    if form.validate_on_submit():
+
+        post.title = form.title.data
+        post.content = form.content.data
+
+        img = form.image.data
+        vid = form.video.data
+
+        if img and CLOUDINARY_AVAILABLE:
+            if post.image_public_id:
+                cloudinary.uploader.destroy(post.image_public_id, resource_type="image")
+
+            r = cloudinary.uploader.upload(
+                img,
+                folder=f"blog/{current_user.username}",
+                resource_type="image"
+            )
+            post.image_public_id = r.get("public_id")
+
+        if vid and CLOUDINARY_AVAILABLE:
+            if post.video_public_id:
+                cloudinary.uploader.destroy(post.video_public_id, resource_type="video")
+
+            r = cloudinary.uploader.upload(
+                vid,
+                folder=f"blog/{current_user.username}",
+                resource_type="video"
+            )
+            post.video_public_id = r.get("public_id")
+
+        db.session.commit()
+        flash("記事を更新しました！", "success")
+        return redirect(url_for("admin"))
+
+    post.image_url = get_safe_cloudinary_image_url(post.image_public_id)
+    post.video_url = safe_video_url(post.video_public_id)
+
+    return render_template("update.html", form=form, post=post)
+
+
+# ======================================================
+# Delete Post
+# ======================================================
+@app.route("/delete/<int:post_id>", methods=["POST"])
+@login_required
+def delete(post_id):
+    post = db.session.get(Post, post_id)
+
+    if not post or post.user_id != current_user.id:
+        abort(403)
+
+    if post.image_public_id:
+        cloudinary.uploader.destroy(post.image_public_id, resource_type="image")
+
+    if post.video_public_id:
+        cloudinary.uploader.destroy(post.video_public_id, resource_type="video")
+
+    db.session.delete(post)
+    db.session.commit()
+
+    flash("記事を削除しました。", "info")
+    return redirect(url_for("admin"))
+
+
+# ======================================================
+# Error Pages
+# ======================================================
+@app.errorhandler(404)
+def not_found(e):
+    return render_template(
+        "error_page.html",
+        title="404 ページが見つかりません",
+        message="指定されたページは存在しません。"
+    ), 404
+
+
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template(
+        "error_page.html",
+        title="403 アクセス拒否",
+        message="このページにはアクセスできません。"
+    ), 403
+
+
+@app.errorhandler(413)
+def too_large(e):
+    flash("アップロードファイルが大きすぎます（100MB制限）", "danger")
+    return redirect(url_for("admin"))
+
 
 # ======================================================
 # Run Local
