@@ -79,14 +79,16 @@ def get_safe_cloudinary_image_url(public_id, width=600, height=340, crop="fill")
 
 
 def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
-    """動画サムネイル生成"""
+    """動画の最初のフレームを画像として取得"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
 
     try:
         encoded = urllib.parse.quote(public_id, safe="/")
         url, _ = cloudinary.utils.cloudinary_url(
-            f"{encoded}.jpg",
+            encoded,
+            resource_type="video",   # ★動画として扱う
+            format="jpg",            # ★最初のフレームを JPG で取得
             width=width,
             height=height,
             crop="fill",
@@ -95,7 +97,6 @@ def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
         return url
     except:
         return ""
-
 
 def safe_video_url(public_id):
     """動画の再生URL"""
