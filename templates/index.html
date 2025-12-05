@@ -2,69 +2,64 @@
 {% block title %}ホーム{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 p-8">
-  <div class="max-w-5xl mx-auto">
 
-    <h1 class="text-3xl font-extrabold text-gray-800 mb-8">
-      <i class="fas fa-home mr-2 text-indigo-600"></i> 最新投稿
-    </h1>
+<div class="max-w-6xl mx-auto mt-10 px-4">
+    <div class="flex items-center mb-6">
+        <i class="fa-solid fa-house text-primary text-3xl mr-3"></i>
+        <h2 class="text-3xl font-bold">最新投稿</h2>
+    </div>
 
-    {% if posts %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {% for post in posts %}
+        {% for post in posts %}
+        <div class="bg-white shadow rounded-xl p-5 hover:shadow-xl transition duration-200">
+            
+            <!-- サムネイル（動画優先） -->
+            {% if post.video_public_id %}
+                <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id, 600, 340) }}"
+                    class="w-full h-60 object-cover rounded-lg"
+                    alt="動画サムネイル">
+            
+            {% elif post.image_public_id %}
+                <img src="{{ get_safe_cloudinary_url(post.image_public_id, width=600, height=340, crop='fill') }}"
+                    class="w-full h-60 object-cover rounded-lg"
+                    alt="サムネイル画像">
+            {% endif %}
 
-      <!-- 投稿カード -->
-      <a href="{{ url_for('view', post_id=post.id) }}"
-         class="block bg-white rounded-2xl shadow hover:shadow-2xl transition overflow-hidden">
+            <!-- タイトル -->
+            <h3 class="mt-4 text-xl font-semibold">
+                <a href="{{ url_for('view', post_id=post.id) }}"
+                    class="hover:text-primary transition">
+                    {{ post.title }}
+                </a>
+            </h3>
 
-        <!-- ----------------------------- -->
-        <!-- メディア部分（動画 or 画像 or NoImage） -->
-        <!-- ----------------------------- -->
+            <!-- 日時 -->
+            <p class="text-gray-500 text-sm flex items-center mt-2">
+                <i class="fa-regular fa-clock mr-2"></i>
+                {{ post.created_at|datetimeformat }}
+            </p>
 
-        {% if post.video_public_id %}
-          <!-- Cloudinary 動画サムネイル -->
-          <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id, 600, 340) }}"
-               class="w-full h-60 object-cover"
-               alt="動画サムネイル">
+        </div>
+        {% endfor %}
+    </div>
 
-        {% elif post.image_public_id %}
-          <!-- Cloudinary 画像URL -->
-          <img src="{{ get_safe_cloudinary_url(post.image_public_id, width=600, height=340, crop='fill') }}"
-               class="w-full h-60 object-cover"
-               alt="画像">
-
-        {% else %}
-          <!-- 画像なし -->
-          <div class="w-full h-60 flex items-center justify-center bg-gray-200 text-gray-400">
-            <i class="fas fa-image text-4xl"></i>
-          </div>
+    <!-- ページネーション -->
+    <div class="mt-10 flex justify-center space-x-4">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('index', page=pagination.prev_num, q=query_text) }}"
+            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+            前へ
+        </a>
         {% endif %}
 
-        <!-- ----------------------------- -->
-        <!-- テキスト部 -->
-        <!-- ----------------------------- -->
-
-        <div class="p-5">
-          <h2 class="font-bold text-lg mb-2 text-gray-900 line-clamp-2">
-            {{ post.title }}
-          </h2>
-
-          <p class="text-sm text-gray-500">
-            <i class="far fa-clock mr-1"></i>{{ post.created_at | datetimeformat }}
-          </p>
-        </div>
-
-      </a>
-      {% endfor %}
+        {% if pagination.has_next %}
+        <a href="{{ url_for('index', page=pagination.next_num, q=query_text) }}"
+            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
+            次へ
+        </a>
+        {% endif %}
     </div>
-    {% else %}
-      <div class="text-center text-gray-500 mt-10">
-        <p>まだ投稿がありません。</p>
-        <a href="{{ url_for('create') }}"
-           class="text-indigo-600 hover:underline font-medium">最初の投稿を作成する</a>
-      </div>
-    {% endif %}
 
-  </div>
 </div>
+
 {% endblock %}
