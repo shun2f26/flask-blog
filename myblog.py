@@ -26,9 +26,8 @@ from flask_wtf.file import FileField, FileAllowed
 from sqlalchemy.orm import relationship
 from sqlalchemy import func, or_
 
-
 # ======================================================
-# Cloudinary Setup（安全な初期化）
+# Cloudinary Setup（安全初期化）
 # ======================================================
 CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
 API_KEY = os.environ.get("CLOUDINARY_API_KEY")
@@ -42,6 +41,7 @@ try:
         import cloudinary as cloud
         import cloudinary.uploader
         import cloudinary.utils
+
         cloud.config(
             cloud_name=CLOUD_NAME,
             api_key=API_KEY,
@@ -54,41 +54,58 @@ except Exception as e:
     print("Cloudinary setup failed:", e, file=sys.stderr)
 
 
-
 # ======================================================
-# 安全なCloudinary URL 生成
+# Cloudinary 安全URL 生成（NEW!!）
 # ======================================================
-def safe_img_url(public_id):
+def get_safe_cloudinary_url(public_id, width=600, height=340, crop="fill"):
+    """画像URL"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
+
     try:
         encoded = urllib.parse.quote(public_id, safe="/")
         url, _ = cloudinary.utils.cloudinary_url(
             encoded,
-            width=600,
-            crop="limit",
+            width=width,
+            height=height,
+            crop=crop,
             fetch_format="auto",
-            quality="auto"
-        )
-        return url
-    except:
-        return ""
-
-
-def safe_video_url(public_id):
-    if not public_id or not CLOUDINARY_AVAILABLE:
-        return ""
-    try:
-        encoded = urllib.parse.quote(public_id, safe="/")
-        url, _ = cloudinary.utils.cloudinary_url(
-            encoded,
-            resource_type="video",
-            format="mp4",
+            quality="auto",
             secure=True
         )
         return url
     except:
         return ""
+
+
+def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
+    """動画サムネイル"""
+    if not public_id or not CLOUDINARY_AVAILABLE:
+        return ""
+
+    try:
+        encoded = urllib.parse.quote(public_id, safe="/")
+        url, _ = cloudinary.utils.cloudinary_url(
+            f"{encoded}.jpg",
+            width=width,
+            height=height,
+            crop="fill",
+            secure=True
+        )
+        return url
+    except:
+        return ""
+
+
+# ======================================================
+# 🔥 Jinja に Cloudinary helper を渡す（これが最重要!!!）
+# ======================================================
+@app.context_processor
+def inject_cloudinary_helpers():
+    return {
+        "get_safe_cloudinary_url": get_safe_cloudinary_url,
+        "get_safe_cloudinary_video_thumbnail": get_safe_cloudinary_video_thumbnail,
+    }
 
 
 # ======================================================
@@ -102,7 +119,7 @@ db_url = db_url.replace("postgres://", "postgresql://")
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -119,10 +136,9 @@ migrate.init_app(app, db)
 login_manager.login_view = "login"
 
 
-
-# ======================================================
+# ================================
 # Helper
-# ======================================================
+# ================================
 def now():
     return datetime.now(timezone(timedelta(hours=9)))
 
@@ -137,7 +153,6 @@ def datetimeformat(value, format="%Y-%m-%d %H:%M"):
 @app.context_processor
 def inject_now():
     return {"now": datetime.utcnow()}
-
 
 
 # ======================================================
@@ -160,7 +175,6 @@ class User(UserMixin, db.Model):
         return bcrypt.check_password_hash(self.password_hash, pw)
 
 
-
 class Post(db.Model):
     __tablename__ = "posts"
 
@@ -176,7 +190,6 @@ class Post(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"), nullable=False)
 
 
-
 class Comment(db.Model):
     __tablename__ = "comments"
 
@@ -185,10 +198,8 @@ class Comment(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"))
 
     name = db.Column(db.String(50), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-
+    content = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=now)
-
 
 
 # ======================================================
@@ -201,13 +212,11 @@ class RegistrationForm(FlaskForm):
     submit = SubmitField("サインアップ")
 
 
-
 class LoginForm(FlaskForm):
     username = StringField("ユーザー名", validators=[DataRequired()])
     password = PasswordField("パスワード", validators=[DataRequired()])
     remember_me = BooleanField("保持する")
     submit = SubmitField("ログイン")
-
 
 
 class PostForm(FlaskForm):
@@ -218,18 +227,15 @@ class PostForm(FlaskForm):
     submit = SubmitField("投稿")
 
 
-
 class CommentForm(FlaskForm):
     name = StringField("名前", validators=[DataRequired()])
     content = TextAreaField("コメント")
     submit = SubmitField("投稿")
 
 
-
 class PasswordResetRequestForm(FlaskForm):
     username = StringField("ユーザー名", validators=[DataRequired()])
     submit = SubmitField("次へ")
-
 
 
 class PasswordResetForm(FlaskForm):
@@ -238,10 +244,9 @@ class PasswordResetForm(FlaskForm):
     submit = SubmitField("更新")
 
 
-
-# =====================================================================
-# Signup
-# =====================================================================
+# ======================================================
+# Routes（Signup/Login/Logout etc）
+# ======================================================
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:
@@ -250,7 +255,6 @@ def signup():
     form = RegistrationForm()
 
     if form.validate_on_submit():
-        # 重複チェック
         exist = db.session.execute(
             db.select(User).filter_by(username=form.username.data)
         ).scalar_one_or_none()
@@ -271,14 +275,9 @@ def signup():
     return render_template("signup.html", form=form)
 
 
-
-# =====================================================================
-# Login / Logout
-# =====================================================================
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, user_id)
-
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -303,7 +302,6 @@ def login():
     return render_template("login.html", form=form)
 
 
-
 @app.route("/logout")
 @login_required
 def logout():
@@ -312,10 +310,9 @@ def logout():
     return redirect(url_for("index"))
 
 
-
-# =====================================================================
+# ======================================================
 # Forgot Password
-# =====================================================================
+# ======================================================
 @app.route("/forgot_password", methods=["GET", "POST"])
 def forgot_password():
     form = PasswordResetRequestForm()
@@ -333,7 +330,6 @@ def forgot_password():
         return redirect(url_for("reset_password", user_id=user.id))
 
     return render_template("forgot_password.html", form=form)
-
 
 
 @app.route("/reset_password/<int:user_id>", methods=["GET", "POST"])
@@ -355,10 +351,9 @@ def reset_password(user_id):
     return render_template("reset_password.html", form=form, user_id=user_id, user_name=user.username)
 
 
-
-# =====================================================================
-# Index（一般公開のブログ一覧）
-# =====================================================================
+# ======================================================
+# Index（公開記事）
+# ======================================================
 @app.route("/")
 @app.route("/index")
 def index():
@@ -382,17 +377,16 @@ def index():
     )
 
 
-
-# =====================================================================
+# ======================================================
 # View Post
-# =====================================================================
+# ======================================================
 @app.route("/view/<int:post_id>")
 def view(post_id):
     post = db.session.get(Post, post_id)
     if not post:
         abort(404)
 
-    post.image_url = safe_img_url(post.image_public_id)
+    post.image_url = get_safe_cloudinary_url(post.image_public_id)
     post.video_url = safe_video_url(post.video_public_id)
 
     comments = db.session.execute(
@@ -404,10 +398,6 @@ def view(post_id):
     return render_template("view.html", post=post, comments=comments, form=form)
 
 
-
-# =====================================================================
-# コメント投稿
-# =====================================================================
 @app.route("/comment/<int:post_id>", methods=["POST"])
 def comment(post_id):
     form = CommentForm()
@@ -434,7 +424,6 @@ def comment(post_id):
     return redirect(url_for("view", post_id=post_id))
 
 
-
 @app.route("/delete_comment/<int:comment_id>", methods=["POST"])
 @login_required
 def delete_comment(comment_id):
@@ -444,7 +433,6 @@ def delete_comment(comment_id):
 
     post = db.session.get(Post, comment.post_id)
 
-    # 削除権限：管理者 or 投稿者 or コメント投稿者
     if current_user.id not in [comment.author_id, post.user_id]:
         abort(403)
 
@@ -455,10 +443,9 @@ def delete_comment(comment_id):
     return redirect(url_for("view", post_id=post.id))
 
 
-
-# =====================================================================
-# Admin（Dashboard）
-# =====================================================================
+# ======================================================
+# Admin
+# ======================================================
 @app.route("/admin")
 @login_required
 def admin():
@@ -469,15 +456,14 @@ def admin():
     ).scalars().all()
 
     for p in posts:
-        p.image_url = safe_img_url(p.image_public_id)
+        p.image_url = get_safe_cloudinary_url(p.image_public_id)
 
     return render_template("admin.html", posts=posts)
 
 
-
-# =====================================================================
+# ======================================================
 # Create Post
-# =====================================================================
+# ======================================================
 @app.route("/create", methods=["GET", "POST"])
 @login_required
 def create():
@@ -521,10 +507,9 @@ def create():
     return render_template("create.html", form=form)
 
 
-
-# =====================================================================
+# ======================================================
 # Update Post
-# =====================================================================
+# ======================================================
 @app.route("/update/<int:post_id>", methods=["GET", "POST"])
 @login_required
 def update(post_id):
@@ -569,16 +554,15 @@ def update(post_id):
         flash("記事を更新しました！", "success")
         return redirect(url_for("admin"))
 
-    post.image_url = safe_img_url(post.image_public_id)
+    post.image_url = get_safe_cloudinary_url(post.image_public_id)
     post.video_url = safe_video_url(post.video_public_id)
 
     return render_template("update.html", form=form, post=post)
 
 
-
-# =====================================================================
+# ======================================================
 # Delete Post
-# =====================================================================
+# ======================================================
 @app.route("/delete/<int:post_id>", methods=["POST"])
 @login_required
 def delete(post_id):
@@ -600,16 +584,14 @@ def delete(post_id):
     return redirect(url_for("admin"))
 
 
-
-# =====================================================================
-# Account Settings（username変更 + パスワード変更）
-# =====================================================================
+# ======================================================
+# Account Settings
+# ======================================================
 class AccountForm(FlaskForm):
     username = StringField("ユーザー名", validators=[DataRequired(), Length(min=2, max=20)])
     password = PasswordField("新しいパスワード")
     confirm_password = PasswordField("パスワード確認")
     submit = SubmitField("更新")
-
 
 
 @app.route("/account", methods=["GET", "POST"])
@@ -622,7 +604,6 @@ def account():
 
     if form.validate_on_submit():
 
-        # username 重複チェック
         if form.username.data != current_user.username:
             exist = db.session.execute(
                 db.select(User).filter_by(username=form.username.data)
@@ -634,7 +615,6 @@ def account():
 
             current_user.username = form.username.data
 
-        # パスワード変更
         if form.password.data:
             if form.password.data != form.confirm_password.data:
                 flash("パスワードが一致しません。", "danger")
@@ -647,7 +627,6 @@ def account():
         return redirect(url_for("account"))
 
     return render_template("account.html", form=form)
-
 
 
 # ======================================================
