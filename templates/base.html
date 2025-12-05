@@ -1,11 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{% endblock %} - SEEDS IT Tiger Blog</title>
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Font Awesome -->
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<style>
+  body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f7f9fb;
+  }
+</style>
+
+</head>
+
+<body class="min-h-screen flex flex-col">
+
 <!-- ナビゲーションバー -->
 <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-lg">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center h-auto sm:h-16 py-2 sm:py-0 space-y-2 sm:space-y-0">
-      
+
       <!-- ロゴ -->
       <a href="{{ url_for('index') }}"
-         class="text-2xl font-black text-success hover:text-green-700 transition duration-150 text-center sm:text-left">
+         class="text-2xl font-black text-green-600 hover:text-green-700 transition duration-150 text-center sm:text-left">
         <i class="fa-solid fa-seedling"></i> SEEDS IT Tiger Blog
       </a>
 
@@ -17,15 +42,14 @@
             {% if current_user.is_admin %}
             <!-- 管理者向け -->
             <a href="{{ url_for('admin') }}"
-               class="flex items-center text-blue-600 hover:text-red-800 font-medium transition duration-150 rounded-lg p-2">
-              <i class="fa-solid fa-user-gear mr-1 text-sm"></i>管理者ページへ
+               class="flex items-center text-blue-600 hover:text-blue-800 font-medium transition duration-150 rounded-lg p-2">
+              <i class="fa-solid fa-user-gear mr-1 text-sm"></i> 管理者ページ
             </a>
-
             {% else %}
-            <!-- 一般ログインユーザー向け -->
+            <!-- 一般ユーザー向け -->
             <a href="{{ url_for('admin') }}"
-               class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
-              <i class="fa-solid fa-table-columns mr-1 text-sm"></i>ダッシュボード
+               class="flex items-center text-gray-600 hover:text-indigo-600 font-medium transition duration-150 rounded-lg p-2">
+              <i class="fa-solid fa-table-columns mr-1 text-sm"></i> ダッシュボード
             </a>
             {% endif %}
 
@@ -33,25 +57,55 @@
             <a href="{{ url_for('logout') }}"
                class="py-2 px-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition duration-150 shadow-md whitespace-nowrap">
               <i class="fa-solid fa-right-from-bracket mr-1 text-sm"></i>
-              ログアウト・ホームへ
+              ログアウト
             </a>
 
         {% else %}
 
             <!-- ログイン -->
             <a href="{{ url_for('login') }}"
-               class="flex items-center text-gray-600 hover:text-primary font-medium transition duration-150 rounded-lg p-2">
-              <i class="fa-solid fa-right-to-bracket mr-1 text-sm"></i>ログイン
+               class="flex items-center text-gray-600 hover:text-indigo-600 font-medium transition duration-150 rounded-lg p-2">
+              <i class="fa-solid fa-right-to-bracket mr-1 text-sm"></i> ログイン
             </a>
 
             <!-- サインアップ -->
             <a href="{{ url_for('signup') }}"
-               class="py-2 px-4 bg-primary text-white rounded-full hover:bg-indigo-700 transition duration-150 shadow-lg whitespace-nowrap">
-              <i class="fa-solid fa-user-plus mr-1 text-sm"></i>サインアップ
+               class="py-2 px-4 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition duration-150 shadow-lg whitespace-nowrap">
+              <i class="fa-solid fa-user-plus mr-1 text-sm"></i> サインアップ
             </a>
 
         {% endif %}
       </div>
+
     </div>
   </div>
 </nav>
+
+<!-- フラッシュメッセージ -->
+<div class="flash-container fixed top-4 left-1/2 transform -translate-x-1/2 w-full max-w-md z-50">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="mb-3 px-4 py-3 rounded-lg shadow text-white
+          {% if category == 'success' %} bg-green-600
+          {% elif category == 'danger' %} bg-red-600
+          {% else %} bg-blue-600 {% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<!-- 各ページの内容 -->
+<main class="flex-grow">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- フッター -->
+<footer class="bg-gray-800 text-gray-200 py-4 text-center text-sm mt-10">
+  © 2025 SEEDS IT Tiger Blog
+</footer>
+
+</body>
+</html>
