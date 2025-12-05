@@ -1,62 +1,51 @@
 {% extends "base.html" %}
-{% block title %}ホーム{% endblock %}
-
 {% block content %}
 
-<div class="max-w-6xl mx-auto mt-10 px-4">
-    <div class="flex items-center mb-6">
-        <i class="fa-solid fa-house text-primary text-3xl mr-3"></i>
-        <h2 class="text-3xl font-bold">最新投稿</h2>
-    </div>
+<div class="max-w-5xl mx-auto mt-10 px-4">
+    <h2 class="text-3xl font-bold mb-6 flex items-center">
+        <i class="fa-solid fa-house mr-2 text-purple-600"></i>
+        最新投稿
+    </h2>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
         {% for post in posts %}
-        <div class="bg-white shadow rounded-xl p-5 hover:shadow-xl transition duration-200">
-            
-            <!-- サムネイル（動画優先） -->
-            {% if post.video_public_id %}
-                <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id, 600, 340) }}"
-                    class="w-full h-60 object-cover rounded-lg"
-                    alt="動画サムネイル">
-            
-            {% elif post.image_public_id %}
-                <img src="{{ get_safe_cloudinary_url(post.image_public_id, width=600, height=340, crop='fill') }}"
-                    class="w-full h-60 object-cover rounded-lg"
-                    alt="サムネイル画像">
+        <a href="{{ url_for('view', post_id=post.id) }}"
+           class="block bg-white rounded-xl shadow-md hover:shadow-xl transition p-4">
+
+            <!-- メディア（画像 or 動画サムネ） -->
+            {% if post.image_public_id %}
+                <img src="{{ get_safe_cloudinary_image_url(post.image_public_id) }}"
+                     class="w-full h-60 object-cover rounded-md mb-4"
+                     alt="サムネイル">
+            {% elif post.video_public_id %}
+                <img src="{{ get_safe_cloudinary_video_thumbnail(post.video_public_id) }}"
+                     class="w-full h-60 object-cover rounded-md mb-4"
+                     alt="動画サムネイル">
             {% endif %}
 
-            <!-- タイトル -->
-            <h3 class="mt-4 text-xl font-semibold">
-                <a href="{{ url_for('view', post_id=post.id) }}"
-                    class="hover:text-primary transition">
-                    {{ post.title }}
-                </a>
-            </h3>
+            <h3 class="text-xl font-bold">{{ post.title }}</h3>
 
-            <!-- 日時 -->
-            <p class="text-gray-500 text-sm flex items-center mt-2">
-                <i class="fa-regular fa-clock mr-2"></i>
+            <p class="text-gray-500 text-sm mt-2">
+                <i class="fa-regular fa-clock mr-1"></i>
                 {{ post.created_at|datetimeformat }}
             </p>
 
-        </div>
+        </a>
         {% endfor %}
+
     </div>
 
     <!-- ページネーション -->
-    <div class="mt-10 flex justify-center space-x-4">
+    <div class="mt-8 flex justify-center space-x-3">
         {% if pagination.has_prev %}
-        <a href="{{ url_for('index', page=pagination.prev_num, q=query_text) }}"
-            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
-            前へ
-        </a>
+        <a href="{{ url_for('index', page=pagination.prev_num) }}"
+           class="px-4 py-2 bg-gray-300 rounded">前へ</a>
         {% endif %}
 
         {% if pagination.has_next %}
-        <a href="{{ url_for('index', page=pagination.next_num, q=query_text) }}"
-            class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">
-            次へ
-        </a>
+        <a href="{{ url_for('index', page=pagination.next_num) }}"
+           class="px-4 py-2 bg-gray-300 rounded">次へ</a>
         {% endif %}
     </div>
 
