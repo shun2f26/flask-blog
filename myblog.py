@@ -1,7 +1,3 @@
-# ======================================================
-#  myblog.py  — 最終決定版（動画サムネ・動画再生 完全対応）
-# ======================================================
-
 import os
 import sys
 import urllib.parse
@@ -28,7 +24,7 @@ from wtforms.validators import DataRequired, Length, EqualTo
 from flask_wtf.file import FileField, FileAllowed
 
 from sqlalchemy.orm import relationship
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 
 # ======================================================
@@ -46,7 +42,6 @@ try:
         import cloudinary as cloud
         import cloudinary.uploader
         import cloudinary.utils
-
         cloud.config(
             cloud_name=CLOUD_NAME,
             api_key=API_KEY,
@@ -60,10 +55,10 @@ except Exception as e:
 
 
 # ======================================================
-# Cloudinary Helpers（画像・動画URL生成）
+# 🔥 Cloudinary Helper（必ず Flask app より上）
 # ======================================================
 def get_safe_cloudinary_image_url(public_id, width=600, height=340, crop="fill"):
-    """画像URL生成（サムネイル用）"""
+    """画像URL生成"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
 
@@ -84,7 +79,7 @@ def get_safe_cloudinary_image_url(public_id, width=600, height=340, crop="fill")
 
 
 def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
-    """動画サムネイル（Cloudinary が自動生成する JPG）"""
+    """動画サムネイル生成"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
 
@@ -103,7 +98,7 @@ def get_safe_cloudinary_video_thumbnail(public_id, width=600, height=340):
 
 
 def safe_video_url(public_id):
-    """動画再生URL（mp4）"""
+    """動画の再生URL"""
     if not public_id or not CLOUDINARY_AVAILABLE:
         return ""
 
@@ -121,7 +116,7 @@ def safe_video_url(public_id):
 
 
 # ======================================================
-# Flask App
+# Flask App（← helper より後に書くこと）
 # ======================================================
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mysecretkey")
@@ -129,6 +124,7 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mysecretkey")
 db_url = os.environ.get("DATABASE_URL", "sqlite:///myblog.db")
 db_url = db_url.replace("postgres://", "postgresql://")
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
@@ -148,7 +144,7 @@ login_manager.login_view = "login"
 
 
 # ======================================================
-# Jinja に Cloudinary helpers を渡す
+# Jinjaへ helper を渡す（← app 定義後に実行）
 # ======================================================
 @app.context_processor
 def inject_cloudinary_helpers():
@@ -219,6 +215,7 @@ class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer, db.ForeignKey("posts.id"))
     author_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"))
+
     name = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=now)
@@ -267,7 +264,7 @@ class PasswordResetForm(FlaskForm):
 
 
 # ======================================================
-# Routes（Signup/Login/Logout）
+# Signup / Login / Logout
 # ======================================================
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -333,7 +330,48 @@ def logout():
 
 
 # ======================================================
-# Index（公開ブログ一覧）
+# Forgot Password
+# ======================================================
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    form = PasswordResetRequestForm()
+
+    if form.validate_on_submit():
+        user = db.session.execute(
+            db.select(User).filter_by(username=form.username.data)
+        ).scalar_one_or_none()
+
+        if not user:
+            flash("ユーザーが存在しません。", "danger")
+            return redirect(url_for("forgot_password"))
+
+        flash("ユーザー確認成功。新しいパスワードを設定してください。", "success")
+        return redirect(url_for("reset_password", user_id=user.id))
+
+    return render_template("forgot_password.html", form=form)
+
+
+@app.route("/reset_password/<int:user_id>", methods=["GET", "POST"])
+def reset_password(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("ユーザーが見つかりません。", "danger")
+        return redirect(url_for("forgot_password"))
+
+    form = PasswordResetForm()
+
+    if form.validate_on_submit():
+        user.set_password(form.password.data)
+        db.session.commit()
+
+        flash("パスワードを変更しました。ログインしてください。", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_password.html", form=form, user_id=user_id, user_name=user.username)
+
+
+# ======================================================
+# Public Index（画像・動画サムネイル対応）
 # ======================================================
 @app.route("/")
 @app.route("/index")
@@ -359,7 +397,7 @@ def index():
 
 
 # ======================================================
-# View Post（動画再生あり）
+# View Post
 # ======================================================
 @app.route("/view/<int:post_id>")
 def view(post_id):
@@ -375,6 +413,7 @@ def view(post_id):
     ).scalars().all()
 
     form = CommentForm()
+
     return render_template("view.html", post=post, comments=comments, form=form)
 
 
@@ -424,7 +463,7 @@ def delete_comment(comment_id):
 
 
 # ======================================================
-# Admin
+# Admin（投稿者の動画・画像サムネイルも対応）
 # ======================================================
 @app.route("/admin")
 @login_required
@@ -436,19 +475,14 @@ def admin():
     ).scalars().all()
 
     for p in posts:
-        # 画像 or 動画サムネイルを付与
-        if p.image_public_id:
-            p.thumbnail = get_safe_cloudinary_image_url(p.image_public_id)
-        elif p.video_public_id:
-            p.thumbnail = get_safe_cloudinary_video_thumbnail(p.video_public_id)
-        else:
-            p.thumbnail = None
+        p.image_url = get_safe_cloudinary_image_url(p.image_public_id)
+        p.video_thumb = get_safe_cloudinary_video_thumbnail(p.video_public_id)
 
     return render_template("admin.html", posts=posts)
 
 
 # ======================================================
-# Create Post
+# Create Post（動画・画像対応）
 # ======================================================
 @app.route("/create", methods=["GET", "POST"])
 @login_required
@@ -460,7 +494,7 @@ def create():
         img_id = None
         vid_id = None
 
-        if form.image.data and CLOUDINARY_AVAILABLE:
+        if form.image.data:
             r = cloudinary.uploader.upload(
                 form.image.data,
                 folder=f"blog/{current_user.username}",
@@ -468,7 +502,7 @@ def create():
             )
             img_id = r.get("public_id")
 
-        if form.video.data and CLOUDINARY_AVAILABLE:
+        if form.video.data:
             r = cloudinary.uploader.upload(
                 form.video.data,
                 folder=f"blog/{current_user.username}",
@@ -494,7 +528,7 @@ def create():
 
 
 # ======================================================
-# Update Post
+# Update Post（既存動画を消さない）
 # ======================================================
 @app.route("/update/<int:post_id>", methods=["GET", "POST"])
 @login_required
@@ -514,7 +548,7 @@ def update(post_id):
         img = form.image.data
         vid = form.video.data
 
-        if img and CLOUDINARY_AVAILABLE:
+        if img:
             if post.image_public_id:
                 cloudinary.uploader.destroy(post.image_public_id, resource_type="image")
 
@@ -525,7 +559,7 @@ def update(post_id):
             )
             post.image_public_id = r.get("public_id")
 
-        if vid and CLOUDINARY_AVAILABLE:
+        if vid:
             if post.video_public_id:
                 cloudinary.uploader.destroy(post.video_public_id, resource_type="video")
 
