@@ -1,56 +1,44 @@
 {% extends "base.html" %}
-{% block title %}記事編集{% endblock %}
-
 {% block content %}
 
-<div class="max-w-4xl mx-auto mt-10 px-4">
+<div class="max-w-4xl mx-auto mt-10 bg-white p-6 rounded-xl shadow">
+
     <h2 class="text-3xl font-bold mb-6">記事を編集</h2>
 
     <form method="POST" enctype="multipart/form-data">
-        {{ form.hidden_tag() }}
+        {{ form.csrf_token }}
 
-        <!-- タイトル -->
-        <label class="block mb-2 font-medium">タイトル</label>
-        {{ form.title(class="w-full p-3 border rounded mb-6") }}
+        <label class="block mt-4 font-bold">タイトル</label>
+        {{ form.title(class="w-full p-2 border rounded") }}
 
-        <!-- 内容 -->
-        <label class="block mb-2 font-medium">内容</label>
-        {{ form.content(class="w-full p-3 border rounded mb-6 h-48") }}
+        <label class="block mt-4 font-bold">内容</label>
+        {{ form.content(class="w-full p-2 border rounded h-40") }}
 
-        <!-- ✨ 現在の画像・動画プレビュー -->
-        <div class="mb-6">
-            <p class="font-medium mb-2">現在のメディア</p>
+        <!-- 画像プレビュー -->
+        {% if post.image_public_id %}
+            <p class="mt-4 text-gray-600 font-bold">現在の画像</p>
+            <img src="{{ post.image_url }}" class="w-64 rounded mb-4 shadow">
+        {% endif %}
 
-            {% if post.video_public_id %}
-                <!-- 動画プレビュー -->
-                <video class="w-full rounded mb-4 shadow" controls preload="metadata">
-                    <source src="{{ safe_video_url(post.video_public_id) }}" type="video/mp4">
-                    動画を再生できません
-                </video>
+        <!-- 動画プレビュー -->
+        {% if post.video_public_id %}
+            <p class="mt-4 text-gray-600 font-bold">現在の動画</p>
+            <video controls class="w-64 mb-4 shadow rounded">
+                <source src="{{ post.video_url }}" type="video/mp4">
+            </video>
+        {% endif %}
 
-            {% elif post.image_public_id %}
-                <!-- 画像プレビュー -->
-                <img src="{{ get_safe_cloudinary_url(post.image_public_id, width=800, height=450, crop='fill') }}"
-                     class="w-full rounded shadow mb-4">
-            {% else %}
-                <p class="text-gray-500">メディアはありません</p>
-            {% endif %}
-        </div>
+        <label class="block mt-4 font-bold">新しい画像（任意）</label>
+        {{ form.image(class="w-full p-2 border rounded") }}
 
-        <!-- 新しい画像 -->
-        <label class="block mb-2 font-medium">画像を変更（任意）</label>
-        {{ form.image(class="w-full p-3 border rounded mb-6") }}
+        <label class="block mt-4 font-bold">新しい動画（任意）</label>
+        {{ form.video(class="w-full p-2 border rounded") }}
 
-        <!-- 新しい動画 -->
-        <label class="block mb-2 font-medium">動画を変更（任意）</label>
-        {{ form.video(class="w-full p-3 border rounded mb-6") }}
-
-        <!-- 保存ボタン -->
-        <button type="submit"
-                class="px-6 py-3 bg-primary text-white rounded-full shadow hover:bg-indigo-700">
+        <button class="mt-6 px-6 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700">
             更新する
         </button>
     </form>
+
 </div>
 
 {% endblock %}
