@@ -151,6 +151,17 @@ def inject_now():
     return {"now": datetime.utcnow()}
 
 # ======================================================
+# Jinja に Cloudinary helper を渡す
+# ======================================================
+@app.context_processor
+def inject_cloudinary_helpers():
+    return {
+        "get_safe_cloudinary_url": get_safe_cloudinary_url,
+        "get_safe_cloudinary_video_thumbnail": get_safe_cloudinary_video_thumbnail,
+        "safe_video_url": safe_video_url,   # ★これを追加！
+    }
+
+# ======================================================
 # Models
 # ======================================================
 class User(UserMixin, db.Model):
