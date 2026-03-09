@@ -122,11 +122,15 @@ def safe_video_url(public_id):
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "mysecretkey")
 
-# KoyebのDB URLに対応するための修正
+# データベースURL設定
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
+    # 1. postgres:// を postgresql:// に変換
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # 2. sslmode=require を強制付与
+    if "?sslmode=require" not in db_url:
+        db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 else:
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///myblog.db"
@@ -134,20 +138,13 @@ else:
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
-db = SQLAlchemy()
-bcrypt = Bcrypt()
-csrf = CSRFProtect()
-login_manager = LoginManager()
-migrate = Migrate()
-
-db.init_app(app)
-bcrypt.init_app(app)
-csrf.init_app(app)
-login_manager.init_app(app)
-migrate.init_app(app, db)
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+csrf = CSRFProtect(app)
+login_manager = LoginManager(app)
+migrate = Migrate(app, db)
 
 login_manager.login_view = "login"
-
 
 # ======================================================
 # Jinjaへ helper を渡す（← app 定義後に実行）
