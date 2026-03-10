@@ -590,26 +590,30 @@ def update(post_id):
 # ======================================================
 # Delete Post
 # ======================================================
-@app.route("/delete/<int:post_id>", methods=["POST"])
+@app.route('/delete/<int:post_id>', methods=['POST'])
 @login_required
-def delete(post_id):
-    post = db.session.get(Post, post_id)
+def delete_post(post_id):
+    # 削除対象の投稿を取得
+    post = Post.query.get_or_404(post_id)
+    
+    try:
+        # 1. 投稿に紐づくコメントを先にすべて手動で削除する
+        Comment.query.filter_by(post_id=post_id).delete()
+        
+        # 2. その後に投稿本体を削除する
+        db.session.delete(post)
+        db.session.commit()
+        
+        # 成功メッセージ（もしあれば）
+        # flash("投稿を削除しました")
+        
+    except Exception as e:
+        # 何らかの理由で失敗した場合はロールバック（元に戻す）
+        db.session.rollback()
+        print(f"Delete Error: {e}")
+        # flash("削除に失敗しました")
 
-    if not post or post.user_id != current_user.id:
-        abort(403)
-
-    if post.image_public_id:
-        cloudinary.uploader.destroy(post.image_public_id, resource_type="image")
-
-    if post.video_public_id:
-        cloudinary.uploader.destroy(post.video_public_id, resource_type="video")
-
-    db.session.delete(post)
-    db.session.commit()
-
-    flash("記事を削除しました。", "info")
-    return redirect(url_for("admin"))
-
+    return redirect(url_for('admin'))
 
 # ======================================================
 # Error Pages
