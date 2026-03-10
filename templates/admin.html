@@ -38,7 +38,7 @@
                     編集
                 </a>
             
-                <form action="{{ url_for('delete', post_id=post.id) }}"
+                <form action="{{ url_for('delete_post', post_id=post.id) }}"
                       method="POST" class="inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
