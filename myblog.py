@@ -214,7 +214,7 @@ class Post(db.Model):
 
     created_at = db.Column(db.DateTime, default=now)
     user_id = db.Column(db.Integer, db.ForeignKey("blog_users.id"), nullable=False)
-
+    comments = db.relationship('Comment', backref='post', lazy=True, cascade="all, delete-orphan")
 
 class Comment(db.Model):
     __tablename__ = "comments"
